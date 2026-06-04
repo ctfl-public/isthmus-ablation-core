@@ -6,13 +6,14 @@ voxels.
 ## Syntax
 
 ```text
-isthmus surface <surface-id> voxels <model> [buffer <N>] [weighting yes|no] [map yes|no]
+isthmus surface <surface-id> voxels <model> [buffer <N>] [weighting yes|no] [map yes|no] [crop real|no]
 ```
 
 ## Example
 
 ```text
 isthmus surface skin voxels solid buffer 1 weighting no map yes
+isthmus surface skin voxels solid buffer 1 weighting no map yes crop real
 ```
 
 ## Description
@@ -28,6 +29,11 @@ send triangle mass loss back to voxels.
 `buffer` adds empty voxel layers around the active voxel bounding box before
 marching cubes. This helps ISTHMUS generate a closed surface as the solid
 shrinks.
+
+`crop real` removes triangles whose centroids are outside the real voxel domain
+after ghost voxels are added. Use it when ghost voxels are only a boundary
+condition for surface quality and flux should still be applied only on the real
+DSMC/voxel domain.
 
 ## DSMC Coupling Note
 

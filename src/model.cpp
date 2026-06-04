@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
+#include <set>
 #include <sstream>
 #include <unordered_map>
 
@@ -230,6 +231,7 @@ void Model::validate_and_initialize() {
       validate_surface_flux(command.surface_flux);
     }
   }
+  validate_ghosts();
   if (!has_run) {
     throw RuntimeError("input must contain at least one run command");
   }
@@ -383,6 +385,23 @@ void Model::validate_surface_flux(const SurfaceFluxCommand &flux) const {
   }
   if (flux.select != "all" && flux.select != "normal" && flux.select != "voxels") {
     throw RuntimeError("surface flux select must be all, normal, or voxels");
+  }
+}
+
+void Model::validate_ghosts() const {
+  for (const auto &ghost : config_.ghosts) {
+    if (ghost.voxels != config_.voxel_name) {
+      throw RuntimeError("voxel ghost references unknown voxel model '" + ghost.voxels + "'");
+    }
+    if (ghost.axis != "x" && ghost.axis != "y" && ghost.axis != "z") {
+      throw RuntimeError("voxel ghost axis must be x, y, or z");
+    }
+    if (ghost.boundary != "infinite") {
+      throw RuntimeError("only voxel ghost boundary infinite is supported");
+    }
+    if (ghost.layers <= 0) {
+      throw RuntimeError("voxel ghost layers must be positive");
+    }
   }
 }
 
@@ -559,27 +578,21 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
 #else
   const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx : config_.sphere.dx;
 
-  std::vector<const Voxel *> active;
-  active.reserve(voxels_.size());
-  for (const auto &voxel : voxels_) {
-    if (voxel.active) {
-      active.push_back(&voxel);
-    }
-  }
-  if (active.empty()) {
+  const auto records = surface_voxel_records();
+  if (records.empty()) {
     surfaces_[surface.name] = SurfaceState{surface.name, {}};
     return;
   }
 
-  std::array<double, 3> lo{{active.front()->x, active.front()->y, active.front()->z}};
+  std::array<double, 3> lo{{records.front().x, records.front().y, records.front().z}};
   std::array<double, 3> hi = lo;
-  for (const auto *voxel : active) {
-    lo[0] = std::min(lo[0], voxel->x);
-    lo[1] = std::min(lo[1], voxel->y);
-    lo[2] = std::min(lo[2], voxel->z);
-    hi[0] = std::max(hi[0], voxel->x);
-    hi[1] = std::max(hi[1], voxel->y);
-    hi[2] = std::max(hi[2], voxel->z);
+  for (const auto &record : records) {
+    lo[0] = std::min(lo[0], record.x);
+    lo[1] = std::min(lo[1], record.y);
+    lo[2] = std::min(lo[2], record.z);
+    hi[0] = std::max(hi[0], record.x);
+    hi[1] = std::max(hi[1], record.y);
+    hi[2] = std::max(hi[2], record.z);
   }
 
   isthmus::DomainConfig domain;
@@ -600,11 +613,11 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
   }
 
   isthmus::VoxelSet voxel_set;
-  voxel_set.voxels.reserve(active.size());
-  for (const auto *voxel : active) {
+  voxel_set.voxels.reserve(records.size());
+  for (const auto &surface_voxel : records) {
     isthmus::VoxelRecord record;
-    record.centroid = {{voxel->x, voxel->y, voxel->z}};
-    record.original_id = voxel->id;
+    record.centroid = {{surface_voxel.x, surface_voxel.y, surface_voxel.z}};
+    record.original_id = surface_voxel.voxel->id;
     record.material_tag = config_.material.name;
     voxel_set.voxels.push_back(std::move(record));
   }
@@ -619,6 +632,8 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
   SurfaceState state;
   state.name = surface.name;
   state.triangles.reserve(result.surface_mesh.triangles.size());
+  const auto domain_lo = real_domain_lo();
+  const auto domain_hi = real_domain_hi();
   for (std::size_t triangle_id = 0; triangle_id < result.surface_mesh.triangles.size();
        ++triangle_id) {
     const auto &connectivity = result.surface_mesh.triangles[triangle_id];
@@ -626,6 +641,19 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
     triangle.a = result.surface_mesh.vertices[connectivity[0]];
     triangle.b = result.surface_mesh.vertices[connectivity[1]];
     triangle.c = result.surface_mesh.vertices[connectivity[2]];
+    if (surface.crop_real) {
+      const std::array<double, 3> centroid{{
+          (triangle.a[0] + triangle.b[0] + triangle.c[0]) / 3.0,
+          (triangle.a[1] + triangle.b[1] + triangle.c[1]) / 3.0,
+          (triangle.a[2] + triangle.b[2] + triangle.c[2]) / 3.0,
+      }};
+      const double eps = 1.0e-10 * dx;
+      if (centroid[0] < domain_lo[0] - eps || centroid[1] < domain_lo[1] - eps ||
+          centroid[2] < domain_lo[2] - eps || centroid[0] > domain_hi[0] + eps ||
+          centroid[1] > domain_hi[1] + eps || centroid[2] > domain_hi[2] + eps) {
+        continue;
+      }
+    }
     triangle.area = triangle_area3(triangle.a, triangle.b, triangle.c);
     triangle.normal = normalized3(cross3(subtract3(triangle.b, triangle.a),
                                          subtract3(triangle.c, triangle.a)));
@@ -639,6 +667,70 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
 
   surfaces_[surface.name] = std::move(state);
 #endif
+}
+
+std::vector<Model::SurfaceVoxelRecord> Model::surface_voxel_records() const {
+  const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx : config_.sphere.dx;
+  std::vector<SurfaceVoxelRecord> records;
+  records.reserve(voxels_.size());
+  std::set<std::array<int, 4>> seen;
+
+  const auto add_record = [&](const Voxel &voxel, int ix, int iy, int iz) {
+    const std::array<int, 4> key{{ix, iy, iz, static_cast<int>(voxel.id)}};
+    if (!seen.insert(key).second) {
+      return;
+    }
+    records.push_back(SurfaceVoxelRecord{&voxel, ix, iy, iz,
+                                         voxel.x + static_cast<double>(ix - voxel.ix) * dx,
+                                         voxel.y + static_cast<double>(iy - voxel.iy) * dx,
+                                         voxel.z + static_cast<double>(iz - voxel.iz) * dx,
+                                         ix == voxel.ix && iy == voxel.iy &&
+                                             iz == voxel.iz});
+  };
+
+  const auto axis_index = [](const std::string &axis) {
+    if (axis == "x") {
+      return 0;
+    }
+    if (axis == "y") {
+      return 1;
+    }
+    return 2;
+  };
+
+  for (const auto &voxel : voxels_) {
+    if (!voxel.active || voxel.remaining_mass <= 0.0) {
+      continue;
+    }
+
+    add_record(voxel, voxel.ix, voxel.iy, voxel.iz);
+    std::vector<std::array<int, 3>> images{{{voxel.ix, voxel.iy, voxel.iz}}};
+    for (const auto &ghost : config_.ghosts) {
+      const int axis = axis_index(ghost.axis);
+      const int count = axis == 0 ? grid_nx() : (axis == 1 ? grid_ny() : grid_nz());
+      const std::size_t base_count = images.size();
+      for (std::size_t image_id = 0; image_id < base_count; ++image_id) {
+        const int value = images[image_id][axis];
+        for (int layer = 1; layer <= ghost.layers; ++layer) {
+          if (value == 0) {
+            auto image = images[image_id];
+            image[axis] = -layer;
+            images.push_back(image);
+          }
+          if (value + 1 == count) {
+            auto image = images[image_id];
+            image[axis] = count - 1 + layer;
+            images.push_back(image);
+          }
+        }
+      }
+    }
+    for (std::size_t i = 1; i < images.size(); ++i) {
+      add_record(voxel, images[i][0], images[i][1], images[i][2]);
+    }
+  }
+
+  return records;
 }
 
 void Model::apply_surface_flux(const SurfaceFluxCommand &flux) {
@@ -1449,6 +1541,60 @@ std::array<double, 3> Model::carryover_center() const {
   return {{0.5 * static_cast<double>(g.nx) * g.dx,
            0.5 * static_cast<double>(g.ny) * g.dx,
            0.5 * static_cast<double>(g.nz) * g.dx}};
+}
+
+std::array<double, 3> Model::real_domain_lo() const {
+  if (config_.geometry == GeometryKind::Slab) {
+    return {{0.0, 0.0, 0.0}};
+  }
+
+  const double dx = config_.sphere.dx;
+  std::array<double, 3> lo{{0.0, 0.0, 0.0}};
+  bool initialized = false;
+  for (const auto &voxel : voxels_) {
+    if (!voxel.active && voxel.remaining_mass <= 0.0) {
+      continue;
+    }
+    const std::array<double, 3> corner{{voxel.x - 0.5 * dx, voxel.y - 0.5 * dx,
+                                        voxel.z - 0.5 * dx}};
+    if (!initialized) {
+      lo = corner;
+      initialized = true;
+    } else {
+      lo[0] = std::min(lo[0], corner[0]);
+      lo[1] = std::min(lo[1], corner[1]);
+      lo[2] = std::min(lo[2], corner[2]);
+    }
+  }
+  return lo;
+}
+
+std::array<double, 3> Model::real_domain_hi() const {
+  if (config_.geometry == GeometryKind::Slab) {
+    const auto &g = config_.slab;
+    return {{static_cast<double>(g.nx) * g.dx, static_cast<double>(g.ny) * g.dx,
+             static_cast<double>(g.nz) * g.dx}};
+  }
+
+  const double dx = config_.sphere.dx;
+  std::array<double, 3> hi{{0.0, 0.0, 0.0}};
+  bool initialized = false;
+  for (const auto &voxel : voxels_) {
+    if (!voxel.active && voxel.remaining_mass <= 0.0) {
+      continue;
+    }
+    const std::array<double, 3> corner{{voxel.x + 0.5 * dx, voxel.y + 0.5 * dx,
+                                        voxel.z + 0.5 * dx}};
+    if (!initialized) {
+      hi = corner;
+      initialized = true;
+    } else {
+      hi[0] = std::max(hi[0], corner[0]);
+      hi[1] = std::max(hi[1], corner[1]);
+      hi[2] = std::max(hi[2], corner[2]);
+    }
+  }
+  return hi;
 }
 
 int Model::active_voxel_count() const {

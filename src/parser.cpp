@@ -320,6 +320,28 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
           command_entry.ablate.delete_empty = parse_bool(delete_it->second, line_number);
         }
         config.program.push_back(std::move(command_entry));
+      } else if (subcommand == "ghost") {
+        require_size(tokens, 8, line_number);
+        VoxelGhostCommand ghost;
+        ghost.voxels = tokens[2];
+        const auto values = parse_pairs(tokens, 3, line_number);
+        ghost.axis = required(values, "axis", line_number);
+        ghost.boundary = required(values, "boundary", line_number);
+        const auto layers = values.find("layers");
+        if (layers != values.end()) {
+          ghost.layers = parse_int(layers->second, line_number);
+        }
+        if (ghost.axis != "x" && ghost.axis != "y" && ghost.axis != "z") {
+          throw InputError(line_error(line_number, "voxel ghost axis must be x, y, or z"));
+        }
+        if (ghost.boundary != "infinite") {
+          throw InputError(line_error(line_number,
+                                      "only voxel ghost boundary infinite is supported"));
+        }
+        if (ghost.layers <= 0) {
+          throw InputError(line_error(line_number, "voxel ghost layers must be positive"));
+        }
+        config.ghosts.push_back(std::move(ghost));
       } else {
         throw InputError(line_error(line_number, "unknown voxel subcommand '" + subcommand + "'"));
       }
@@ -344,6 +366,16 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
       const auto map = values.find("map");
       if (map != values.end()) {
         command_entry.isthmus_surface.map = parse_bool(map->second, line_number);
+      }
+      const auto crop = values.find("crop");
+      if (crop != values.end()) {
+        if (crop->second == "real") {
+          command_entry.isthmus_surface.crop_real = true;
+        } else if (crop->second == "no" || crop->second == "none") {
+          command_entry.isthmus_surface.crop_real = false;
+        } else {
+          throw InputError(line_error(line_number, "isthmus surface crop must be real or no"));
+        }
       }
       config.program.push_back(std::move(command_entry));
     } else if (command == "surface") {

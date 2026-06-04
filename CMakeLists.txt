@@ -54,6 +54,14 @@ add_test(
 
 if(isthmus_cpp_FOUND)
   add_test(
+    NAME slab-isthmus-finite-verification
+    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite.verify
+  )
+  add_test(
+    NAME slab-isthmus-ghost-verification
+    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost.verify
+  )
+  add_test(
     NAME sphere-isthmus-local-verification
     COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local.verify
   )

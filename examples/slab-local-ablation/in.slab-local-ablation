@@ -3,7 +3,7 @@
 units si
 
 voxel material carbon density 1800.0
-voxel create solid slab nx 8 ny 2 nz 2 dx 1.0e-6 material carbon
+voxel create solid slab nx 8 ny 4 nz 4 dx 1.0e-6 material carbon
 
 source q1 constant 1.8 units kg/m2/s
 timestep mass/courant 0.5 source q1

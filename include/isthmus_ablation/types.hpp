@@ -83,6 +83,7 @@ struct IsthmusSurfaceCommand {
   int buffer = 1;
   bool weighting = false;
   bool map = true;
+  bool crop_real = false;
 };
 
 struct SurfaceFluxCommand {
@@ -92,6 +93,13 @@ struct SurfaceFluxCommand {
   std::string voxels;
   std::array<double, 3> direction{{0.0, 0.0, 1.0}};
   double min_cos = 0.0;
+};
+
+struct VoxelGhostCommand {
+  std::string voxels;
+  std::string axis;
+  std::string boundary = "infinite";
+  int layers = 1;
 };
 
 struct VoxelDump {
@@ -182,6 +190,7 @@ struct Config {
   RunConfig run;
   std::vector<VerificationCheck> checks;
   std::vector<ConvergenceCheck> convergence_checks;
+  std::vector<VoxelGhostCommand> ghosts;
   std::vector<ScriptCommand> program;
 };
 

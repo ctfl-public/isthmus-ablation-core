@@ -42,6 +42,17 @@ private:
     std::vector<SurfaceTriangle> triangles;
   };
 
+  struct SurfaceVoxelRecord {
+    const Voxel *voxel = nullptr;
+    int ix = 0;
+    int iy = 0;
+    int iz = 0;
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
+    bool real = true;
+  };
+
   Config config_;
   std::vector<Voxel> voxels_;
   std::unordered_map<std::string, SurfaceState> surfaces_;
@@ -65,6 +76,7 @@ private:
   void validate_ablation(const AblationCommand &ablate, const std::string &context) const;
   void validate_isthmus_surface(const IsthmusSurfaceCommand &surface) const;
   void validate_surface_flux(const SurfaceFluxCommand &flux) const;
+  void validate_ghosts() const;
   void run_steps(const RunConfig &run, std::ostream *stats);
   void begin_step();
   void open_step();
@@ -75,6 +87,7 @@ private:
   void apply_surface_normal_carryover(const std::vector<double> &mass_increments,
                                       const AblationCommand &ablate);
   void generate_isthmus_surface(const IsthmusSurfaceCommand &surface);
+  std::vector<SurfaceVoxelRecord> surface_voxel_records() const;
   void apply_surface_flux(const SurfaceFluxCommand &flux);
   void record_history(int step, double time);
   HistoryRow make_history_row(int step, double time) const;
@@ -91,6 +104,8 @@ private:
   int grid_ny() const;
   int grid_nz() const;
   std::array<double, 3> carryover_center() const;
+  std::array<double, 3> real_domain_lo() const;
+  std::array<double, 3> real_domain_hi() const;
   int active_voxel_count() const;
   int deleted_voxel_count() const;
   double remaining_mass() const;

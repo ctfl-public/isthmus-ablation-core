@@ -48,6 +48,8 @@ The current regression tests are:
 ```text
 slab-local-verification
 slab-local-fix-verification
+slab-isthmus-finite-verification
+slab-isthmus-ghost-verification
 sphere-isthmus-local-verification
 sphere-isthmus-normal-verification
 sphere-isthmus-normal-convergence
@@ -58,6 +60,8 @@ They run:
 ```text
 tests/inputs/slab-local-ablation/in.slab-local-ablation.verify
 tests/inputs/slab-local-ablation/in.slab-local-ablation.fix-verify
+tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite.verify
+tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost.verify
 tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local.verify
 tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal.verify
 tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-convergence.verify
@@ -79,6 +83,11 @@ back to voxels, and compare the inferred radius and mass fraction against the
 continuum shrinking-sphere solution. The local sphere test keeps the
 nonconservative path covered. The normal-carryover sphere test checks the
 conservative path and verifies that final-step dropped mass is essentially zero.
+
+The slab ISTHMUS tests compare a finite 4 by 4 surface patch against the same
+patch with y/z infinite-wall ghost voxels. The finite-patch case has broad
+tolerances because edge effects are expected. The ghost case should match the
+one-dimensional slab recession nearly exactly.
 
 The convergence test is an input file, not an external runner. It uses
 `variable ... equal ...` and a `convergence ... vary ... order ...` command to

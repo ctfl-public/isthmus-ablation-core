@@ -36,9 +36,11 @@ to the report runner.
 
 ```csv
 index,name,input,requires,expected-fail
-3,sphere-isthmus-local-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local.verify,isthmus,no
-4,sphere-isthmus-normal-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal.verify,isthmus,no
-5,sphere-isthmus-normal-convergence,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-convergence.verify,isthmus,no
+3,slab-isthmus-finite-verification,tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite.verify,isthmus,no
+4,slab-isthmus-ghost-verification,tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost.verify,isthmus,no
+5,sphere-isthmus-local-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local.verify,isthmus,no
+6,sphere-isthmus-normal-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal.verify,isthmus,no
+7,sphere-isthmus-normal-convergence,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-convergence.verify,isthmus,no
 ```
 
 The runner auto-detects optional features from the CMake build cache. Cases
