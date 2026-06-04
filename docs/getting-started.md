@@ -10,7 +10,7 @@ cmake --build build
 Run the first example:
 
 ```bash
-./build/ia-core -in examples/slab-local-ablation/in.slab-local-ablation
+./build/ia-core -in examples/slab-direct-ablation/in.slab-direct-ablation
 ```
 
 Run the regression tests:
@@ -48,14 +48,14 @@ cmake --build build --target docs-pdf
 The example writes a CSV history file:
 
 ```text
-output/slab-local-ablation/history.csv
+output/slab-direct-ablation/history.csv
 ```
 
 It also writes VTU voxel files for visual inspection:
 
 ```text
-output/slab-local-ablation/voxels_000000.vtu
-output/slab-local-ablation/voxels_000001.vtu
+output/slab-direct-ablation/voxels_000000.vtu
+output/slab-direct-ablation/voxels_000001.vtu
 ...
 ```
 
@@ -66,5 +66,5 @@ When run through CTest, the test writes its output under the CTest working
 directory:
 
 ```text
-build/output/slab-local-ablation/history.csv
+build/output/slab-direct-ablation/history.csv
 ```

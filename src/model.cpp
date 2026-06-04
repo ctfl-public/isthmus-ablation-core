@@ -36,7 +36,7 @@ std::string format_error(const std::string &quantity, double error, double toler
 const std::vector<std::string> &default_stats_columns() {
   static const std::vector<std::string> columns{
       "step", "time", "active-voxels", "deleted-voxels", "remaining-mass",
-      "mass-fraction", "front", "radius"};
+      "mass-fraction", "volume-fraction", "front", "radius"};
   return columns;
 }
 
@@ -58,6 +58,9 @@ double history_value(const HistoryRow &row, const std::string &column) {
   }
   if (column == "mass-fraction") {
     return row.mass_fraction;
+  }
+  if (column == "volume-fraction" || column == "voxel-volume-fraction") {
+    return row.volume_fraction;
   }
   if (column == "front") {
     return row.front;
@@ -1004,6 +1007,10 @@ HistoryRow Model::make_history_row(int step, double time) const {
   row.deleted_voxels = deleted_voxel_count();
   row.remaining_mass = remaining;
   row.mass_fraction = initial_mass_ > 0.0 ? remaining / initial_mass_ : 0.0;
+  row.volume_fraction = initial_active_voxels_ > 0
+                            ? static_cast<double>(row.active_voxels) /
+                                  static_cast<double>(initial_active_voxels_)
+                            : 0.0;
   row.front = discrete_front;
   row.radius = inferred_radius();
   row.requested_mass_step = requested_mass_step_;
@@ -1039,14 +1046,15 @@ void Model::write_history_csv(const VoxelDump &dump) const {
     throw RuntimeError("could not write history file '" + dump.path + "'");
   }
   out << "step,time,active-voxels,deleted-voxels,remaining-mass,"
-      << "mass-fraction,front,radius,requested-mass-step,applied-mass-step,"
+      << "mass-fraction,volume-fraction,front,radius,requested-mass-step,applied-mass-step,"
       << "dropped-mass-step\n";
   out << std::setprecision(17);
   for (const auto &row : history_) {
     out << row.step << ',' << row.time << ',' << row.active_voxels << ','
         << row.deleted_voxels << ',' << row.remaining_mass << ',' << row.mass_fraction
-        << ',' << row.front << ',' << row.radius << ',' << row.requested_mass_step << ','
-        << row.applied_mass_step << ',' << row.dropped_mass_step << '\n';
+        << ',' << row.volume_fraction << ',' << row.front << ',' << row.radius << ','
+        << row.requested_mass_step << ',' << row.applied_mass_step << ','
+        << row.dropped_mass_step << '\n';
   }
 }
 
@@ -1273,6 +1281,8 @@ void Model::write_verification_csv(const std::string &path) const {
           {"initial_mass", initial_mass_},
           {"voxel-mass", voxel_mass_},
           {"voxel_mass", voxel_mass_},
+          {"initial-active-voxels", static_cast<double>(initial_active_voxels_)},
+          {"initial_active_voxels", static_cast<double>(initial_active_voxels_)},
           {"active-voxels", static_cast<double>(row.active_voxels)},
           {"active_voxels", static_cast<double>(row.active_voxels)},
           {"deleted-voxels", static_cast<double>(row.deleted_voxels)},
@@ -1282,6 +1292,10 @@ void Model::write_verification_csv(const std::string &path) const {
           {"mass", row.remaining_mass},
           {"mass-fraction", row.mass_fraction},
           {"mass_fraction", row.mass_fraction},
+          {"volume-fraction", row.volume_fraction},
+          {"volume_fraction", row.volume_fraction},
+          {"voxel-volume-fraction", row.volume_fraction},
+          {"voxel_volume_fraction", row.volume_fraction},
           {"front", row.front},
           {"radius", row.radius},
           {"requested-mass-step", row.requested_mass_step},
@@ -1360,6 +1374,8 @@ double Model::verification_error(const VerificationCheck &check) const {
         {"initial_mass", initial_mass_},
         {"voxel-mass", voxel_mass_},
         {"voxel_mass", voxel_mass_},
+        {"initial-active-voxels", static_cast<double>(initial_active_voxels_)},
+        {"initial_active_voxels", static_cast<double>(initial_active_voxels_)},
         {"active-voxels", static_cast<double>(row.active_voxels)},
         {"active_voxels", static_cast<double>(row.active_voxels)},
         {"deleted-voxels", static_cast<double>(row.deleted_voxels)},
@@ -1369,6 +1385,10 @@ double Model::verification_error(const VerificationCheck &check) const {
         {"mass", row.remaining_mass},
         {"mass-fraction", row.mass_fraction},
         {"mass_fraction", row.mass_fraction},
+        {"volume-fraction", row.volume_fraction},
+        {"volume_fraction", row.volume_fraction},
+        {"voxel-volume-fraction", row.volume_fraction},
+        {"voxel_volume_fraction", row.volume_fraction},
         {"front", row.front},
         {"requested-mass-step", row.requested_mass_step},
         {"requested_mass_step", row.requested_mass_step},

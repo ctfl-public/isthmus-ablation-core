@@ -43,35 +43,35 @@ find_program(PDFLATEX_EXECUTABLE pdflatex)
 enable_testing()
 
 add_test(
-  NAME slab-local-verification
-  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-local-ablation/in.slab-local-ablation.verify
+  NAME slab-direct-command-verification
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-direct-ablation/in.slab-direct-command.verify
 )
 
 add_test(
-  NAME slab-local-fix-verification
-  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-local-ablation/in.slab-local-ablation.fix-verify
+  NAME slab-direct-fix-verification
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-direct-ablation/in.slab-direct-fix.verify
 )
 
 if(isthmus_cpp_FOUND)
   add_test(
-    NAME slab-isthmus-finite-verification
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite.verify
+    NAME slab-isthmus-finite-surface-verification
+    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite-surface.verify
   )
   add_test(
-    NAME slab-isthmus-ghost-verification
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost.verify
+    NAME slab-isthmus-ghost-wall-verification
+    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost-wall.verify
   )
   add_test(
-    NAME sphere-isthmus-local-verification
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local.verify
+    NAME sphere-isthmus-local-deletion-verification
+    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify
   )
   add_test(
-    NAME sphere-isthmus-normal-verification
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal.verify
+    NAME sphere-isthmus-normal-carryover-verification
+    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify
   )
   add_test(
-    NAME sphere-isthmus-normal-convergence
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-convergence.verify
+    NAME sphere-isthmus-normal-carryover-convergence
+    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover-convergence.verify
   )
 endif()
 

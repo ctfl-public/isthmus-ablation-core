@@ -214,6 +214,7 @@ struct HistoryRow {
   int deleted_voxels = 0;
   double remaining_mass = 0.0;
   double mass_fraction = 0.0;
+  double volume_fraction = 0.0;
   double front = 0.0;
   double radius = 0.0;
   double requested_mass_step = 0.0;

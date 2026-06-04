@@ -15,6 +15,7 @@ convergence <quantity> exact "<expression>" tolerance <value> [absolute|percent]
 ```text
 verify remaining-mass exact "initial-mass - q1*area*time" tolerance 0.01 percent norm max
 verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
+verify volume-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm final
 verify front exact "q1*time/rho" tolerance 0.01 percent norm final
 verify radius exact "initial-radius - q1*time/rho" tolerance 3.0 percent norm final
 convergence radius exact "initial-radius - q1*time/rho" tolerance 100.0 percent norm final vary resolution 5 10 20 vary steps 1 2 4 order 0.75 2.5 monotonic yes
@@ -93,6 +94,8 @@ active-voxels
 deleted-voxels
 remaining-mass
 mass-fraction
+volume-fraction
+voxel-volume-fraction
 front
 q1
 source:q1

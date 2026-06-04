@@ -55,8 +55,8 @@ request.
 The automated wrappers are:
 
 ```text
-tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local.verify
-tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal.verify
+tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify
+tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify
 ```
 
 It compares the inferred continuum-equivalent radius and mass fraction against

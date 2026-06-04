@@ -13,7 +13,7 @@ stats_style <column> <column> ...
 
 ```text
 stats 1
-stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction front
+stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction front
 ```
 
 ## Description
@@ -32,6 +32,8 @@ active-voxels
 deleted-voxels
 remaining-mass
 mass-fraction
+volume-fraction
+radius
 front
 requested-mass-step
 applied-mass-step
@@ -43,4 +45,3 @@ dropped-mass-step
 In coupled DSMC/SPARTA runs, SPARTA should own its native `stats_style`.
 This project should expose values through compute/fix styles that SPARTA can
 reference with `c_...` or `f_...`.
-

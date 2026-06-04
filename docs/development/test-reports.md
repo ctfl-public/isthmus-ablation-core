@@ -8,8 +8,8 @@ cases. They are not part of the core physics model.
 The executable can write verification data when the test runner asks for it:
 
 ```bash
-build/ia-core -in tests/inputs/slab-local-ablation/in.slab-local-ablation.verify \
-  -report-csv build/output/test-report-data/slab-local-verification/report.csv
+build/ia-core -in tests/inputs/slab-direct-ablation/in.slab-direct-command.verify \
+  -report-csv build/output/test-report-data/slab-direct-command-verification/report.csv
 ```
 
 The CSV contains:
@@ -36,11 +36,11 @@ to the report runner.
 
 ```csv
 index,name,input,requires,expected-fail
-3,slab-isthmus-finite-verification,tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite.verify,isthmus,no
-4,slab-isthmus-ghost-verification,tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost.verify,isthmus,no
-5,sphere-isthmus-local-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local.verify,isthmus,no
-6,sphere-isthmus-normal-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal.verify,isthmus,no
-7,sphere-isthmus-normal-convergence,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-convergence.verify,isthmus,no
+3,slab-isthmus-finite-surface-verification,tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite-surface.verify,isthmus,no
+4,slab-isthmus-ghost-wall-verification,tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost-wall.verify,isthmus,no
+5,sphere-isthmus-local-deletion-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify,isthmus,no
+6,sphere-isthmus-normal-carryover-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify,isthmus,no
+7,sphere-isthmus-normal-carryover-convergence,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover-convergence.verify,isthmus,no
 ```
 
 The runner auto-detects optional features from the CMake build cache. Cases
@@ -82,8 +82,8 @@ suite grows:
 ```bash
 python3 tools/run-test-report.py all
 python3 tools/run-test-report.py 1-4
-python3 tools/run-test-report.py slab-local-verification
-python3 tools/run-test-report.py slab-local-verification,slab-local-fix-verification
+python3 tools/run-test-report.py slab-direct-command-verification
+python3 tools/run-test-report.py slab-direct-command-verification,slab-direct-fix-verification
 ```
 
 Optional features can be overridden explicitly:

@@ -12,7 +12,7 @@ include <path>
 ## Examples
 
 ```text
-include ../../../examples/slab-local-ablation/in.slab-local-ablation
+include ../../../examples/slab-direct-ablation/in.slab-direct-ablation
 ```
 
 ## Description
@@ -23,7 +23,7 @@ Relative paths are resolved from the directory of the file that contains the
 The command is useful for regression tests:
 
 ```text
-include ../../../examples/slab-local-ablation/in.slab-local-ablation
+include ../../../examples/slab-direct-ablation/in.slab-direct-ablation
 
 verify remaining-mass exact "initial-mass - q1*area*time" tolerance 0.01 percent norm max
 verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max

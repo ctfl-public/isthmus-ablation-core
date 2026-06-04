@@ -40,37 +40,37 @@ To select a subset directly:
 ```bash
 python3 tools/run-test-report.py all
 python3 tools/run-test-report.py 1-2
-python3 tools/run-test-report.py slab-local-verification
+python3 tools/run-test-report.py slab-direct-command-verification
 ```
 
 The current regression tests are:
 
 ```text
-slab-local-verification
-slab-local-fix-verification
-slab-isthmus-finite-verification
-slab-isthmus-ghost-verification
-sphere-isthmus-local-verification
-sphere-isthmus-normal-verification
-sphere-isthmus-normal-convergence
+slab-direct-command-verification
+slab-direct-fix-verification
+slab-isthmus-finite-surface-verification
+slab-isthmus-ghost-wall-verification
+sphere-isthmus-local-deletion-verification
+sphere-isthmus-normal-carryover-verification
+sphere-isthmus-normal-carryover-convergence
 ```
 
 They run:
 
 ```text
-tests/inputs/slab-local-ablation/in.slab-local-ablation.verify
-tests/inputs/slab-local-ablation/in.slab-local-ablation.fix-verify
-tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite.verify
-tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost.verify
-tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local.verify
-tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal.verify
-tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-convergence.verify
+tests/inputs/slab-direct-ablation/in.slab-direct-command.verify
+tests/inputs/slab-direct-ablation/in.slab-direct-fix.verify
+tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite-surface.verify
+tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost-wall.verify
+tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify
+tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify
+tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover-convergence.verify
 ```
 
 The command-loop test includes the example case:
 
 ```text
-include ../../../examples/slab-local-ablation/in.slab-local-ablation
+include ../../../examples/slab-direct-ablation/in.slab-direct-ablation
 ```
 
 The fix test keeps the compact callback-style path covered while the examples
@@ -92,8 +92,9 @@ one-dimensional slab recession nearly exactly.
 The convergence test is an input file, not an external runner. It uses
 `variable ... equal ...` and a `convergence ... vary ... order ...` command to
 run normal carryover at 5, 10, and 20 voxels across the diameter with
-mass-Courant timing. It requires monotone radius-error reduction and an
-apparent end-to-end order in a broad first-order band.
+mass-Courant timing. It requires monotone radius-error reduction. The
+voxelized volume-fraction check allows non-monotone coarse stair-step ties but
+still checks the end-to-end apparent order in a broad first-order band.
 
 ## Test Organization
 

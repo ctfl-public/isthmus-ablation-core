@@ -15,8 +15,8 @@ voxel dump off
 ## Examples
 
 ```text
-voxel dump hist solid history 1 output/slab-local-ablation/history.csv
-voxel dump vox solid vtu 1 output/slab-local-ablation/voxels_*.vtu select active scalar mass-fraction
+voxel dump hist solid history 1 output/slab-direct-ablation/history.csv
+voxel dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mass-fraction
 voxel dump off
 ```
 
@@ -33,7 +33,7 @@ written at step 0, every `N` steps, and at the final step. If the path contains
 `*`, that character is replaced by a zero-padded step number:
 
 ```text
-output/slab-local-ablation/voxels_000004.vtu
+output/slab-direct-ablation/voxels_000004.vtu
 ```
 
 If the path does not contain `*`, the step number is inserted before the file
@@ -66,8 +66,9 @@ The default is `scalar mass-fraction`.
 ## History Columns
 
 ```text
-step,time,active-voxels,deleted-voxels,remaining-mass,mass-fraction,front,
-radius,requested-mass-step,applied-mass-step,dropped-mass-step
+step,time,active-voxels,deleted-voxels,remaining-mass,mass-fraction,
+volume-fraction,front,radius,requested-mass-step,applied-mass-step,
+dropped-mass-step
 ```
 
 ## VTU Cell Data

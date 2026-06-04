@@ -76,8 +76,8 @@ timestep mass/courant 0.5 source q1
 stats 1
 stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction front
 
-voxel dump hist solid history 1 output/slab-local-ablation/history.csv
-voxel dump vox solid vtu 1 output/slab-local-ablation/voxels_*.vtu select active scalar mass-fraction
+voxel dump hist solid history 1 output/slab-direct-ablation/history.csv
+voxel dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mass-fraction
 
 variable i loop 8
 label ablate-loop
@@ -88,5 +88,5 @@ jump SELF ablate-loop
 ```
 
 The regression wrapper in
-`tests/inputs/slab-local-ablation/in.slab-local-ablation.verify` includes this
+`tests/inputs/slab-direct-ablation/in.slab-direct-command.verify` includes this
 example and adds exact-solution checks with `verify`.

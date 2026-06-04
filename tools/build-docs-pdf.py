@@ -39,7 +39,7 @@ PAGES = [
     ("voxel dump", DOCS / "commands" / "voxel-dump.md"),
     ("verify", DOCS / "commands" / "verify.md"),
     ("run", DOCS / "commands" / "run.md"),
-    ("Local Slab Ablation", DOCS / "examples" / "slab-local.md"),
+    ("Direct Slab Ablation", DOCS / "examples" / "slab-direct.md"),
     ("ISTHMUS Slab Ablation", DOCS / "examples" / "slab-isthmus.md"),
     ("Sphere ISTHMUS Ablation", DOCS / "examples" / "sphere-isthmus.md"),
     ("Directory Layout", DOCS / "development" / "directory-layout.md"),
