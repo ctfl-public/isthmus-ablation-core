@@ -1,0 +1,12 @@
+# Regression wrapper for the finite-patch ISTHMUS slab path.
+# The tolerance is intentionally broad because this case exposes finite-edge
+# surface effects.
+
+include ../../../examples/slab-isthmus-ablation/in.slab-isthmus-finite
+
+voxel dump off
+surface dump off
+
+verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 25.0 percent norm final
+verify volume-fraction exact "1.0 - q1*time/(rho*length)" tolerance 40.0 percent norm final
+verify front exact "q1*time/rho" tolerance 80.0 percent norm final

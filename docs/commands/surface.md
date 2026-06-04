@@ -15,7 +15,8 @@ surface flux <surface-id> kinetic/theory pressure <p> temperature <T> \
   mole-fraction <x> molecular-mass <kg> reaction-prob <alpha> \
   solid-mass-per-hit <kg> select <selector>
 surface flux <surface-id> dsmc/surf fix <fix-id> column <N> \
-  reaction-prob <alpha> solid-mass-per-hit <kg>
+  reaction-prob <alpha> solid-mass-per-hit <kg> \
+  [ablation-dt <dt> | mass-courant <C>]
 
 surface dump <dump-id> <surface-id> vtp <N> <path>
 surface dump off
@@ -31,7 +32,7 @@ surface flux skin kinetic/theory pressure 50.0 temperature 5000.0 \
   mole-fraction 0.21 molecular-mass 5.313e-26 reaction-prob 1.0 \
   solid-mass-per-hit 1.3011869411625376e-23 select all
 surface flux skin dsmc/surf fix sflux column 1 reaction-prob 1.0 \
-  solid-mass-per-hit 1.99447348e-26
+  solid-mass-per-hit 1.99447348e-26 mass-courant 0.25
 
 surface dump skin skin vtp 10 output/sphere/surface_*.vtp
 surface dump off
@@ -73,6 +74,21 @@ surface collisions, surface averaging, loops, and remapping commands; this
 library owns the voxel mass ledger, ISTHMUS surface ownership map, and ablation.
 The current bridge implementation supports this source on one MPI rank while
 the command and data path are kept compatible with later distributed storage.
+
+By default, `dsmc/surf` advances voxel ablation by the elapsed DSMC time since
+the previous coupling update. The optional `ablation-dt` argument overrides that
+physical ablation time. This is useful for DSMC sampling convergence tests: the
+input can run 1, 2, 5, 10, 20, or 50 DSMC steps before each update while
+applying the same physical ablation timestep to the voxel ledger.
+
+The optional `mass-courant` argument chooses the ablation timestep from the
+sampled DSMC mass flux. The bridge maps the triangle mass fluxes through the
+ISTHMUS triangle-to-voxel ownership fractions, finds the active voxel with the
+smallest `remaining-mass / mapped-mass-rate`, and sets the timestep to `C`
+times that limiting time. For example, `mass-courant 1.0` advances to the next
+voxel-deletion event predicted by the current flux map, while
+`mass-courant 0.25` advances one quarter of the way to that event.
+`ablation-dt` and `mass-courant` are mutually exclusive.
 
 The mass is stored on the triangle until a later command consumes it:
 

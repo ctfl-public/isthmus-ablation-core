@@ -39,6 +39,7 @@ target_link_libraries(ia-core PRIVATE isthmus_ablation_core)
 
 find_package(Python3 COMPONENTS Interpreter)
 find_program(PDFLATEX_EXECUTABLE pdflatex)
+set(IAC_DSMC_EXECUTABLE "" CACHE FILEPATH "Optional DSMC/SPARTA executable for coupled tests")
 
 enable_testing()
 
@@ -79,6 +80,22 @@ if(isthmus_cpp_FOUND)
   )
 endif()
 
+if(Python3_Interpreter_FOUND AND IAC_DSMC_EXECUTABLE)
+  add_test(
+    NAME dsmc-sphere-kinetic-convergence
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-dsmc-kinetic-convergence.py
+            --dsmc ${IAC_DSMC_EXECUTABLE}
+            --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-convergence
+            --steps 1,2,5,10,20,50
+            --loops 10
+            --mass-courant 0.25
+            --tolerance-percent 1.0
+  )
+  set_tests_properties(dsmc-sphere-kinetic-convergence PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  )
+endif()
+
 add_custom_target(
   check-verbose
   COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure --verbose
@@ -105,4 +122,20 @@ if(Python3_Interpreter_FOUND AND PDFLATEX_EXECUTABLE)
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Building combined verification report"
   )
+
+  if(IAC_DSMC_EXECUTABLE)
+    add_custom_target(
+      dsmc-convergence-report
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-dsmc-kinetic-convergence.py
+              --dsmc ${IAC_DSMC_EXECUTABLE}
+              --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-convergence
+              --steps 1,2,5,10,20,50
+              --loops 10
+              --mass-courant 0.25
+              --tolerance-percent 1.0
+              --pdf
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      COMMENT "Building DSMC sphere kinetic convergence report"
+    )
+  endif()
 endif()

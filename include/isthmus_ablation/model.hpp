@@ -34,6 +34,9 @@ public:
   void generate_surface(const IsthmusSurfaceCommand &surface);
   void apply_flux(const SurfaceFluxCommand &flux);
   void apply_triangle_fluxes(const std::string &surface, const std::vector<double> &mass_fluxes);
+  void set_timestep_from_triangle_fluxes(const std::string &surface,
+                                         const std::vector<double> &mass_fluxes,
+                                         double courant);
   void ablate(const AblationCommand &ablate);
   void advance_steps(int steps);
   void execute(std::ostream *stats = nullptr);

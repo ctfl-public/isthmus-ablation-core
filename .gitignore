@@ -11,6 +11,7 @@
 
 # CMake/build products
 build/
+build*/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
@@ -31,6 +32,7 @@ ia-core
 output/
 **/output/
 reports/
+log.sparta
 
 # Python caches
 __pycache__/

@@ -55,6 +55,51 @@ sphere-isthmus-normal-carryover-verification
 sphere-isthmus-normal-carryover-convergence
 ```
 
+These are standalone/core tests. They run with the `ia-core` binary and should
+be the only tests present in a normal standalone build.
+
+To add coupled DSMC tests, configure CMake with a DSMC executable:
+
+```bash
+cmake -S . -B build-dsmc \
+  -DIAC_DSMC_EXECUTABLE=/Users/tstoffel1/dsmc/src/spa_mac_mpi
+cmake --build build-dsmc
+ctest --test-dir build-dsmc --output-on-failure
+```
+
+That build runs the standalone/core tests plus:
+
+```text
+dsmc-sphere-kinetic-convergence
+```
+
+The DSMC convergence test is intentionally kept out of the default standalone
+test set because it depends on an external DSMC executable and bridge files
+copied into DSMC.
+
+This convergence test varies the number of DSMC steps sampled before each
+coupled ablation update. The voxel ablation timestep is derived with
+`surface flux ... dsmc/surf ... mass-courant 0.25`, so each update uses the
+sampled DSMC flux to request roughly one quarter of a voxel mass from the most exposed
+voxel. The generated report compares mass fraction and equivalent radius
+against the uniform-gas analytical shrinking-sphere solution for each DSMC
+sampling length. Its trajectory plots use percent mass lost and radius
+sampling length. Its trajectory plots use remaining mass fraction and radius
+recession in microns.
+
+To build the DSMC convergence report:
+
+```bash
+cmake --build build-dsmc --target dsmc-convergence-report
+```
+
+It writes:
+
+```text
+build-dsmc/output/dsmc-sphere-kinetic-convergence/summary.csv
+build-dsmc/output/dsmc-sphere-kinetic-convergence/report.pdf
+```
+
 They run:
 
 ```text
@@ -112,5 +157,7 @@ examples/<case-name>/in.<case-name>
 tests/inputs/<case-name>/in.<case-name>.verify
 ```
 
-Future convergence tests should live under `tests/inputs/` and use the explicit
-`convergence` verification command.
+Standalone convergence tests should live under `tests/inputs/` and use the
+explicit `convergence` verification command. Coupled DSMC convergence tests can
+use a runner under `tools/` when they need to launch DSMC repeatedly and
+generate per-case input files under `build/output`.

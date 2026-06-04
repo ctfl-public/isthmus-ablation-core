@@ -39,10 +39,13 @@ nav:
       - verify: commands/verify.md
       - run: commands/run.md
   - Examples:
-      - Local Slab Ablation: examples/slab-local.md
+      - Direct Slab Ablation: examples/slab-direct.md
+      - ISTHMUS Slab Ablation: examples/slab-isthmus.md
       - Sphere ISTHMUS Ablation: examples/sphere-isthmus.md
+      - DSMC Sphere Kinetic Example: examples/dsmc-sphere-kinetic.md
   - Development:
       - Directory Layout: development/directory-layout.md
+      - Build And Link: development/build-and-link.md
       - Testing: development/testing.md
       - Test Reports: development/test-reports.md
       - Documentation: development/documentation.md

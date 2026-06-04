@@ -19,6 +19,16 @@ Run the regression tests:
 ctest --test-dir build --output-on-failure
 ```
 
+The default build runs standalone/core tests only. To include coupled DSMC
+tests, configure with a DSMC executable:
+
+```bash
+cmake -S . -B build-dsmc \
+  -DIAC_DSMC_EXECUTABLE=/Users/tstoffel1/dsmc/src/spa_mac_mpi
+cmake --build build-dsmc
+ctest --test-dir build-dsmc --output-on-failure
+```
+
 CTest prints output from failing tests by default. To also see the aligned stats
 table for passing tests:
 

@@ -1,0 +1,10 @@
+# Regression wrapper for the direct command-driven slab ablation example.
+# The example owns the case setup. This file adds only test criteria.
+
+include ../../../examples/slab-direct-ablation/in.slab-direct-ablation
+
+voxel dump off
+
+verify remaining-mass exact "initial-mass - q1*area*time" tolerance 0.01 percent norm max
+verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
+verify front exact "q1*time/rho" tolerance 0.01 percent norm final

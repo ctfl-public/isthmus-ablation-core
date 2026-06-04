@@ -1,0 +1,9 @@
+# Regression wrapper for the nonconservative ISTHMUS sphere ablation path.
+
+include ../../../examples/sphere-isthmus-ablation/in.sphere-isthmus-local
+
+voxel dump off
+surface dump off
+
+verify radius exact "initial-radius - q1*time/rho" tolerance 7.0 percent norm final
+verify mass-fraction exact "((initial-radius - q1*time/rho)/initial-radius)^3" tolerance 20.0 percent norm final

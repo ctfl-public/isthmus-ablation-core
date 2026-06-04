@@ -1,0 +1,226 @@
+#include "surface.h"
+
+#include "error.h"
+#include "iacbridge.h"
+#include "comm.h"
+#include "fix.h"
+#include "modify.h"
+#include "surf.h"
+
+#include <cstdlib>
+#include <cstring>
+#include <exception>
+#include <vector>
+
+using namespace SPARTA_NS;
+
+namespace {
+
+const char *value_after(int narg, char **arg, const char *key) {
+  for (int i = 0; i + 1 < narg; ++i) {
+    if (std::strcmp(arg[i], key) == 0) {
+      return arg[i + 1];
+    }
+  }
+  return nullptr;
+}
+
+void parse_selector(iac::SurfaceFluxCommand &flux, int narg, char **arg, Error *error) {
+  const char *select = value_after(narg, arg, "select");
+  if (select) {
+    flux.select = select;
+  }
+  if (flux.select == "normal") {
+    const char *nx = value_after(narg, arg, "nx");
+    const char *ny = value_after(narg, arg, "ny");
+    const char *nz = value_after(narg, arg, "nz");
+    if (!nx || !ny || !nz) {
+      error->all(FLERR, "surface flux select normal requires nx, ny, and nz");
+    }
+    flux.direction[0] = std::atof(nx);
+    flux.direction[1] = std::atof(ny);
+    flux.direction[2] = std::atof(nz);
+    const char *min_cos = value_after(narg, arg, "min-cos");
+    if (min_cos) {
+      flux.min_cos = std::atof(min_cos);
+    }
+  } else if (flux.select == "voxels") {
+    const char *voxels = value_after(narg, arg, "voxels");
+    if (voxels) {
+      flux.voxels = voxels;
+    }
+  }
+}
+
+} // namespace
+
+Surface::Surface(SPARTA *sparta) : Pointers(sparta) {}
+
+void Surface::command(int narg, char **arg) {
+  if (narg < 1) {
+    error->all(FLERR, "Illegal surface command");
+  }
+
+  if (std::strcmp(arg[0], "flux") == 0) {
+    if (narg < 5) {
+      error->all(FLERR, "Illegal surface flux command");
+    }
+    iac::SurfaceFluxCommand flux;
+    flux.surface = arg[1];
+
+    if (std::strcmp(arg[2], "dsmc/surf") == 0) {
+      char **pairs = arg + 3;
+      const int npairs = narg - 3;
+      const char *fix_id = value_after(npairs, pairs, "fix");
+      const char *column_value = value_after(npairs, pairs, "column");
+      const char *solid_mass = value_after(npairs, pairs, "solid-mass-per-hit");
+      if (!fix_id || !column_value || !solid_mass) {
+        error->all(FLERR, "surface flux dsmc/surf requires fix, column, and solid-mass-per-hit");
+      }
+
+      const int ifix = modify->find_fix(fix_id);
+      if (ifix < 0) {
+        error->all(FLERR, "surface flux dsmc/surf fix ID does not exist");
+      }
+      Fix *ave = modify->fix[ifix];
+      if (!ave->per_surf_flag) {
+        error->all(FLERR, "surface flux dsmc/surf fix must provide per-surf data");
+      }
+
+      const int column = std::atoi(column_value);
+      const int ncols = ave->size_per_surf_cols == 0 ? 1 : ave->size_per_surf_cols;
+      if (column <= 0 || column > ncols) {
+        error->all(FLERR, "surface flux dsmc/surf column is out of range");
+      }
+      if (ave->size_per_surf_cols == 0 && !ave->vector_surf) {
+        error->all(FLERR, "surface flux dsmc/surf fix vector data is not available");
+      }
+      if (ave->size_per_surf_cols > 0 && !ave->array_surf) {
+        error->all(FLERR, "surface flux dsmc/surf fix array data is not available");
+      }
+      if (comm->nprocs != 1) {
+        error->all(FLERR, "surface flux dsmc/surf currently supports one MPI rank");
+      }
+
+      const char *reaction_prob_value = value_after(npairs, pairs, "reaction-prob");
+      const char *ablation_dt_value = value_after(npairs, pairs, "ablation-dt");
+      const char *mass_courant_value = value_after(npairs, pairs, "mass-courant");
+      const double reaction_prob = reaction_prob_value ? std::atof(reaction_prob_value) : 1.0;
+      const double solid_mass_per_hit = std::atof(solid_mass);
+      if (reaction_prob < 0.0 || reaction_prob > 1.0 || solid_mass_per_hit <= 0.0) {
+        error->all(FLERR, "surface flux dsmc/surf has invalid reaction-prob or solid-mass-per-hit");
+      }
+      const double ablation_dt = ablation_dt_value ? std::atof(ablation_dt_value) : 0.0;
+      if (ablation_dt_value && ablation_dt <= 0.0) {
+        error->all(FLERR, "surface flux dsmc/surf ablation-dt must be positive");
+      }
+      const double mass_courant = mass_courant_value ? std::atof(mass_courant_value) : 0.0;
+      if (mass_courant_value && mass_courant <= 0.0) {
+        error->all(FLERR, "surface flux dsmc/surf mass-courant must be positive");
+      }
+      if (ablation_dt_value && mass_courant_value) {
+        error->all(FLERR, "surface flux dsmc/surf cannot use both ablation-dt and mass-courant");
+      }
+
+      std::vector<double> mass_fluxes(static_cast<std::size_t>(surf->nsurf), 0.0);
+      for (int i = 0; i < surf->nown; ++i) {
+        const int triangle_id = surf->tris[i].id;
+        if (triangle_id <= 0 || triangle_id > static_cast<int>(mass_fluxes.size())) {
+          error->all(FLERR, "surface flux dsmc/surf encountered invalid surface ID");
+        }
+        const double number_flux =
+            ave->size_per_surf_cols == 0 ? ave->vector_surf[i] : ave->array_surf[i][column - 1];
+        mass_fluxes[static_cast<std::size_t>(triangle_id - 1)] =
+            number_flux * reaction_prob * solid_mass_per_hit;
+      }
+
+      try {
+        if (mass_courant_value) {
+          IACBridge::model(sparta).set_timestep_from_triangle_fluxes(
+              flux.surface, mass_fluxes, mass_courant);
+        } else if (ablation_dt_value) {
+          IACBridge::model(sparta).set_timestep(ablation_dt);
+        } else {
+          IACBridge::set_coupling_interval_from_dsmc(sparta);
+        }
+        IACBridge::model(sparta).apply_triangle_fluxes(flux.surface, mass_fluxes);
+      } catch (const std::exception &ex) {
+        error->all(FLERR, ex.what());
+      }
+      return;
+    } else if (std::strcmp(arg[2], "kinetic/theory") == 0) {
+      flux.style = "kinetic/theory";
+      char **pairs = arg + 3;
+      const int npairs = narg - 3;
+      const char *pressure = value_after(npairs, pairs, "pressure");
+      const char *temperature = value_after(npairs, pairs, "temperature");
+      const char *molecular_mass = value_after(npairs, pairs, "molecular-mass");
+      const char *solid_mass = value_after(npairs, pairs, "solid-mass-per-hit");
+      if (!pressure || !temperature || !molecular_mass || !solid_mass) {
+        error->all(FLERR, "surface flux kinetic/theory is missing required parameters");
+      }
+      flux.pressure = std::atof(pressure);
+      flux.temperature = std::atof(temperature);
+      flux.molecular_mass = std::atof(molecular_mass);
+      flux.solid_mass_per_hit = std::atof(solid_mass);
+      const char *mole_fraction = value_after(npairs, pairs, "mole-fraction");
+      const char *reaction_prob = value_after(npairs, pairs, "reaction-prob");
+      if (mole_fraction) {
+        flux.mole_fraction = std::atof(mole_fraction);
+      }
+      if (reaction_prob) {
+        flux.reaction_prob = std::atof(reaction_prob);
+      }
+      parse_selector(flux, npairs, pairs, error);
+    } else if (std::strcmp(arg[2], "source") == 0) {
+      if (narg < 4) {
+        error->all(FLERR, "surface flux source requires a source id");
+      }
+      flux.style = "source";
+      flux.source = arg[3];
+      parse_selector(flux, narg - 4, arg + 4, error);
+    } else {
+      error->all(FLERR, "surface flux style must be source or kinetic/theory");
+    }
+
+    try {
+      IACBridge::set_coupling_interval_from_dsmc(sparta);
+      IACBridge::model(sparta).apply_flux(flux);
+    } catch (const std::exception &ex) {
+      error->all(FLERR, ex.what());
+    }
+    return;
+  }
+
+  if (std::strcmp(arg[0], "install") == 0) {
+    if (narg < 2) {
+      error->all(FLERR, "Illegal surface install command");
+    }
+    int partflag = 1;
+    int type = 1;
+    const char *particle_flag = value_after(narg - 2, arg + 2, "particle");
+    const char *type_value = value_after(narg - 2, arg + 2, "type");
+    if (particle_flag) {
+      if (std::strcmp(particle_flag, "none") == 0) {
+        partflag = 0;
+      } else if (std::strcmp(particle_flag, "check") == 0) {
+        partflag = 1;
+      } else if (std::strcmp(particle_flag, "keep") == 0) {
+        partflag = 2;
+      } else {
+        error->all(FLERR, "surface install particle must be none, check, or keep");
+      }
+    }
+    if (type_value) {
+      type = std::atoi(type_value);
+    }
+    try {
+      IACBridge::install_surface(sparta, arg[1], partflag, type);
+    } catch (const std::exception &ex) {
+      error->all(FLERR, ex.what());
+    }
+    return;
+  }
+
+  error->all(FLERR, "Illegal surface command");
+}

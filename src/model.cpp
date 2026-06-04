@@ -268,6 +268,62 @@ void Model::apply_triangle_fluxes(const std::string &surface_name,
   }
 }
 
+void Model::set_timestep_from_triangle_fluxes(const std::string &surface_name,
+                                              const std::vector<double> &mass_fluxes,
+                                              double courant) {
+  if (courant <= 0.0) {
+    throw RuntimeError("surface flux mass/courant requires a positive value");
+  }
+  auto it = surfaces_.find(surface_name);
+  if (it == surfaces_.end()) {
+    throw RuntimeError("surface flux references unknown surface '" + surface_name + "'");
+  }
+  const auto &surface = it->second;
+  if (mass_fluxes.size() != surface.triangles.size()) {
+    throw RuntimeError("surface flux vector size does not match surface triangle count");
+  }
+
+  std::vector<double> voxel_requests(voxels_.size(), 0.0);
+  for (std::size_t i = 0; i < surface.triangles.size(); ++i) {
+    const double mass_flux = mass_fluxes[i];
+    if (mass_flux <= 0.0) {
+      continue;
+    }
+    const auto &triangle = surface.triangles[i];
+    double fraction_sum = 0.0;
+    for (double fraction : triangle.fractions) {
+      fraction_sum += fraction;
+    }
+    if (fraction_sum <= 0.0) {
+      continue;
+    }
+    const double triangle_mass_rate = mass_flux * triangle.area;
+    for (std::size_t j = 0; j < triangle.voxel_ids.size(); ++j) {
+      const std::size_t voxel_id = triangle.voxel_ids[j];
+      if (voxel_id >= voxel_requests.size()) {
+        continue;
+      }
+      voxel_requests[voxel_id] += triangle_mass_rate * triangle.fractions[j] / fraction_sum;
+    }
+  }
+
+  double limiting_time = std::numeric_limits<double>::infinity();
+  for (std::size_t i = 0; i < voxel_requests.size(); ++i) {
+    const auto &voxel = voxels_[i];
+    if (!voxel.active || voxel.fixed || voxel.remaining_mass <= 0.0) {
+      continue;
+    }
+    if (voxel_requests[i] <= 0.0) {
+      continue;
+    }
+    limiting_time = std::min(limiting_time, voxel.remaining_mass / voxel_requests[i]);
+  }
+  if (!std::isfinite(limiting_time) || limiting_time <= 0.0) {
+    throw RuntimeError("surface flux mass/courant found no positive mapped flux");
+  }
+  set_timestep(courant * limiting_time);
+}
+
 void Model::ablate(const AblationCommand &ablate) {
   validate_ablation(ablate, "voxel ablate");
   open_step();
