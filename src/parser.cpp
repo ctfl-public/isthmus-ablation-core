@@ -228,6 +228,19 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
           }
         }
         config.dumps.push_back(std::move(dump));
+      } else if (subcommand == "ablate") {
+        require_size(tokens, 7, line_number);
+        ScriptCommand command_entry;
+        command_entry.kind = CommandKind::VoxelAblate;
+        command_entry.ablate.voxels = tokens[2];
+        const auto values = parse_pairs(tokens, 3, line_number);
+        command_entry.ablate.source = required(values, "source", line_number);
+        command_entry.ablate.policy = required(values, "policy", line_number);
+        const auto delete_it = values.find("delete");
+        if (delete_it != values.end()) {
+          command_entry.ablate.delete_empty = parse_bool(delete_it->second, line_number);
+        }
+        config.program.push_back(std::move(command_entry));
       } else {
         throw InputError(line_error(line_number, "unknown voxel subcommand '" + subcommand + "'"));
       }
@@ -282,16 +295,54 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
     } else if (command == "stats_style") {
       require_size(tokens, 2, line_number);
       config.stats.columns.assign(tokens.begin() + 1, tokens.end());
+    } else if (command == "variable") {
+      require_size(tokens, 4, line_number);
+      if (tokens[2] != "loop") {
+        throw InputError(line_error(line_number, "only 'variable <name> loop <N>' is supported"));
+      }
+      ScriptCommand command_entry;
+      command_entry.kind = CommandKind::VariableLoop;
+      command_entry.name = tokens[1];
+      command_entry.count = parse_int(tokens[3], line_number);
+      if (command_entry.count <= 0) {
+        throw InputError(line_error(line_number, "variable loop count must be positive"));
+      }
+      config.program.push_back(std::move(command_entry));
+    } else if (command == "label") {
+      require_size(tokens, 2, line_number);
+      ScriptCommand command_entry;
+      command_entry.kind = CommandKind::Label;
+      command_entry.name = tokens[1];
+      config.program.push_back(std::move(command_entry));
+    } else if (command == "next") {
+      require_size(tokens, 2, line_number);
+      ScriptCommand command_entry;
+      command_entry.kind = CommandKind::Next;
+      command_entry.name = tokens[1];
+      config.program.push_back(std::move(command_entry));
+    } else if (command == "jump") {
+      require_size(tokens, 3, line_number);
+      if (tokens[1] != "SELF") {
+        throw InputError(line_error(line_number, "only 'jump SELF <label>' is supported"));
+      }
+      ScriptCommand command_entry;
+      command_entry.kind = CommandKind::Jump;
+      command_entry.target = tokens[2];
+      config.program.push_back(std::move(command_entry));
     } else if (command == "run") {
       require_size(tokens, 2, line_number);
+      ScriptCommand command_entry;
+      command_entry.kind = CommandKind::Run;
       if (tokens[1] == "duration") {
         require_size(tokens, 3, line_number);
-        config.run.use_duration = true;
-        config.run.duration = parse_double(tokens[2], line_number);
+        command_entry.run.use_duration = true;
+        command_entry.run.duration = parse_double(tokens[2], line_number);
       } else {
-        config.run.use_duration = false;
-        config.run.steps = parse_int(tokens[1], line_number);
+        command_entry.run.use_duration = false;
+        command_entry.run.steps = parse_int(tokens[1], line_number);
       }
+      config.run = command_entry.run;
+      config.program.push_back(std::move(command_entry));
     } else if (command == "verify") {
       require_size(tokens, 6, line_number);
       if (tokens[2] != "exact") {

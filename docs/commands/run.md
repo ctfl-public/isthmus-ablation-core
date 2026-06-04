@@ -20,8 +20,6 @@ run duration 0.02
 
 `run <steps>` advances a fixed number of steps.
 
-`run duration <time>` advances for a requested physical duration. With the
-current mass-Courant timestep, the model chooses an integer step count near the
-safe timestep and adjusts `dt` so the final time lands on the requested
-duration.
-
+`run duration <time>` advances for a requested physical duration using the
+current timestep. The model chooses enough whole steps to reach or slightly
+exceed the requested duration.

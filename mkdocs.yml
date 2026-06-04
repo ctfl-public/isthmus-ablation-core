@@ -29,6 +29,8 @@ nav:
       - voxel: commands/voxel.md
       - source: commands/source.md
       - timestep: commands/timestep.md
+      - loop commands: commands/loops.md
+      - voxel ablate: commands/voxel-ablate.md
       - fix voxel/ablate: commands/fix-voxel-ablate.md
       - stats and stats_style: commands/stats.md
       - voxel dump: commands/voxel-dump.md

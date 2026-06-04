@@ -30,6 +30,8 @@ PAGES = [
     ("voxel", DOCS / "commands" / "voxel.md"),
     ("source", DOCS / "commands" / "source.md"),
     ("timestep", DOCS / "commands" / "timestep.md"),
+    ("loop commands", DOCS / "commands" / "loops.md"),
+    ("voxel ablate", DOCS / "commands" / "voxel-ablate.md"),
     ("fix voxel/ablate", DOCS / "commands" / "fix-voxel-ablate.md"),
     ("stats and stats_style", DOCS / "commands" / "stats.md"),
     ("voxel dump", DOCS / "commands" / "voxel-dump.md"),

@@ -22,9 +22,11 @@ The command-oriented form is useful for readable standalone scripts and
 DSMC/SPARTA loops:
 
 ```text
+label ablate-loop
 voxel ablate solid source q1 policy local delete yes
 isthmus surface surf1 voxels solid map yes
 isthmus map surf1 source dsmc-tallies to voxels solid
+jump SELF ablate-loop
 ```
 
 Standalone inputs can loop over these commands directly. DSMC/SPARTA inputs can

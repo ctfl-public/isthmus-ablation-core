@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
   try {
     auto config = iac::parse_input_file(argv[2]);
     iac::Model model(std::move(config));
-    model.run(&std::cout);
+    model.execute(&std::cout);
     model.verify();
   } catch (const std::exception &error) {
     std::cerr << "error: " << error.what() << "\n";

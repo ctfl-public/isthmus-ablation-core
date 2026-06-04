@@ -18,6 +18,7 @@ without a fluid domain.
 - Define a constant mass-loss source.
 - Use explicit or mass-Courant timesteps.
 - Apply local voxel ablation with delete-empty behavior.
+- Use simple standalone loops with `variable`, `label`, `next`, and `jump`.
 - Print aligned standalone stats with `stats` and `stats_style`.
 - Write a CSV history file.
 - Write VTU voxel files for visual inspection.
@@ -71,14 +72,18 @@ voxel create solid slab nx 8 ny 2 nz 2 dx 1.0e-6 material carbon
 source q1 constant 1.8 units kg/m2/s
 timestep mass/courant 0.5 source q1
 
-fix ab all voxel/ablate 1 voxels solid source q1 policy local delete yes
-
 stats 1
 stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction front
 
 voxel dump hist solid history 1 output/slab-local-ablation/history.csv
 voxel dump vox solid vtu 1 output/slab-local-ablation/voxels_*.vtu select active scalar mass-fraction
-run 8
+
+variable i loop 8
+label ablate-loop
+voxel ablate solid source q1 policy local delete yes
+run 1
+next i
+jump SELF ablate-loop
 ```
 
 The regression wrapper in

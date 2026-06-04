@@ -55,6 +55,13 @@ struct AblationFix {
   bool delete_empty = true;
 };
 
+struct AblationCommand {
+  std::string voxels;
+  std::string source;
+  std::string policy = "local";
+  bool delete_empty = true;
+};
+
 struct VoxelDump {
   std::string id;
   std::string voxels;
@@ -76,6 +83,24 @@ struct RunConfig {
   int steps = 0;
 };
 
+enum class CommandKind {
+  Label,
+  VariableLoop,
+  Next,
+  Jump,
+  Run,
+  VoxelAblate,
+};
+
+struct ScriptCommand {
+  CommandKind kind = CommandKind::Run;
+  std::string name;
+  std::string target;
+  int count = 0;
+  RunConfig run;
+  AblationCommand ablate;
+};
+
 struct VerificationCheck {
   std::string quantity;
   std::string expression;
@@ -95,6 +120,7 @@ struct Config {
   std::vector<VoxelDump> dumps;
   RunConfig run;
   std::vector<VerificationCheck> checks;
+  std::vector<ScriptCommand> program;
 };
 
 struct Voxel {

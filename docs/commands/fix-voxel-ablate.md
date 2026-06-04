@@ -1,7 +1,8 @@
 # `fix ... voxel/ablate` Command
 
 The `voxel/ablate` fix applies mass loss to a voxel model during standalone
-time advancement.
+time advancement. It is the compact callback-style alternative to explicit
+`voxel ablate` commands.
 
 ## Syntax
 

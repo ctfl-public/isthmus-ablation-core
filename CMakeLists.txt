@@ -34,6 +34,11 @@ add_test(
   COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-local-ablation/in.slab-local-ablation.verify
 )
 
+add_test(
+  NAME slab-local-fix-verification
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-local-ablation/in.slab-local-ablation.fix-verify
+)
+
 add_custom_target(
   check-verbose
   COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure --verbose

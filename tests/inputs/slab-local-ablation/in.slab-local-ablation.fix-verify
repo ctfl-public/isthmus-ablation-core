@@ -1,0 +1,20 @@
+# Regression wrapper for the compact fix-driven slab ablation path.
+
+units si
+
+voxel material carbon density 1800.0
+voxel create solid slab nx 8 ny 2 nz 2 dx 1.0e-6 material carbon
+
+source q1 constant 1.8 units kg/m2/s
+timestep mass/courant 0.5 source q1
+
+fix ab all voxel/ablate 1 voxels solid source q1 policy local delete yes
+
+stats 1
+stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction front
+
+run 8
+
+verify remaining-mass exact "initial-mass - q1*area*time" tolerance 1.0e-27 norm max
+verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 1.0e-14 norm max
+verify front exact "q1*time/rho" tolerance 1.0e-6 norm max

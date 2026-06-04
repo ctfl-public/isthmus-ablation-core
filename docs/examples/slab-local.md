@@ -14,14 +14,21 @@ voxel create solid slab nx 8 ny 2 nz 2 dx 1.0e-6 material carbon
 source q1 constant 1.8 units kg/m2/s
 timestep mass/courant 0.5 source q1
 
-fix ab all voxel/ablate 1 voxels solid source q1 policy local delete yes
+# Compact callback-style alternative:
+# fix ab all voxel/ablate 1 voxels solid source q1 policy local delete yes
 
 stats 1
 stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction front
 
 voxel dump hist solid history 1 output/slab-local-ablation/history.csv
 voxel dump vox solid vtu 1 output/slab-local-ablation/voxels_*.vtu select active scalar mass-fraction
-run 8
+
+variable i loop 8
+label ablate-loop
+voxel ablate solid source q1 policy local delete yes
+run 1
+next i
+jump SELF ablate-loop
 ```
 
 Run it:
@@ -52,6 +59,13 @@ include ../../../examples/slab-local-ablation/in.slab-local-ablation
 verify remaining-mass exact "initial-mass - q1*area*time" tolerance 1.0e-27 norm max
 verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 1.0e-14 norm max
 verify front exact "q1*time/rho" tolerance 1.0e-6 norm max
+```
+
+There is also a fix-driven regression input that keeps the commented compact
+path covered:
+
+```text
+tests/inputs/slab-local-ablation/in.slab-local-ablation.fix-verify
 ```
 
 Run the test:

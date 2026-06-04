@@ -13,6 +13,8 @@ Current standalone commands:
 - [`voxel`](voxel.md)
 - [`source`](source.md)
 - [`timestep`](timestep.md)
+- [`variable`, `label`, `next`, and `jump`](loops.md)
+- [`voxel ablate`](voxel-ablate.md)
 - [`fix ... voxel/ablate`](fix-voxel-ablate.md)
 - [`stats` and `stats_style`](stats.md)
 - [`voxel dump`](voxel-dump.md)

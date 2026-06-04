@@ -27,21 +27,25 @@ The current regression test is:
 
 ```text
 slab-local-verification
+slab-local-fix-verification
 ```
 
-It runs:
+They run:
 
 ```text
 tests/inputs/slab-local-ablation/in.slab-local-ablation.verify
+tests/inputs/slab-local-ablation/in.slab-local-ablation.fix-verify
 ```
 
-That file includes the example case:
+The command-loop test includes the example case:
 
 ```text
 include ../../../examples/slab-local-ablation/in.slab-local-ablation
 ```
 
-The test passes only if all `verify` commands in the wrapper input file pass.
+The fix test keeps the compact callback-style path covered while the examples
+move toward explicit `voxel ablate` loops. Tests pass only if all `verify`
+commands in the wrapper input files pass.
 
 ## Test Organization
 

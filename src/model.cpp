@@ -123,20 +123,36 @@ void Model::validate_and_initialize() {
   if (config_.source.name.empty() || config_.source.value < 0.0) {
     throw RuntimeError("source constant requires a nonnegative value");
   }
-  if (config_.fix.name.empty()) {
-    throw RuntimeError("missing ablation fix");
+  if (!config_.fix.name.empty()) {
+    validate_ablation(
+        AblationCommand{config_.fix.voxels, config_.fix.source, config_.fix.policy,
+                        config_.fix.delete_empty},
+        "fix '" + config_.fix.name + "'");
+    if (config_.fix.every <= 0) {
+      throw RuntimeError("fix every value must be positive");
+    }
   }
-  if (config_.fix.voxels != config_.voxel_name) {
-    throw RuntimeError("fix references unknown voxel model '" + config_.fix.voxels + "'");
+  bool has_run = false;
+  bool has_ablation = !config_.fix.name.empty();
+  for (const auto &command : config_.program) {
+    if (command.kind == CommandKind::Run) {
+      has_run = true;
+      if (!command.run.use_duration && command.run.steps <= 0) {
+        throw RuntimeError("run command must specify a positive step count");
+      }
+      if (command.run.use_duration && command.run.duration <= 0.0) {
+        throw RuntimeError("run duration must be positive");
+      }
+    } else if (command.kind == CommandKind::VoxelAblate) {
+      has_ablation = true;
+      validate_ablation(command.ablate, "voxel ablate");
+    }
   }
-  if (config_.fix.source != config_.source.name) {
-    throw RuntimeError("fix references unknown source '" + config_.fix.source + "'");
+  if (!has_run) {
+    throw RuntimeError("input must contain at least one run command");
   }
-  if (config_.fix.policy != "local") {
-    throw RuntimeError("only local ablation policy is currently implemented");
-  }
-  if (config_.fix.every <= 0) {
-    throw RuntimeError("fix every value must be positive");
+  if (!has_ablation) {
+    throw RuntimeError("input must contain a voxel ablate command or fix voxel/ablate");
   }
 
   voxel_mass_ = config_.material.density * std::pow(config_.slab.dx, 3);
@@ -171,9 +187,6 @@ void Model::derive_timestep() {
     if (dt_ <= 0.0) {
       throw RuntimeError("explicit timestep must be positive");
     }
-    nsteps_ = config_.run.use_duration
-                  ? static_cast<int>(std::ceil(config_.run.duration / dt_ - kEpsilon))
-                  : config_.run.steps;
     return;
   }
 
@@ -191,23 +204,26 @@ void Model::derive_timestep() {
   const double safe_dt =
       config_.timestep.courant * config_.material.density * config_.slab.dx /
       config_.source.value;
-  if (config_.run.use_duration) {
-    if (config_.run.duration <= 0.0) {
-      throw RuntimeError("run duration must be positive");
-    }
-    nsteps_ = std::max(1, static_cast<int>(std::round(config_.run.duration / safe_dt)));
-    dt_ = config_.run.duration / static_cast<double>(nsteps_);
-  } else {
-    nsteps_ = config_.run.steps;
-    dt_ = safe_dt;
+  dt_ = safe_dt;
+}
+
+void Model::validate_ablation(const AblationCommand &ablate, const std::string &context) const {
+  if (ablate.voxels != config_.voxel_name) {
+    throw RuntimeError(context + " references unknown voxel model '" + ablate.voxels + "'");
   }
-  if (nsteps_ <= 0) {
-    throw RuntimeError("run must specify a positive number of steps or duration");
+  if (ablate.source != config_.source.name) {
+    throw RuntimeError(context + " references unknown source '" + ablate.source + "'");
+  }
+  if (ablate.policy != "local") {
+    throw RuntimeError("only local ablation policy is currently implemented");
   }
 }
 
-void Model::run(std::ostream *stats) {
+void Model::execute(std::ostream *stats) {
   history_.clear();
+  current_step_ = 0;
+  current_time_ = 0.0;
+  step_open_ = false;
   applied_mass_total_ = 0.0;
   record_history(0, 0.0);
   write_scheduled_dumps(0);
@@ -217,17 +233,63 @@ void Model::run(std::ostream *stats) {
     print_row(*stats, history_.back());
   }
 
-  for (int step = 1; step <= nsteps_; ++step) {
-    begin_step();
-    if (step % config_.fix.every == 0) {
-      advance_local_slab();
+  std::unordered_map<std::string, std::size_t> labels;
+  for (std::size_t i = 0; i < config_.program.size(); ++i) {
+    if (config_.program[i].kind == CommandKind::Label) {
+      labels[config_.program[i].name] = i;
     }
-    const double time = static_cast<double>(step) * dt_;
-    record_history(step, time);
-    write_scheduled_dumps(step);
-    if (stats != nullptr &&
-        (step % config_.stats.every == 0 || step == nsteps_)) {
-      print_row(*stats, history_.back());
+  }
+
+  std::unordered_map<std::string, int> loop_remaining;
+  bool skip_next_jump = false;
+  std::size_t pc = 0;
+  std::size_t executed = 0;
+  constexpr std::size_t max_commands = 1000000;
+  while (pc < config_.program.size()) {
+    if (++executed > max_commands) {
+      throw RuntimeError("script exceeded command execution limit; check loop termination");
+    }
+
+    const auto &command = config_.program[pc];
+    switch (command.kind) {
+    case CommandKind::Label:
+      ++pc;
+      break;
+    case CommandKind::VariableLoop:
+      loop_remaining[command.name] = command.count;
+      ++pc;
+      break;
+    case CommandKind::Next: {
+      const auto it = loop_remaining.find(command.name);
+      if (it == loop_remaining.end()) {
+        throw RuntimeError("next references unknown loop variable '" + command.name + "'");
+      }
+      --it->second;
+      skip_next_jump = it->second <= 0;
+      ++pc;
+      break;
+    }
+    case CommandKind::Jump:
+      if (skip_next_jump) {
+        skip_next_jump = false;
+        ++pc;
+      } else {
+        const auto it = labels.find(command.target);
+        if (it == labels.end()) {
+          throw RuntimeError("jump references unknown label '" + command.target + "'");
+        }
+        pc = it->second;
+      }
+      break;
+    case CommandKind::Run:
+      run_steps(command.run, stats);
+      ++pc;
+      break;
+    case CommandKind::VoxelAblate:
+      open_step();
+      advance_local_slab(command.ablate);
+      ++pc;
+      break;
     }
   }
 
@@ -238,13 +300,42 @@ void Model::run(std::ostream *stats) {
   }
 }
 
+void Model::run_steps(const RunConfig &run, std::ostream *stats) {
+  const int steps = run.use_duration
+                        ? std::max(1, static_cast<int>(std::ceil(run.duration / dt_ - kEpsilon)))
+                        : run.steps;
+  for (int i = 0; i < steps; ++i) {
+    open_step();
+    const int next_step = current_step_ + 1;
+    if (!config_.fix.name.empty() && next_step % config_.fix.every == 0) {
+      advance_local_slab(AblationCommand{config_.fix.voxels, config_.fix.source,
+                                         config_.fix.policy, config_.fix.delete_empty});
+    }
+    current_step_ = next_step;
+    current_time_ = static_cast<double>(current_step_) * dt_;
+    record_history(current_step_, current_time_);
+    write_scheduled_dumps(current_step_);
+    step_open_ = false;
+    if (stats != nullptr && current_step_ % config_.stats.every == 0) {
+      print_row(*stats, history_.back());
+    }
+  }
+}
+
 void Model::begin_step() {
   requested_mass_step_ = 0.0;
   applied_mass_step_ = 0.0;
   dropped_mass_step_ = 0.0;
 }
 
-void Model::advance_local_slab() {
+void Model::open_step() {
+  if (!step_open_) {
+    begin_step();
+    step_open_ = true;
+  }
+}
+
+void Model::advance_local_slab(const AblationCommand &ablate) {
   const auto &g = config_.slab;
   const double face_area = g.dx * g.dx;
   for (int iy = 0; iy < g.ny; ++iy) {
@@ -270,7 +361,7 @@ void Model::advance_local_slab() {
       requested -= removed;
       if (voxel.remaining_mass <= voxel_mass_ * kEpsilon) {
         voxel.remaining_mass = 0.0;
-        if (config_.fix.delete_empty) {
+        if (ablate.delete_empty) {
           voxel.active = false;
         }
       }
@@ -315,7 +406,7 @@ void Model::write_scheduled_dumps(int step) const {
     if (dump.style != "vtu") {
       continue;
     }
-    if (step % dump.every == 0 || step == nsteps_) {
+    if (step % dump.every == 0) {
       write_vtu(dump, step);
     }
   }
@@ -584,11 +675,14 @@ void Model::print_run_summary(std::ostream &out) const {
   }
   out << '\n';
   out << "#   timestep = " << dt_ << " s\n";
-  out << "#   steps = " << nsteps_ << '\n';
-  out << "#   physical time = " << dt_ * static_cast<double>(nsteps_) << " s\n";
-  out << "#   fix = " << config_.fix.name << " voxel/ablate every " << config_.fix.every
-      << " policy " << config_.fix.policy << " delete "
-      << (config_.fix.delete_empty ? "yes" : "no") << '\n';
+  out << "#   program commands = " << config_.program.size() << '\n';
+  if (config_.fix.name.empty()) {
+    out << "#   fix = off\n";
+  } else {
+    out << "#   fix = " << config_.fix.name << " voxel/ablate every " << config_.fix.every
+        << " policy " << config_.fix.policy << " delete "
+        << (config_.fix.delete_empty ? "yes" : "no") << '\n';
+  }
   out << "#   stats = every " << config_.stats.every << " steps\n";
   out << "#   voxel dumps = ";
   if (config_.dumps.empty()) {
