@@ -21,6 +21,7 @@ namespace iac {
 namespace {
 
 constexpr double kEpsilon = 1.0e-12;
+constexpr double kBoltzmann = 1.380649e-23;
 
 std::string format_error(const std::string &quantity, double error, double tolerance,
                          const std::string &mode) {
@@ -106,6 +107,15 @@ double verification_error(double actual, double exact, const VerificationCheck &
   throw RuntimeError("unknown verify tolerance mode '" + check.tolerance_mode + "'");
 }
 
+double kinetic_theory_mass_flux(const SurfaceFluxCommand &flux) {
+  const double pi = std::acos(-1.0);
+  const double number_density = flux.mole_fraction * flux.pressure / (kBoltzmann * flux.temperature);
+  const double impingement =
+      number_density * std::sqrt(kBoltzmann * flux.temperature /
+                                 (2.0 * pi * flux.molecular_mass));
+  return flux.reaction_prob * flux.solid_mass_per_hit * impingement;
+}
+
 std::string csv_escape(const std::string &value) {
   if (value.find_first_of(",\"\n") == std::string::npos) {
     return value;
@@ -187,6 +197,94 @@ Model::Model(Config config) : config_(std::move(config)) {
   validate_and_initialize();
 }
 
+std::vector<Model::PublicSurfaceTriangle> Model::surface_triangles(const std::string &name) const {
+  const auto found = surfaces_.find(name);
+  if (found == surfaces_.end()) {
+    throw RuntimeError("unknown surface '" + name + "'");
+  }
+
+  std::vector<PublicSurfaceTriangle> result;
+  result.reserve(found->second.triangles.size());
+  for (const auto &triangle : found->second.triangles) {
+    result.push_back(PublicSurfaceTriangle{triangle.a, triangle.b, triangle.c, triangle.normal,
+                                           triangle.area, triangle.last_requested_mass});
+  }
+  return result;
+}
+
+void Model::set_timestep(double dt) {
+  if (dt <= 0.0) {
+    throw RuntimeError("set_timestep requires a positive timestep");
+  }
+  dt_ = dt;
+}
+
+void Model::reset_run_state() {
+  history_.clear();
+  current_step_ = 0;
+  current_time_ = 0.0;
+  step_open_ = false;
+  applied_mass_total_ = 0.0;
+  record_history(0, 0.0);
+  write_scheduled_dumps(0);
+}
+
+void Model::generate_surface(const IsthmusSurfaceCommand &surface) {
+  validate_isthmus_surface(surface);
+  generate_isthmus_surface(surface);
+}
+
+void Model::apply_flux(const SurfaceFluxCommand &flux) {
+  validate_surface_flux(flux);
+  open_step();
+  apply_surface_flux(flux);
+}
+
+void Model::apply_triangle_fluxes(const std::string &surface_name,
+                                  const std::vector<double> &mass_fluxes) {
+  auto it = surfaces_.find(surface_name);
+  if (it == surfaces_.end()) {
+    throw RuntimeError("surface flux references unknown surface '" + surface_name + "'");
+  }
+
+  open_step();
+  auto &surface = it->second;
+  for (auto &triangle : surface.triangles) {
+    triangle.requested_mass = 0.0;
+    triangle.last_requested_mass = 0.0;
+  }
+  if (mass_fluxes.size() != surface.triangles.size()) {
+    throw RuntimeError("surface flux vector size does not match surface triangle count");
+  }
+  for (std::size_t i = 0; i < surface.triangles.size(); ++i) {
+    const double mass_flux = mass_fluxes[i];
+    if (mass_flux <= 0.0) {
+      continue;
+    }
+    auto &triangle = surface.triangles[i];
+    triangle.requested_mass = mass_flux * triangle.area * dt_;
+    triangle.last_requested_mass = triangle.requested_mass;
+    requested_mass_step_ += triangle.requested_mass;
+  }
+}
+
+void Model::ablate(const AblationCommand &ablate) {
+  validate_ablation(ablate, "voxel ablate");
+  open_step();
+  if (!ablate.surface.empty()) {
+    advance_surface_ablation(ablate);
+  } else {
+    advance_local_slab(ablate);
+  }
+}
+
+void Model::advance_steps(int steps) {
+  if (steps <= 0) {
+    throw RuntimeError("advance_steps requires a positive step count");
+  }
+  run_steps(RunConfig{false, 0.0, steps}, nullptr);
+}
+
 void Model::validate_and_initialize() {
   if (config_.units != "si") {
     throw RuntimeError("only 'units si' is currently supported");
@@ -235,10 +333,10 @@ void Model::validate_and_initialize() {
     }
   }
   validate_ghosts();
-  if (!has_run) {
+  if (config_.require_program && !has_run) {
     throw RuntimeError("input must contain at least one run command");
   }
-  if (!has_ablation) {
+  if (config_.require_program && !has_ablation) {
     throw RuntimeError("input must contain a voxel ablate command or fix voxel/ablate");
   }
 
@@ -246,6 +344,9 @@ void Model::validate_and_initialize() {
     voxel_mass_ = config_.material.density * std::pow(config_.slab.dx, 3);
     initialize_slab();
   } else if (config_.geometry == GeometryKind::Sphere) {
+    if (config_.sphere.dx <= 0.0 && config_.sphere.resolution > 0) {
+      config_.sphere.dx = config_.sphere.diameter / static_cast<double>(config_.sphere.resolution);
+    }
     voxel_mass_ = config_.material.density * std::pow(config_.sphere.dx, 3);
     initialize_sphere();
   } else {
@@ -377,8 +478,31 @@ void Model::validate_isthmus_surface(const IsthmusSurfaceCommand &surface) const
 }
 
 void Model::validate_surface_flux(const SurfaceFluxCommand &flux) const {
-  if (flux.source != config_.source.name) {
-    throw RuntimeError("surface flux references unknown source '" + flux.source + "'");
+  if (flux.style == "source") {
+    if (flux.source != config_.source.name) {
+      throw RuntimeError("surface flux references unknown source '" + flux.source + "'");
+    }
+  } else if (flux.style == "kinetic/theory") {
+    if (flux.pressure <= 0.0) {
+      throw RuntimeError("surface flux kinetic/theory pressure must be positive");
+    }
+    if (flux.temperature <= 0.0) {
+      throw RuntimeError("surface flux kinetic/theory temperature must be positive");
+    }
+    if (flux.mole_fraction < 0.0 || flux.mole_fraction > 1.0) {
+      throw RuntimeError("surface flux kinetic/theory mole-fraction must be between 0 and 1");
+    }
+    if (flux.molecular_mass <= 0.0) {
+      throw RuntimeError("surface flux kinetic/theory molecular-mass must be positive");
+    }
+    if (flux.reaction_prob < 0.0 || flux.reaction_prob > 1.0) {
+      throw RuntimeError("surface flux kinetic/theory reaction-prob must be between 0 and 1");
+    }
+    if (flux.solid_mass_per_hit <= 0.0) {
+      throw RuntimeError("surface flux kinetic/theory solid-mass-per-hit must be positive");
+    }
+  } else {
+    throw RuntimeError("surface flux style must be source or kinetic/theory");
   }
   if (flux.select == "normal" && norm3(flux.direction) <= 0.0) {
     throw RuntimeError("surface flux normal selection requires nonzero direction");
@@ -409,13 +533,7 @@ void Model::validate_ghosts() const {
 }
 
 void Model::execute(std::ostream *stats) {
-  history_.clear();
-  current_step_ = 0;
-  current_time_ = 0.0;
-  step_open_ = false;
-  applied_mass_total_ = 0.0;
-  record_history(0, 0.0);
-  write_scheduled_dumps(0);
+  reset_run_state();
   if (stats != nullptr) {
     print_run_summary(*stats);
     print_header(*stats);
@@ -514,7 +632,7 @@ void Model::run_steps(const RunConfig &run, std::ostream *stats) {
                                          config_.fix.policy, config_.fix.delete_empty});
     }
     current_step_ = next_step;
-    current_time_ = static_cast<double>(current_step_) * dt_;
+    current_time_ += dt_;
     record_history(current_step_, current_time_);
     write_scheduled_dumps(current_step_);
     step_open_ = false;
@@ -748,6 +866,8 @@ void Model::apply_surface_flux(const SurfaceFluxCommand &flux) {
     triangle.last_requested_mass = 0.0;
   }
 
+  const double mass_flux =
+      flux.style == "kinetic/theory" ? kinetic_theory_mass_flux(flux) : config_.source.value;
   const auto direction = normalized3(flux.direction);
   for (auto &triangle : surface.triangles) {
     bool selected = flux.select == "all";
@@ -759,7 +879,7 @@ void Model::apply_surface_flux(const SurfaceFluxCommand &flux) {
     if (!selected) {
       continue;
     }
-    triangle.requested_mass = config_.source.value * triangle.area * dt_;
+    triangle.requested_mass = mass_flux * triangle.area * dt_;
     triangle.last_requested_mass = triangle.requested_mass;
     requested_mass_step_ += triangle.requested_mass;
   }
@@ -1040,10 +1160,14 @@ void Model::write_scheduled_dumps(int step) const {
 }
 
 void Model::write_history_csv(const VoxelDump &dump) const {
-  ensure_parent_directory(dump.path);
-  std::ofstream out(dump.path);
+  write_history(dump.path);
+}
+
+void Model::write_history(const std::string &path) const {
+  ensure_parent_directory(path);
+  std::ofstream out(path);
   if (!out) {
-    throw RuntimeError("could not write history file '" + dump.path + "'");
+    throw RuntimeError("could not write history file '" + path + "'");
   }
   out << "step,time,active-voxels,deleted-voxels,remaining-mass,"
       << "mass-fraction,volume-fraction,front,radius,requested-mass-step,applied-mass-step,"

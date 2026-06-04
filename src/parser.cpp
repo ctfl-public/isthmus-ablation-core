@@ -385,8 +385,34 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
         ScriptCommand command_entry;
         command_entry.kind = CommandKind::SurfaceFlux;
         command_entry.surface_flux.surface = tokens[2];
-        const auto values = parse_pairs(tokens, 3, line_number);
-        command_entry.surface_flux.source = required(values, "source", line_number);
+        std::size_t pairs_begin = 3;
+        if (tokens[3] == "kinetic/theory") {
+          command_entry.surface_flux.style = "kinetic/theory";
+          pairs_begin = 4;
+        }
+        const auto values = parse_pairs(tokens, pairs_begin, line_number);
+        if (command_entry.surface_flux.style == "source") {
+          command_entry.surface_flux.source = required(values, "source", line_number);
+        } else {
+          command_entry.surface_flux.pressure =
+              parse_double(required(values, "pressure", line_number), line_number);
+          command_entry.surface_flux.temperature =
+              parse_double(required(values, "temperature", line_number), line_number);
+          command_entry.surface_flux.molecular_mass =
+              parse_double(required(values, "molecular-mass", line_number), line_number);
+          command_entry.surface_flux.solid_mass_per_hit =
+              parse_double(required(values, "solid-mass-per-hit", line_number), line_number);
+          const auto mole_fraction = values.find("mole-fraction");
+          if (mole_fraction != values.end()) {
+            command_entry.surface_flux.mole_fraction =
+                parse_double(mole_fraction->second, line_number);
+          }
+          const auto reaction_prob = values.find("reaction-prob");
+          if (reaction_prob != values.end()) {
+            command_entry.surface_flux.reaction_prob =
+                parse_double(reaction_prob->second, line_number);
+          }
+        }
         const auto select = values.find("select");
         if (select != values.end()) {
           command_entry.surface_flux.select = select->second;

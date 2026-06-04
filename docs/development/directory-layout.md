@@ -10,6 +10,10 @@ src/
 examples/
   Human-readable standalone input examples, organized as <case>/in.<case>.
 
+dsmc-bridge/
+  DSMC command-style bridge sources copied into /Users/tstoffel1/dsmc/src for
+  local integration experiments.
+
 tests/inputs/
   Regression wrappers, organized as <case>/in.<case>.verify.
 

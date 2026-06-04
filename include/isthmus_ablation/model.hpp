@@ -12,14 +12,32 @@ namespace iac {
 
 class Model {
 public:
+  struct PublicSurfaceTriangle {
+    std::array<double, 3> a{{0.0, 0.0, 0.0}};
+    std::array<double, 3> b{{0.0, 0.0, 0.0}};
+    std::array<double, 3> c{{0.0, 0.0, 0.0}};
+    std::array<double, 3> normal{{0.0, 0.0, 0.0}};
+    double area = 0.0;
+    double last_requested_mass = 0.0;
+  };
+
   explicit Model(Config config);
 
   const Config &config() const { return config_; }
   const std::vector<HistoryRow> &history() const { return history_; }
   double timestep() const { return dt_; }
   int step_count() const { return current_step_; }
+  std::vector<PublicSurfaceTriangle> surface_triangles(const std::string &name) const;
 
+  void set_timestep(double dt);
+  void reset_run_state();
+  void generate_surface(const IsthmusSurfaceCommand &surface);
+  void apply_flux(const SurfaceFluxCommand &flux);
+  void apply_triangle_fluxes(const std::string &surface, const std::vector<double> &mass_fluxes);
+  void ablate(const AblationCommand &ablate);
+  void advance_steps(int steps);
   void execute(std::ostream *stats = nullptr);
+  void write_history(const std::string &path) const;
   void write_verification_csv(const std::string &path) const;
   void verify() const;
   double verification_error(const VerificationCheck &check) const;

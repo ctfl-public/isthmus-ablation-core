@@ -88,11 +88,18 @@ struct IsthmusSurfaceCommand {
 
 struct SurfaceFluxCommand {
   std::string surface;
+  std::string style = "source";
   std::string source;
   std::string select = "all";
   std::string voxels;
   std::array<double, 3> direction{{0.0, 0.0, 1.0}};
   double min_cos = 0.0;
+  double pressure = 0.0;
+  double temperature = 0.0;
+  double mole_fraction = 1.0;
+  double molecular_mass = 0.0;
+  double reaction_prob = 1.0;
+  double solid_mass_per_hit = 0.0;
 };
 
 struct VoxelGhostCommand {
@@ -175,6 +182,7 @@ struct ConvergenceCheck {
 };
 
 struct Config {
+  bool require_program = true;
   std::string units = "si";
   std::string voxel_name;
   GeometryKind geometry = GeometryKind::None;

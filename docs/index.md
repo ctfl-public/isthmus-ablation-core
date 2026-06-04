@@ -22,6 +22,9 @@ without a fluid domain.
 - Print aligned standalone stats with `stats` and `stats_style`.
 - Write a CSV history file.
 - Write VTU voxel files for visual inspection.
+- Compute single-species ideal-gas kinetic-theory flux on ISTHMUS triangles.
+- Build a local DSMC executable that calls the core through thin
+  command-style bridge files.
 - Include shared input files with `include`.
 - Verify tracked quantities against input-file exact expressions.
 - Optionally build visual verification reports from test data.
