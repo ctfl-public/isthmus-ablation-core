@@ -78,14 +78,17 @@ test set because it depends on an external DSMC executable and bridge files
 copied into DSMC.
 
 This convergence test varies the number of DSMC steps sampled before each
-coupled ablation update. The voxel ablation timestep is derived with
-`surface flux ... dsmc/surf ... mass-courant 0.25`, so each update uses the
-sampled DSMC flux to request roughly one quarter of a voxel mass from the most exposed
-voxel. The generated report compares mass fraction and equivalent radius
-against the uniform-gas analytical shrinking-sphere solution for each DSMC
-sampling length. Its trajectory plots use percent mass lost and radius
-sampling length. Its trajectory plots use remaining mass fraction and radius
-recession in microns.
+coupled ablation update. It uses a fixed ablation time increment,
+`surface flux ... dsmc/surf ... ablation-dt 1.5e-4`, so all DSMC sampling
+lengths are compared at the same physical ablation times. The generated inputs
+use five voxel mass-ledger updates between DSMC/ISTHMUS refreshes. This keeps
+the case quick while still using DSMC surface tallies to set the flux.
+
+The test requires the final mass/radius error to decrease as the DSMC sampling
+length increases from 5 to 20 to 80 steps, and it compares mass fraction and
+equivalent radius against the uniform-gas analytical shrinking-sphere solution.
+Its trajectory plots use remaining mass fraction and radius recession in
+microns.
 
 To build the DSMC convergence report:
 

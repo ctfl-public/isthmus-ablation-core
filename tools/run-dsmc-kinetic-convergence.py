@@ -70,9 +70,15 @@ def exact_values(time: float, initial_radius: float,
 
 def write_input(template: str, path: Path, steps: int, loops: int, history: Path,
                 ablation_dt: float | None, mass_courant: float | None, fnum: float,
-                resolution: int, ledger_steps: int, bad_edges: int) -> None:
+                resolution: int, ledger_steps: int, bad_edges: int,
+                gas_collisions: bool) -> None:
   text = template
   text = text.replace("fnum 1.0e14", f"fnum {fnum:.8g}")
+  if not gas_collisions:
+    text = text.replace(
+        "collide             vss air /Users/tstoffel1/dsmc/examples/tally_computes/air.vss",
+        "# collide disabled for uniform free-molecular flux sampling",
+    )
   if bad_edges > 0:
     text = text.replace("gridcut 0.0 surfmax", f"gridcut 0.0 nedgebadnum {bad_edges} surfmax")
   text = text.replace(
@@ -128,7 +134,7 @@ def run_case(root: Path, dsmc: Path, template: str, out_dir: Path, steps: int,
   input_path = case_dir / f"in.dsmc-sphere-kinetic-steps-{steps:04d}"
   write_input(template, input_path, steps, loops, history, args.ablation_dt,
               args.mass_courant, args.fnum, args.resolution, args.ledger_steps,
-              args.bad_edges)
+              args.bad_edges, args.gas_collisions)
 
   command = [str(dsmc), "-in", str(input_path)]
   if args.show_dsmc_output:
@@ -261,6 +267,13 @@ def write_report(path: Path, results: list[Result], args: argparse.Namespace) ->
     timestep_text += (
         f"The generated input sets DSMC global nedgebadnum to {args.bad_edges}; "
         "this is an exploratory tolerance for late-stage surface checks. "
+    )
+  if not args.gas_collisions:
+    timestep_text += (
+        "Gas-gas collisions are disabled in this report. This removes collision "
+        "cost while retaining DSMC surface crossing and surface-flux tally "
+        "behavior, but it should be used only for exploratory probes unless the "
+        "gas bath is reinitialized or otherwise held at the intended state. "
     )
   path.parent.mkdir(parents=True, exist_ok=True)
   path.write_text(
@@ -466,6 +479,12 @@ def main() -> int:
       help="DSMC particle weight used in generated convergence inputs.",
   )
   parser.add_argument(
+      "--gas-collisions",
+      choices=("yes", "no"),
+      default="yes",
+      help="Enable or disable gas-gas collisions in generated inputs.",
+  )
+  parser.add_argument(
       "--ablation-dt",
       type=float,
       default=None,
@@ -474,10 +493,15 @@ def main() -> int:
   parser.add_argument(
       "--mass-courant",
       type=float,
-      default=0.25,
+      default=None,
       help="Choose each ablation timestep from mapped DSMC flux so the largest voxel request is this fraction of one voxel mass.",
   )
   parser.add_argument("--tolerance-percent", type=float, default=1.0)
+  parser.add_argument(
+      "--require-monotonic",
+      action="store_true",
+      help="Fail unless the final mass/radius error decreases as DSMC sampling steps increase.",
+  )
   parser.add_argument("--pdf", action="store_true")
   parser.add_argument("--show-dsmc-output", action="store_true")
   parser.add_argument("--number-density", type=float, default=7.244e23)
@@ -496,6 +520,7 @@ def main() -> int:
     raise SystemExit("--ledger-steps must be positive")
   if args.bad_edges < 0:
     raise SystemExit("--bad-edges must be nonnegative")
+  args.gas_collisions = args.gas_collisions == "yes"
 
   root = Path.cwd()
   dsmc = args.dsmc
@@ -528,6 +553,17 @@ def main() -> int:
         f"{args.tolerance_percent:g}%"
     )
     return 1
+  if args.require_monotonic:
+    for left, right in zip(results, results[1:]):
+      left_error = max(left.error_percent, left.radius_error_percent)
+      right_error = max(right.error_percent, right.radius_error_percent)
+      if right_error > left_error:
+        print(
+            "FAILED: final mass/radius error is not monotonic: "
+            f"{left.steps} steps -> {left_error:.6g}%, "
+            f"{right.steps} steps -> {right_error:.6g}%"
+        )
+        return 1
   print(
       f"PASSED: finest error {finest_error:.6g}% is within "
       f"{args.tolerance_percent:g}%"

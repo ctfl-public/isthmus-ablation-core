@@ -86,10 +86,14 @@ if(Python3_Interpreter_FOUND AND IAC_DSMC_EXECUTABLE)
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-dsmc-kinetic-convergence.py
             --dsmc ${IAC_DSMC_EXECUTABLE}
             --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-convergence
-            --steps 1,2,5,10,20,50
-            --loops 10
-            --mass-courant 0.25
+            --steps 5,20,80
+            --loops 6
+            --ledger-steps 5
+            --resolution 10
+            --ablation-dt 1.5e-4
+            --fnum 1.0e13
             --tolerance-percent 1.0
+            --require-monotonic
   )
   set_tests_properties(dsmc-sphere-kinetic-convergence PROPERTIES
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -129,10 +133,14 @@ if(Python3_Interpreter_FOUND AND PDFLATEX_EXECUTABLE)
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-dsmc-kinetic-convergence.py
               --dsmc ${IAC_DSMC_EXECUTABLE}
               --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-convergence
-              --steps 1,2,5,10,20,50
-              --loops 10
-              --mass-courant 0.25
+              --steps 5,20,80
+              --loops 6
+              --ledger-steps 5
+              --resolution 10
+              --ablation-dt 1.5e-4
+              --fnum 1.0e13
               --tolerance-percent 1.0
+              --require-monotonic
               --pdf
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       COMMENT "Building DSMC sphere kinetic convergence report"

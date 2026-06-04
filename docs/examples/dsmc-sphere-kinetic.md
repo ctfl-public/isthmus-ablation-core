@@ -93,23 +93,36 @@ python3 tools/check-dsmc-kinetic.py output/dsmc-sphere-kinetic/history.csv \
 The convergence runner repeats the DSMC-hosted case with several DSMC step
 counts per coupling interval and writes both a CSV and a small PDF report:
 
+The CTest convergence runner uses a fixed ablation timestep instead of a mass
+Courant timestep:
+
 ```bash
 python3 tools/run-dsmc-kinetic-convergence.py \
   --dsmc /Users/tstoffel1/dsmc/src/spa_mac_mpi \
-  --steps 1,2,5,10,20,50 \
+  --steps 5,20,80 \
+  --loops 6 \
+  --ledger-steps 5 \
+  --resolution 10 \
+  --ablation-dt 1.5e-4 \
+  --fnum 1.0e13 \
+  --tolerance-percent 1.0 \
+  --require-monotonic \
   --pdf
 ```
 
-The convergence runner uses `mass-courant 0.25` to derive the ablation timestep
-from the sampled DSMC flux. Each coupled update maps triangle mass fluxes to
-voxels and chooses a timestep equal to one quarter of the time until the next
-predicted voxel deletion event. The runner still varies how long DSMC samples
-before each ablation update, so it remains a DSMC sampling/run-convergence
-check. The report plots both mass fraction and equivalent radius errors against
-the continuum analytical solution for each DSMC sampling length. The history
-plots show remaining mass fraction and radius recession in microns. The default
-runner uses ten coupled ablation updates so the report shows trajectories, not
-only final-point errors.
+The fixed `ablation-dt` keeps all DSMC sampling lengths on the same physical
+ablation-time axis. `--ledger-steps 5` applies five voxel mass-ledger updates
+between DSMC/ISTHMUS refreshes, reusing the most recent sampled surface flux.
+This keeps the case quick while still using DSMC surface tallies to set the
+ablation flux. The report plots both mass fraction and equivalent radius errors
+against the continuum analytical solution for each DSMC sampling length. The
+history plots show remaining mass fraction and radius recession in microns.
+
+Using a mass Courant number larger than one is not equivalent to this
+subcycling. `mass-courant 1.0` advances to the next predicted voxel depletion
+event. Larger values intentionally step beyond that event with stale geometry
+and stale mapped flux, which can skip deletion/carryover ordering and roughen
+late-stage surfaces.
 
 or, from a DSMC-enabled CMake build:
 
@@ -138,3 +151,10 @@ the inner ledger loop. `--bad-edges` sets DSMC `global nedgebadnum`; it is an
 exploratory late-stage tolerance for surfaces with a small number of unmatched
 edges. It should not be used as a production fix until the surface cleanup path
 is understood.
+
+The runner also accepts `--gas-collisions no`, but that mode is not used for
+the validation case. With the current periodic domain and diffuse 300 K surface,
+collisionless particles that hit the cold sphere are re-emitted cold and are not
+rethermalized. A collisionless quick case will need an explicit gas-bath
+reinitialization or thermostat before it can represent the intended uniform
+5000 K Maxwellian reservoir.
