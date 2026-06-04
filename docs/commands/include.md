@@ -1,0 +1,34 @@
+# `include` Command
+
+The `include` command reads another input file at the point where the command
+appears. This keeps examples and tests from duplicating the same setup.
+
+## Syntax
+
+```text
+include <path>
+```
+
+## Examples
+
+```text
+include ../../../examples/slab-local-ablation/in.slab-local-ablation
+```
+
+## Description
+
+Relative paths are resolved from the directory of the file that contains the
+`include` command.
+
+The command is useful for regression tests:
+
+```text
+include ../../../examples/slab-local-ablation/in.slab-local-ablation
+
+verify remaining-mass exact "initial-mass - q1*area*time" tolerance 1.0e-27 norm max
+verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 1.0e-14 norm max
+verify front exact "q1*time/rho" tolerance 1.0e-6 norm max
+```
+
+The example owns the physical case. The test wrapper owns the pass/fail
+criteria.

@@ -1,0 +1,42 @@
+site_name: isthmus-ablation-core
+site_description: Voxel ablation and coupling core for standalone and DSMC/SPARTA workflows.
+repo_url: ""
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.details
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Concepts:
+      - Architecture: concepts/architecture.md
+      - Verification: concepts/verification.md
+      - Expected Features: concepts/expected-features.md
+  - Commands:
+      - Command Reference: commands/index.md
+      - include: commands/include.md
+      - voxel: commands/voxel.md
+      - source: commands/source.md
+      - timestep: commands/timestep.md
+      - fix voxel/ablate: commands/fix-voxel-ablate.md
+      - stats and stats_style: commands/stats.md
+      - voxel dump: commands/voxel-dump.md
+      - verify: commands/verify.md
+      - run: commands/run.md
+  - Examples:
+      - Local Slab Ablation: examples/slab-local.md
+  - Development:
+      - Directory Layout: development/directory-layout.md
+      - Testing: development/testing.md
+      - Documentation: development/documentation.md

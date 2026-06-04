@@ -1,0 +1,8 @@
+# Regression wrapper for the standalone slab example.
+# The example owns the case setup. This file adds only test criteria.
+
+include ../../../examples/slab-local-ablation/in.slab-local-ablation
+
+verify remaining-mass exact "initial-mass - q1*area*time" tolerance 1.0e-27 norm max
+verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 1.0e-14 norm max
+verify front exact "q1*time/rho" tolerance 1.0e-6 norm max

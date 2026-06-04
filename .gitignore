@@ -1,0 +1,52 @@
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# CMake/build products
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+compile_commands.json
+Testing/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+ia-core
+
+# Runtime output
+output/
+**/output/
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Generated web docs
+site/
+
+# Generated documentation artifacts
+docs/*.pdf
+docs/*.png
+
+# LaTeX intermediates
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
