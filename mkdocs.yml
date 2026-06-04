@@ -41,4 +41,5 @@ nav:
   - Development:
       - Directory Layout: development/directory-layout.md
       - Testing: development/testing.md
+      - Test Reports: development/test-reports.md
       - Documentation: development/documentation.md

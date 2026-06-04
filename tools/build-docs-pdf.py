@@ -40,6 +40,7 @@ PAGES = [
     ("Examples", DOCS / "examples" / "slab-local.md"),
     ("Directory Layout", DOCS / "development" / "directory-layout.md"),
     ("Testing", DOCS / "development" / "testing.md"),
+    ("Test Reports", DOCS / "development" / "test-reports.md"),
     ("Documentation", DOCS / "development" / "documentation.md"),
 ]
 

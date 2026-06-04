@@ -30,6 +30,7 @@ ia-core
 # Runtime output
 output/
 **/output/
+reports/
 
 # Python caches
 __pycache__/

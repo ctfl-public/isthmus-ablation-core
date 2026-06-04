@@ -23,6 +23,26 @@ or use the convenience target:
 cmake --build build --target check-verbose
 ```
 
+To build the optional visual verification report:
+
+```bash
+cmake --build build --target test-report
+```
+
+This runs the tests, collects each configured test report CSV, and writes:
+
+```text
+build/output/test-report.pdf
+```
+
+To select a subset directly:
+
+```bash
+python3 tools/run-test-report.py all
+python3 tools/run-test-report.py 1-2
+python3 tools/run-test-report.py slab-local-verification
+```
+
 The current regression test is:
 
 ```text

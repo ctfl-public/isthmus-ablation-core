@@ -24,6 +24,7 @@ without a fluid domain.
 - Write VTU voxel files for visual inspection.
 - Include shared input files with `include`.
 - Verify tracked quantities against input-file exact expressions.
+- Optionally build visual verification reports from test data.
 
 ## Rebuild Docs
 

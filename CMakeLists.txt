@@ -56,4 +56,16 @@ if(Python3_Interpreter_FOUND AND PDFLATEX_EXECUTABLE)
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Building docs/isthmus-ablation-core-manual.pdf"
   )
+
+  add_custom_target(
+    test-report
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-test-report.py
+            all
+            --build ${CMAKE_BINARY_DIR}
+            --manifest ${CMAKE_SOURCE_DIR}/tests/report-cases.csv
+            --out ${CMAKE_BINARY_DIR}/output/test-report.tex
+    DEPENDS ia-core
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Building combined verification report"
+  )
 endif()

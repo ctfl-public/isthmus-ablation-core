@@ -75,6 +75,22 @@ std::string normalize_quantity(std::string quantity) {
   return quantity;
 }
 
+std::string csv_escape(const std::string &value) {
+  if (value.find_first_of(",\"\n") == std::string::npos) {
+    return value;
+  }
+  std::string escaped = "\"";
+  for (const char c : value) {
+    if (c == '"') {
+      escaped += "\"\"";
+    } else {
+      escaped += c;
+    }
+  }
+  escaped += '"';
+  return escaped;
+}
+
 std::string dump_path_for_step(const std::string &pattern, int step) {
   std::ostringstream step_text;
   step_text << std::setw(6) << std::setfill('0') << step;
@@ -539,6 +555,70 @@ void Model::write_vtu(const VoxelDump &dump, int step) const {
   out << "    </Piece>\n";
   out << "  </UnstructuredGrid>\n";
   out << "</VTKFile>\n";
+}
+
+void Model::write_verification_csv(const std::string &path) const {
+  if (history_.empty()) {
+    throw RuntimeError("cannot write verification report before run");
+  }
+  ensure_parent_directory(path);
+  std::ofstream out(path);
+  if (!out) {
+    throw RuntimeError("could not write verification report '" + path + "'");
+  }
+  out << "quantity,expression,step,time,actual,exact,error,tolerance,norm,pass\n";
+  out << std::setprecision(17);
+  for (const auto &check : config_.checks) {
+    const std::string quantity = normalize_quantity(check.quantity);
+    for (const auto &row : history_) {
+      const auto &g = config_.slab;
+      const double length = static_cast<double>(g.nx) * g.dx;
+      const double area = static_cast<double>(g.ny) * static_cast<double>(g.nz) * g.dx * g.dx;
+      std::unordered_map<std::string, double> variables{
+          {"step", static_cast<double>(row.step)},
+          {"time", row.time},
+          {"t", row.time},
+          {"dt", dt_},
+          {"rho", config_.material.density},
+          {"density", config_.material.density},
+          {"dx", g.dx},
+          {"nx", static_cast<double>(g.nx)},
+          {"ny", static_cast<double>(g.ny)},
+          {"nz", static_cast<double>(g.nz)},
+          {"length", length},
+          {"area", area},
+          {"initial-mass", initial_mass_},
+          {"initial_mass", initial_mass_},
+          {"voxel-mass", voxel_mass_},
+          {"voxel_mass", voxel_mass_},
+          {"active-voxels", static_cast<double>(row.active_voxels)},
+          {"active_voxels", static_cast<double>(row.active_voxels)},
+          {"deleted-voxels", static_cast<double>(row.deleted_voxels)},
+          {"deleted_voxels", static_cast<double>(row.deleted_voxels)},
+          {"remaining-mass", row.remaining_mass},
+          {"remaining_mass", row.remaining_mass},
+          {"mass", row.remaining_mass},
+          {"mass-fraction", row.mass_fraction},
+          {"mass_fraction", row.mass_fraction},
+          {"front", row.front},
+          {"requested-mass-step", row.requested_mass_step},
+          {"requested_mass_step", row.requested_mass_step},
+          {"applied-mass-step", row.applied_mass_step},
+          {"applied_mass_step", row.applied_mass_step},
+          {"dropped-mass-step", row.dropped_mass_step},
+          {"dropped_mass_step", row.dropped_mass_step},
+          {config_.source.name, config_.source.value},
+          {"source:" + config_.source.name, config_.source.value},
+      };
+      const double actual = history_value(row, quantity);
+      const double exact = evaluate_expression(check.expression, variables);
+      const double error = std::abs(actual - exact);
+      out << csv_escape(check.quantity) << ',' << csv_escape(check.expression) << ','
+          << row.step << ',' << row.time << ',' << actual << ',' << exact << ','
+          << error << ',' << check.tolerance << ',' << csv_escape(check.norm) << ','
+          << (error <= check.tolerance ? "yes" : "no") << '\n';
+    }
+  }
 }
 
 void Model::verify() const {

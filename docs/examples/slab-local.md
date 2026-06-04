@@ -79,3 +79,22 @@ Print the stats table during the test:
 ```bash
 cmake --build build --target check-verbose
 ```
+
+Build the visual verification report:
+
+```bash
+cmake --build build --target test-report
+```
+
+The combined report is written to:
+
+```text
+build/output/test-report.pdf
+```
+
+To report only this test, run:
+
+```bash
+python3 tools/run-test-report.py slab-local-verification \
+  --out build/output/slab-local-report.tex
+```

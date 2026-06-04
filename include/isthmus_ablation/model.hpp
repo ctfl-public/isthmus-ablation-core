@@ -18,6 +18,7 @@ public:
   int step_count() const { return current_step_; }
 
   void execute(std::ostream *stats = nullptr);
+  void write_verification_csv(const std::string &path) const;
   void verify() const;
 
 private:
