@@ -11,22 +11,31 @@
 #include <sstream>
 #include <unordered_map>
 
+#ifdef IAC_HAS_ISTHMUS
+#include <isthmus/geometry.hpp>
+#include <isthmus/marching_windows.hpp>
+#endif
+
 namespace iac {
 namespace {
 
 constexpr double kEpsilon = 1.0e-12;
 
-std::string format_error(const std::string &quantity, double error, double tolerance) {
+std::string format_error(const std::string &quantity, double error, double tolerance,
+                         const std::string &mode) {
   std::ostringstream out;
   out << "verification failed for '" << quantity << "': error " << std::setprecision(17)
       << error << " exceeds tolerance " << tolerance;
+  if (mode == "percent") {
+    out << " percent";
+  }
   return out.str();
 }
 
 const std::vector<std::string> &default_stats_columns() {
   static const std::vector<std::string> columns{
       "step", "time", "active-voxels", "deleted-voxels", "remaining-mass",
-      "mass-fraction", "front"};
+      "mass-fraction", "front", "radius"};
   return columns;
 }
 
@@ -52,6 +61,9 @@ double history_value(const HistoryRow &row, const std::string &column) {
   if (column == "front") {
     return row.front;
   }
+  if (column == "radius") {
+    return row.radius;
+  }
   if (column == "requested-mass-step") {
     return row.requested_mass_step;
   }
@@ -73,6 +85,21 @@ std::string normalize_quantity(std::string quantity) {
     return "remaining-mass";
   }
   return quantity;
+}
+
+double verification_error(double actual, double exact, const VerificationCheck &check) {
+  const double absolute_error = std::abs(actual - exact);
+  if (check.tolerance_mode == "absolute") {
+    return absolute_error;
+  }
+  if (check.tolerance_mode == "percent") {
+    const double denominator = std::abs(exact);
+    if (denominator <= kEpsilon) {
+      return absolute_error <= kEpsilon ? 0.0 : std::numeric_limits<double>::infinity();
+    }
+    return 100.0 * absolute_error / denominator;
+  }
+  throw RuntimeError("unknown verify tolerance mode '" + check.tolerance_mode + "'");
 }
 
 std::string csv_escape(const std::string &value) {
@@ -117,6 +144,39 @@ void ensure_parent_directory(const std::string &path) {
   }
 }
 
+std::array<double, 3> subtract3(const std::array<double, 3> &a,
+                                const std::array<double, 3> &b) {
+  return {{a[0] - b[0], a[1] - b[1], a[2] - b[2]}};
+}
+
+std::array<double, 3> cross3(const std::array<double, 3> &a,
+                             const std::array<double, 3> &b) {
+  return {{a[1] * b[2] - a[2] * b[1],
+           a[2] * b[0] - a[0] * b[2],
+           a[0] * b[1] - a[1] * b[0]}};
+}
+
+double dot3(const std::array<double, 3> &a, const std::array<double, 3> &b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+double norm3(const std::array<double, 3> &a) {
+  return std::sqrt(dot3(a, a));
+}
+
+std::array<double, 3> normalized3(const std::array<double, 3> &a) {
+  const double n = norm3(a);
+  if (n <= 0.0) {
+    return {{0.0, 0.0, 0.0}};
+  }
+  return {{a[0] / n, a[1] / n, a[2] / n}};
+}
+
+double triangle_area3(const std::array<double, 3> &a, const std::array<double, 3> &b,
+                      const std::array<double, 3> &c) {
+  return 0.5 * norm3(cross3(subtract3(b, a), subtract3(c, a)));
+}
+
 } // namespace
 
 Model::Model(Config config) : config_(std::move(config)) {
@@ -128,20 +188,22 @@ void Model::validate_and_initialize() {
     throw RuntimeError("only 'units si' is currently supported");
   }
   if (config_.voxel_name.empty()) {
-    throw RuntimeError("missing voxel model; expected 'voxel create <name> slab ...'");
+    throw RuntimeError("missing voxel model; expected 'voxel create <name> ...'");
   }
   if (config_.material.name.empty() || config_.material.density <= 0.0) {
     throw RuntimeError("voxel material requires a positive density");
   }
-  if (config_.slab.material != config_.material.name) {
-    throw RuntimeError("voxel create references unknown material '" + config_.slab.material + "'");
+  const std::string geometry_material =
+      config_.geometry == GeometryKind::Slab ? config_.slab.material : config_.sphere.material;
+  if (geometry_material != config_.material.name) {
+    throw RuntimeError("voxel create references unknown material '" + geometry_material + "'");
   }
   if (config_.source.name.empty() || config_.source.value < 0.0) {
     throw RuntimeError("source constant requires a nonnegative value");
   }
   if (!config_.fix.name.empty()) {
     validate_ablation(
-        AblationCommand{config_.fix.voxels, config_.fix.source, config_.fix.policy,
+        AblationCommand{config_.fix.voxels, config_.fix.source, "", config_.fix.policy,
                         config_.fix.delete_empty},
         "fix '" + config_.fix.name + "'");
     if (config_.fix.every <= 0) {
@@ -162,6 +224,10 @@ void Model::validate_and_initialize() {
     } else if (command.kind == CommandKind::VoxelAblate) {
       has_ablation = true;
       validate_ablation(command.ablate, "voxel ablate");
+    } else if (command.kind == CommandKind::IsthmusSurface) {
+      validate_isthmus_surface(command.isthmus_surface);
+    } else if (command.kind == CommandKind::SurfaceFlux) {
+      validate_surface_flux(command.surface_flux);
     }
   }
   if (!has_run) {
@@ -171,8 +237,15 @@ void Model::validate_and_initialize() {
     throw RuntimeError("input must contain a voxel ablate command or fix voxel/ablate");
   }
 
-  voxel_mass_ = config_.material.density * std::pow(config_.slab.dx, 3);
-  initialize_slab();
+  if (config_.geometry == GeometryKind::Slab) {
+    voxel_mass_ = config_.material.density * std::pow(config_.slab.dx, 3);
+    initialize_slab();
+  } else if (config_.geometry == GeometryKind::Sphere) {
+    voxel_mass_ = config_.material.density * std::pow(config_.sphere.dx, 3);
+    initialize_sphere();
+  } else {
+    throw RuntimeError("voxel create requires a supported geometry");
+  }
   derive_timestep();
 }
 
@@ -188,13 +261,58 @@ void Model::initialize_slab() {
   for (int ix = 0; ix < g.nx; ++ix) {
     for (int iy = 0; iy < g.ny; ++iy) {
       for (int iz = 0; iz < g.nz; ++iz) {
-        voxels_.push_back(Voxel{id++, ix, iy, iz, voxel_mass_, true, false});
+        voxels_.push_back(Voxel{id++,
+                                ix,
+                                iy,
+                                iz,
+                                (static_cast<double>(ix) + 0.5) * g.dx,
+                                (static_cast<double>(iy) + 0.5) * g.dx,
+                                (static_cast<double>(iz) + 0.5) * g.dx,
+                                voxel_mass_,
+                                true,
+                                false});
       }
     }
   }
 
   initial_mass_ = voxel_mass_ * static_cast<double>(voxels_.size());
   initial_active_voxels_ = static_cast<int>(voxels_.size());
+}
+
+void Model::initialize_sphere() {
+  const auto &g = config_.sphere;
+  if (g.diameter <= 0.0 || g.dx <= 0.0) {
+    throw RuntimeError("voxel create sphere requires positive diameter and dx or resolution");
+  }
+
+  const double radius = 0.5 * g.diameter;
+  const int n = static_cast<int>(std::ceil(g.diameter / g.dx));
+  if (n <= 0) {
+    throw RuntimeError("voxel create sphere generated an empty grid");
+  }
+  const double origin = -0.5 * static_cast<double>(n) * g.dx;
+
+  voxels_.clear();
+  voxels_.reserve(static_cast<std::size_t>(n) * n * n);
+  std::size_t id = 0;
+  for (int ix = 0; ix < n; ++ix) {
+    for (int iy = 0; iy < n; ++iy) {
+      for (int iz = 0; iz < n; ++iz) {
+        const double x = origin + (static_cast<double>(ix) + 0.5) * g.dx;
+        const double y = origin + (static_cast<double>(iy) + 0.5) * g.dx;
+        const double z = origin + (static_cast<double>(iz) + 0.5) * g.dx;
+        const bool active = x * x + y * y + z * z <= radius * radius;
+        voxels_.push_back(Voxel{id++, ix, iy, iz, x, y, z,
+                                active ? voxel_mass_ : 0.0, active, false});
+      }
+    }
+  }
+
+  initial_mass_ = remaining_mass();
+  initial_active_voxels_ = active_voxel_count();
+  if (initial_active_voxels_ <= 0) {
+    throw RuntimeError("voxel create sphere produced no active voxels");
+  }
 }
 
 void Model::derive_timestep() {
@@ -217,9 +335,9 @@ void Model::derive_timestep() {
     throw RuntimeError("mass/courant timestep requires a positive source");
   }
 
+  const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx : config_.sphere.dx;
   const double safe_dt =
-      config_.timestep.courant * config_.material.density * config_.slab.dx /
-      config_.source.value;
+      config_.timestep.courant * config_.material.density * dx / config_.source.value;
   dt_ = safe_dt;
 }
 
@@ -227,11 +345,41 @@ void Model::validate_ablation(const AblationCommand &ablate, const std::string &
   if (ablate.voxels != config_.voxel_name) {
     throw RuntimeError(context + " references unknown voxel model '" + ablate.voxels + "'");
   }
-  if (ablate.source != config_.source.name) {
+  if (!ablate.source.empty() && ablate.source != config_.source.name) {
     throw RuntimeError(context + " references unknown source '" + ablate.source + "'");
+  }
+  if (ablate.source.empty() && ablate.surface.empty()) {
+    throw RuntimeError(context + " requires source or surface");
   }
   if (ablate.policy != "local") {
     throw RuntimeError("only local ablation policy is currently implemented");
+  }
+}
+
+void Model::validate_isthmus_surface(const IsthmusSurfaceCommand &surface) const {
+  if (surface.voxels != config_.voxel_name) {
+    throw RuntimeError("isthmus surface references unknown voxel model '" + surface.voxels + "'");
+  }
+  if (surface.name.empty()) {
+    throw RuntimeError("isthmus surface requires a name");
+  }
+  if (surface.buffer < 0) {
+    throw RuntimeError("isthmus surface buffer must be nonnegative");
+  }
+}
+
+void Model::validate_surface_flux(const SurfaceFluxCommand &flux) const {
+  if (flux.source != config_.source.name) {
+    throw RuntimeError("surface flux references unknown source '" + flux.source + "'");
+  }
+  if (flux.select == "normal" && norm3(flux.direction) <= 0.0) {
+    throw RuntimeError("surface flux normal selection requires nonzero direction");
+  }
+  if (flux.select == "voxels" && flux.voxels != config_.voxel_name) {
+    throw RuntimeError("surface flux references unknown voxel model '" + flux.voxels + "'");
+  }
+  if (flux.select != "all" && flux.select != "normal" && flux.select != "voxels") {
+    throw RuntimeError("surface flux select must be all, normal, or voxels");
   }
 }
 
@@ -303,7 +451,20 @@ void Model::execute(std::ostream *stats) {
       break;
     case CommandKind::VoxelAblate:
       open_step();
-      advance_local_slab(command.ablate);
+      if (!command.ablate.surface.empty()) {
+        advance_surface_ablation(command.ablate);
+      } else {
+        advance_local_slab(command.ablate);
+      }
+      ++pc;
+      break;
+    case CommandKind::IsthmusSurface:
+      generate_isthmus_surface(command.isthmus_surface);
+      ++pc;
+      break;
+    case CommandKind::SurfaceFlux:
+      open_step();
+      apply_surface_flux(command.surface_flux);
       ++pc;
       break;
     }
@@ -324,7 +485,7 @@ void Model::run_steps(const RunConfig &run, std::ostream *stats) {
     open_step();
     const int next_step = current_step_ + 1;
     if (!config_.fix.name.empty() && next_step % config_.fix.every == 0) {
-      advance_local_slab(AblationCommand{config_.fix.voxels, config_.fix.source,
+      advance_local_slab(AblationCommand{config_.fix.voxels, config_.fix.source, "",
                                          config_.fix.policy, config_.fix.delete_empty});
     }
     current_step_ = next_step;
@@ -388,16 +549,186 @@ void Model::advance_local_slab(const AblationCommand &ablate) {
   }
 }
 
+void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
+#ifndef IAC_HAS_ISTHMUS
+  (void)surface;
+  throw RuntimeError("isthmus surface requires building with ISTHMUS C++ support");
+#else
+  const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx : config_.sphere.dx;
+
+  std::vector<const Voxel *> active;
+  active.reserve(voxels_.size());
+  for (const auto &voxel : voxels_) {
+    if (voxel.active) {
+      active.push_back(&voxel);
+    }
+  }
+  if (active.empty()) {
+    surfaces_[surface.name] = SurfaceState{surface.name, {}};
+    return;
+  }
+
+  std::array<double, 3> lo{{active.front()->x, active.front()->y, active.front()->z}};
+  std::array<double, 3> hi = lo;
+  for (const auto *voxel : active) {
+    lo[0] = std::min(lo[0], voxel->x);
+    lo[1] = std::min(lo[1], voxel->y);
+    lo[2] = std::min(lo[2], voxel->z);
+    hi[0] = std::max(hi[0], voxel->x);
+    hi[1] = std::max(hi[1], voxel->y);
+    hi[2] = std::max(hi[2], voxel->z);
+  }
+
+  isthmus::DomainConfig domain;
+  domain.dimension = isthmus::Dimension::D3;
+  domain.voxel_size = dx;
+  domain.weighting = surface.weighting;
+  domain.iso_value = 0.5;
+  for (std::size_t d = 0; d < 3; ++d) {
+    domain.limits[0][d] = lo[d] - (static_cast<double>(surface.buffer) + 0.5) * dx;
+    domain.limits[1][d] = hi[d] + (static_cast<double>(surface.buffer) + 0.5) * dx;
+    domain.cell_counts[d] =
+        static_cast<std::size_t>(std::max(1.0, std::floor((domain.limits[1][d] -
+                                                           domain.limits[0][d]) /
+                                                          dx + kEpsilon)));
+    domain.limits[1][d] = domain.limits[0][d] +
+                          static_cast<double>(domain.cell_counts[d]) * dx *
+                              (1.0 + 1.0e-10);
+  }
+
+  isthmus::VoxelSet voxel_set;
+  voxel_set.voxels.reserve(active.size());
+  for (const auto *voxel : active) {
+    isthmus::VoxelRecord record;
+    record.centroid = {{voxel->x, voxel->y, voxel->z}};
+    record.original_id = voxel->id;
+    record.material_tag = config_.material.name;
+    voxel_set.voxels.push_back(std::move(record));
+  }
+
+  isthmus::RunOptions options;
+  options.build_surface = true;
+  options.build_flux_association = surface.map;
+
+  const isthmus::MarchingWindows marching;
+  const auto result = marching.run(domain, voxel_set, options);
+
+  SurfaceState state;
+  state.name = surface.name;
+  state.triangles.reserve(result.surface_mesh.triangles.size());
+  for (std::size_t triangle_id = 0; triangle_id < result.surface_mesh.triangles.size();
+       ++triangle_id) {
+    const auto &connectivity = result.surface_mesh.triangles[triangle_id];
+    SurfaceTriangle triangle;
+    triangle.a = result.surface_mesh.vertices[connectivity[0]];
+    triangle.b = result.surface_mesh.vertices[connectivity[1]];
+    triangle.c = result.surface_mesh.vertices[connectivity[2]];
+    triangle.area = triangle_area3(triangle.a, triangle.b, triangle.c);
+    triangle.normal = normalized3(cross3(subtract3(triangle.b, triangle.a),
+                                         subtract3(triangle.c, triangle.a)));
+    if (surface.map && triangle_id < result.flux_association.elements.size()) {
+      const auto &element = result.flux_association.elements[triangle_id];
+      triangle.voxel_ids = element.voxel_ids;
+      triangle.fractions = element.scalar_fractions;
+    }
+    state.triangles.push_back(std::move(triangle));
+  }
+
+  surfaces_[surface.name] = std::move(state);
+#endif
+}
+
+void Model::apply_surface_flux(const SurfaceFluxCommand &flux) {
+  auto it = surfaces_.find(flux.surface);
+  if (it == surfaces_.end()) {
+    throw RuntimeError("surface flux references unknown surface '" + flux.surface + "'");
+  }
+
+  auto &surface = it->second;
+  for (auto &triangle : surface.triangles) {
+    triangle.requested_mass = 0.0;
+    triangle.last_requested_mass = 0.0;
+  }
+
+  const auto direction = normalized3(flux.direction);
+  for (auto &triangle : surface.triangles) {
+    bool selected = flux.select == "all";
+    if (flux.select == "normal") {
+      selected = dot3(triangle.normal, direction) >= flux.min_cos;
+    } else if (flux.select == "voxels") {
+      selected = !triangle.voxel_ids.empty();
+    }
+    if (!selected) {
+      continue;
+    }
+    triangle.requested_mass = config_.source.value * triangle.area * dt_;
+    triangle.last_requested_mass = triangle.requested_mass;
+    requested_mass_step_ += triangle.requested_mass;
+  }
+}
+
+void Model::advance_surface_ablation(const AblationCommand &ablate) {
+  auto it = surfaces_.find(ablate.surface);
+  if (it == surfaces_.end()) {
+    throw RuntimeError("voxel ablate references unknown surface '" + ablate.surface + "'");
+  }
+
+  for (auto &triangle : it->second.triangles) {
+    if (triangle.requested_mass <= 0.0) {
+      continue;
+    }
+    if (triangle.voxel_ids.empty()) {
+      dropped_mass_step_ += triangle.requested_mass;
+      triangle.requested_mass = 0.0;
+      continue;
+    }
+
+    double mapped = 0.0;
+    for (std::size_t i = 0; i < triangle.voxel_ids.size(); ++i) {
+      const auto id = triangle.voxel_ids[i];
+      const double fraction = i < triangle.fractions.size() ? triangle.fractions[i] : 0.0;
+      const double request = fraction * triangle.requested_mass;
+      mapped += request;
+      if (id >= voxels_.size() || !voxels_[id].active) {
+        dropped_mass_step_ += request;
+        continue;
+      }
+
+      auto &voxel = voxels_[id];
+      const double removed = std::min(voxel.remaining_mass, request);
+      voxel.remaining_mass -= removed;
+      applied_mass_step_ += removed;
+      applied_mass_total_ += removed;
+      const double leftover = request - removed;
+      if (leftover > 0.0) {
+        dropped_mass_step_ += leftover;
+      }
+      if (voxel.remaining_mass <= voxel_mass_ * kEpsilon) {
+        voxel.remaining_mass = 0.0;
+        if (ablate.delete_empty) {
+          voxel.active = false;
+        }
+      }
+    }
+    if (mapped < triangle.requested_mass) {
+      dropped_mass_step_ += triangle.requested_mass - mapped;
+    }
+    triangle.requested_mass = 0.0;
+  }
+}
+
 void Model::record_history(int step, double time) {
   history_.push_back(make_history_row(step, time));
 }
 
 HistoryRow Model::make_history_row(int step, double time) const {
-  const auto &g = config_.slab;
   const double remaining = remaining_mass();
   const int front = front_ix();
-  const double discrete_front = front < 0 ? static_cast<double>(g.nx) * g.dx
-                                          : static_cast<double>(front) * g.dx;
+  const double discrete_front =
+      config_.geometry == GeometryKind::Slab
+          ? (front < 0 ? static_cast<double>(config_.slab.nx) * config_.slab.dx
+                       : static_cast<double>(front) * config_.slab.dx)
+          : 0.0;
 
   HistoryRow row;
   row.step = step;
@@ -407,6 +738,7 @@ HistoryRow Model::make_history_row(int step, double time) const {
   row.remaining_mass = remaining;
   row.mass_fraction = initial_mass_ > 0.0 ? remaining / initial_mass_ : 0.0;
   row.front = discrete_front;
+  row.radius = inferred_radius();
   row.requested_mass_step = requested_mass_step_;
   row.applied_mass_step = applied_mass_step_;
   row.dropped_mass_step = dropped_mass_step_;
@@ -426,6 +758,11 @@ void Model::write_scheduled_dumps(int step) const {
       write_vtu(dump, step);
     }
   }
+  for (const auto &dump : config_.surface_dumps) {
+    if (step % dump.every == 0) {
+      write_vtp(dump, step);
+    }
+  }
 }
 
 void Model::write_history_csv(const VoxelDump &dump) const {
@@ -435,12 +772,13 @@ void Model::write_history_csv(const VoxelDump &dump) const {
     throw RuntimeError("could not write history file '" + dump.path + "'");
   }
   out << "step,time,active-voxels,deleted-voxels,remaining-mass,"
-      << "mass-fraction,front,requested-mass-step,applied-mass-step,dropped-mass-step\n";
+      << "mass-fraction,front,radius,requested-mass-step,applied-mass-step,"
+      << "dropped-mass-step\n";
   out << std::setprecision(17);
   for (const auto &row : history_) {
     out << row.step << ',' << row.time << ',' << row.active_voxels << ','
         << row.deleted_voxels << ',' << row.remaining_mass << ',' << row.mass_fraction
-        << ',' << row.front << ',' << row.requested_mass_step << ','
+        << ',' << row.front << ',' << row.radius << ',' << row.requested_mass_step << ','
         << row.applied_mass_step << ',' << row.dropped_mass_step << '\n';
   }
 }
@@ -462,7 +800,7 @@ void Model::write_vtu(const VoxelDump &dump, int step) const {
     selected.push_back(&voxel);
   }
 
-  const auto &g = config_.slab;
+  const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx : config_.sphere.dx;
   out << std::setprecision(17);
   out << "<?xml version=\"1.0\"?>\n";
   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">\n";
@@ -473,12 +811,12 @@ void Model::write_vtu(const VoxelDump &dump, int step) const {
   out << "      <Points>\n";
   out << "        <DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">\n";
   for (const auto *voxel : selected) {
-    const double x0 = static_cast<double>(voxel->ix) * g.dx;
-    const double y0 = static_cast<double>(voxel->iy) * g.dx;
-    const double z0 = static_cast<double>(voxel->iz) * g.dx;
-    const double x1 = x0 + g.dx;
-    const double y1 = y0 + g.dx;
-    const double z1 = z0 + g.dx;
+    const double x0 = voxel->x - 0.5 * dx;
+    const double y0 = voxel->y - 0.5 * dx;
+    const double z0 = voxel->z - 0.5 * dx;
+    const double x1 = voxel->x + 0.5 * dx;
+    const double y1 = voxel->y + 0.5 * dx;
+    const double z1 = voxel->z + 0.5 * dx;
     out << "          " << x0 << ' ' << y0 << ' ' << z0 << ' ' << x1 << ' ' << y0 << ' '
         << z0 << ' ' << x1 << ' ' << y1 << ' ' << z0 << ' ' << x0 << ' ' << y1 << ' '
         << z0 << ' ' << x0 << ' ' << y0 << ' ' << z1 << ' ' << x1 << ' ' << y0 << ' '
@@ -557,6 +895,70 @@ void Model::write_vtu(const VoxelDump &dump, int step) const {
   out << "</VTKFile>\n";
 }
 
+void Model::write_vtp(const SurfaceDump &dump, int step) const {
+  const auto found = surfaces_.find(dump.surface);
+  if (found == surfaces_.end()) {
+    return;
+  }
+
+  const auto path = dump_path_for_step(dump.path, step);
+  ensure_parent_directory(path);
+  std::ofstream out(path);
+  if (!out) {
+    throw RuntimeError("could not write VTP file '" + path + "'");
+  }
+
+  const auto &triangles = found->second.triangles;
+  out << std::setprecision(17);
+  out << "<?xml version=\"1.0\"?>\n";
+  out << "<VTKFile type=\"PolyData\" version=\"0.1\" byte_order=\"LittleEndian\">\n";
+  out << "  <PolyData>\n";
+  out << "    <Piece NumberOfPoints=\"" << triangles.size() * 3
+      << "\" NumberOfPolys=\"" << triangles.size() << "\">\n";
+  out << "      <Points>\n";
+  out << "        <DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">\n";
+  for (const auto &triangle : triangles) {
+    out << "          " << triangle.a[0] << ' ' << triangle.a[1] << ' ' << triangle.a[2]
+        << ' ' << triangle.b[0] << ' ' << triangle.b[1] << ' ' << triangle.b[2] << ' '
+        << triangle.c[0] << ' ' << triangle.c[1] << ' ' << triangle.c[2] << '\n';
+  }
+  out << "        </DataArray>\n";
+  out << "      </Points>\n";
+  out << "      <Polys>\n";
+  out << "        <DataArray type=\"Int64\" Name=\"connectivity\" format=\"ascii\">\n";
+  for (std::size_t i = 0; i < triangles.size(); ++i) {
+    const std::size_t base = i * 3;
+    out << "          " << base << ' ' << base + 1 << ' ' << base + 2 << '\n';
+  }
+  out << "        </DataArray>\n";
+  out << "        <DataArray type=\"Int64\" Name=\"offsets\" format=\"ascii\">\n";
+  for (std::size_t i = 0; i < triangles.size(); ++i) {
+    out << "          " << (i + 1) * 3 << '\n';
+  }
+  out << "        </DataArray>\n";
+  out << "      </Polys>\n";
+  out << "      <CellData Scalars=\"area\">\n";
+  out << "        <DataArray type=\"Float64\" Name=\"area\" format=\"ascii\">\n";
+  for (const auto &triangle : triangles) {
+    out << "          " << triangle.area << '\n';
+  }
+  out << "        </DataArray>\n";
+  out << "        <DataArray type=\"Float64\" Name=\"requested-mass\" format=\"ascii\">\n";
+  for (const auto &triangle : triangles) {
+    out << "          " << triangle.requested_mass << '\n';
+  }
+  out << "        </DataArray>\n";
+  out << "        <DataArray type=\"Float64\" Name=\"last-requested-mass\" format=\"ascii\">\n";
+  for (const auto &triangle : triangles) {
+    out << "          " << triangle.last_requested_mass << '\n';
+  }
+  out << "        </DataArray>\n";
+  out << "      </CellData>\n";
+  out << "    </Piece>\n";
+  out << "  </PolyData>\n";
+  out << "</VTKFile>\n";
+}
+
 void Model::write_verification_csv(const std::string &path) const {
   if (history_.empty()) {
     throw RuntimeError("cannot write verification report before run");
@@ -566,14 +968,23 @@ void Model::write_verification_csv(const std::string &path) const {
   if (!out) {
     throw RuntimeError("could not write verification report '" + path + "'");
   }
-  out << "quantity,expression,step,time,actual,exact,error,tolerance,norm,pass\n";
+  out << "quantity,expression,step,time,actual,exact,error,tolerance,tolerance-mode,norm,pass\n";
   out << std::setprecision(17);
   for (const auto &check : config_.checks) {
     const std::string quantity = normalize_quantity(check.quantity);
     for (const auto &row : history_) {
       const auto &g = config_.slab;
-      const double length = static_cast<double>(g.nx) * g.dx;
-      const double area = static_cast<double>(g.ny) * static_cast<double>(g.nz) * g.dx * g.dx;
+      const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx
+                                                               : config_.sphere.dx;
+      const double length = config_.geometry == GeometryKind::Slab
+                                ? static_cast<double>(g.nx) * g.dx
+                                : config_.sphere.diameter;
+      const double area = config_.geometry == GeometryKind::Slab
+                              ? static_cast<double>(g.ny) * static_cast<double>(g.nz) *
+                                    g.dx * g.dx
+                              : 4.0 * std::acos(-1.0) * row.radius * row.radius;
+      const double initial_radius =
+          config_.geometry == GeometryKind::Sphere ? 0.5 * config_.sphere.diameter : 0.0;
       std::unordered_map<std::string, double> variables{
           {"step", static_cast<double>(row.step)},
           {"time", row.time},
@@ -581,11 +992,15 @@ void Model::write_verification_csv(const std::string &path) const {
           {"dt", dt_},
           {"rho", config_.material.density},
           {"density", config_.material.density},
-          {"dx", g.dx},
+          {"dx", dx},
           {"nx", static_cast<double>(g.nx)},
           {"ny", static_cast<double>(g.ny)},
           {"nz", static_cast<double>(g.nz)},
           {"length", length},
+          {"diameter", config_.sphere.diameter},
+          {"initial-radius", initial_radius},
+          {"initial_radius", initial_radius},
+          {"radius", row.radius},
           {"area", area},
           {"initial-mass", initial_mass_},
           {"initial_mass", initial_mass_},
@@ -601,6 +1016,7 @@ void Model::write_verification_csv(const std::string &path) const {
           {"mass-fraction", row.mass_fraction},
           {"mass_fraction", row.mass_fraction},
           {"front", row.front},
+          {"radius", row.radius},
           {"requested-mass-step", row.requested_mass_step},
           {"requested_mass_step", row.requested_mass_step},
           {"applied-mass-step", row.applied_mass_step},
@@ -612,10 +1028,11 @@ void Model::write_verification_csv(const std::string &path) const {
       };
       const double actual = history_value(row, quantity);
       const double exact = evaluate_expression(check.expression, variables);
-      const double error = std::abs(actual - exact);
+      const double error = verification_error(actual, exact, check);
       out << csv_escape(check.quantity) << ',' << csv_escape(check.expression) << ','
           << row.step << ',' << row.time << ',' << actual << ',' << exact << ','
-          << error << ',' << check.tolerance << ',' << csv_escape(check.norm) << ','
+          << error << ',' << check.tolerance << ',' << csv_escape(check.tolerance_mode)
+          << ',' << csv_escape(check.norm) << ','
           << (error <= check.tolerance ? "yes" : "no") << '\n';
     }
   }
@@ -632,8 +1049,17 @@ void Model::verify() const {
     int count = 0;
     const auto evaluate_row = [&](const HistoryRow &row) {
       const auto &g = config_.slab;
-      const double length = static_cast<double>(g.nx) * g.dx;
-      const double area = static_cast<double>(g.ny) * static_cast<double>(g.nz) * g.dx * g.dx;
+      const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx
+                                                               : config_.sphere.dx;
+      const double length = config_.geometry == GeometryKind::Slab
+                                ? static_cast<double>(g.nx) * g.dx
+                                : config_.sphere.diameter;
+      const double area = config_.geometry == GeometryKind::Slab
+                              ? static_cast<double>(g.ny) * static_cast<double>(g.nz) *
+                                    g.dx * g.dx
+                              : 4.0 * std::acos(-1.0) * row.radius * row.radius;
+      const double initial_radius =
+          config_.geometry == GeometryKind::Sphere ? 0.5 * config_.sphere.diameter : 0.0;
       std::unordered_map<std::string, double> variables{
           {"step", static_cast<double>(row.step)},
           {"time", row.time},
@@ -641,11 +1067,15 @@ void Model::verify() const {
           {"dt", dt_},
           {"rho", config_.material.density},
           {"density", config_.material.density},
-          {"dx", g.dx},
+          {"dx", dx},
           {"nx", static_cast<double>(g.nx)},
           {"ny", static_cast<double>(g.ny)},
           {"nz", static_cast<double>(g.nz)},
           {"length", length},
+          {"diameter", config_.sphere.diameter},
+          {"initial-radius", initial_radius},
+          {"initial_radius", initial_radius},
+          {"radius", row.radius},
           {"area", area},
           {"initial-mass", initial_mass_},
           {"initial_mass", initial_mass_},
@@ -661,6 +1091,7 @@ void Model::verify() const {
           {"mass-fraction", row.mass_fraction},
           {"mass_fraction", row.mass_fraction},
           {"front", row.front},
+          {"radius", row.radius},
           {"requested-mass-step", row.requested_mass_step},
           {"requested_mass_step", row.requested_mass_step},
           {"applied-mass-step", row.applied_mass_step},
@@ -672,7 +1103,7 @@ void Model::verify() const {
       };
       const double actual = history_value(row, quantity);
       const double exact = evaluate_expression(check.expression, variables);
-      return std::abs(actual - exact);
+      return verification_error(actual, exact, check);
     };
 
     if (check.norm == "final") {
@@ -694,7 +1125,8 @@ void Model::verify() const {
       error = count > 0 ? std::sqrt(accumulated / static_cast<double>(count)) : 0.0;
     }
     if (!(error <= check.tolerance)) {
-      throw RuntimeError(format_error(check.quantity, error, check.tolerance));
+      throw RuntimeError(format_error(check.quantity, error, check.tolerance,
+                                      check.tolerance_mode));
     }
   }
 }
@@ -737,13 +1169,22 @@ void Model::print_row(std::ostream &out, const HistoryRow &row) const {
 }
 
 void Model::print_run_summary(std::ostream &out) const {
-  const auto &g = config_.slab;
   out << "# Standalone voxel ablation\n";
   out << "# run configuration\n";
   out << "#   voxel model = " << config_.voxel_name << '\n';
-  out << "#   geometry = slab\n";
-  out << "#   grid = " << g.nx << " x " << g.ny << " x " << g.nz << '\n';
-  out << "#   dx = " << std::setprecision(8) << g.dx << " m\n";
+  if (config_.geometry == GeometryKind::Slab) {
+    const auto &g = config_.slab;
+    out << "#   geometry = slab\n";
+    out << "#   grid = " << g.nx << " x " << g.ny << " x " << g.nz << '\n';
+    out << "#   dx = " << std::setprecision(8) << g.dx << " m\n";
+  } else if (config_.geometry == GeometryKind::Sphere) {
+    out << "#   geometry = sphere\n";
+    out << "#   diameter = " << std::setprecision(8) << config_.sphere.diameter << " m\n";
+    if (config_.sphere.resolution > 0) {
+      out << "#   resolution = " << config_.sphere.resolution << " voxels across diameter\n";
+    }
+    out << "#   dx = " << config_.sphere.dx << " m\n";
+  }
   out << "#   material = " << config_.material.name << '\n';
   out << "#   density = " << config_.material.density << " kg/m^3\n";
   out << "#   voxel mass = " << voxel_mass_ << " kg\n";
@@ -776,6 +1217,16 @@ void Model::print_run_summary(std::ostream &out) const {
         out << " select " << dump.select << " scalar " << dump.scalar;
       }
       out << '\n';
+    }
+  }
+  out << "#   surface dumps = ";
+  if (config_.surface_dumps.empty()) {
+    out << "off\n";
+  } else {
+    out << config_.surface_dumps.size() << '\n';
+    for (const auto &dump : config_.surface_dumps) {
+      out << "#     " << dump.id << " " << dump.style << " every " << dump.every
+          << " path " << dump.path << '\n';
     }
   }
   out << "# end run configuration\n";
@@ -814,6 +1265,17 @@ int Model::front_ix() const {
     }
   }
   return result == std::numeric_limits<int>::max() ? -1 : result;
+}
+
+double Model::inferred_radius() const {
+  if (config_.geometry != GeometryKind::Sphere) {
+    return 0.0;
+  }
+  const double mass = remaining_mass();
+  if (mass <= 0.0 || config_.material.density <= 0.0) {
+    return 0.0;
+  }
+  return std::cbrt(3.0 * mass / (4.0 * std::acos(-1.0) * config_.material.density));
 }
 
 } // namespace iac

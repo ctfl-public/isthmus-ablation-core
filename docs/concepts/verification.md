@@ -13,8 +13,9 @@ The core tracks actual quantities such as:
 The input file declares exact or reference expressions:
 
 ```text
-verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 1.0e-14 norm max
-verify front exact "q1*time/rho" tolerance 1.0e-6 norm max
+verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
+verify front exact "q1*time/rho" tolerance 0.01 percent norm final
+verify radius exact "initial-radius - q1*time/rho" tolerance 3.0 percent norm final
 ```
 
 This keeps geometry-specific exact solutions out of the source code.
@@ -27,9 +28,11 @@ This keeps geometry-specific exact solutions out of the source code.
 
 `norm rms` checks the root-mean-square error over recorded history rows.
 
+Regression tests should prefer percent tolerances unless an absolute error
+scale is more meaningful.
+
 ## Convergence
 
 Grid and time convergence checks are planned. They should build on the same
 verification machinery rather than adding special-case exact solution branches
 to the model.
-

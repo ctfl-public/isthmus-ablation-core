@@ -2,11 +2,14 @@
 
 The `voxel dump` command writes voxel-model output.
 
+Triangle surface dumps are configured with [`surface dump`](surface.md).
+
 ## Syntax
 
 ```text
 voxel dump <id> <model> history <N> <path>
 voxel dump <id> <model> vtu <N> <path> [select all|active] [scalar <field>]
+voxel dump off
 ```
 
 ## Examples
@@ -14,11 +17,16 @@ voxel dump <id> <model> vtu <N> <path> [select all|active] [scalar <field>]
 ```text
 voxel dump hist solid history 1 output/slab-local-ablation/history.csv
 voxel dump vox solid vtu 1 output/slab-local-ablation/voxels_*.vtu select active scalar mass-fraction
+voxel dump off
 ```
 
 ## Description
 
 The `history` style writes one CSV summary after the run.
+
+`voxel dump off` clears voxel dumps that were already defined. This is useful
+in regression wrappers that include a visual example input but should avoid
+writing output files during CTest.
 
 The `vtu` style writes VTK unstructured-grid files during the run. A dump is
 written at step 0, every `N` steps, and at the final step. If the path contains
@@ -59,7 +67,7 @@ The default is `scalar mass-fraction`.
 
 ```text
 step,time,active-voxels,deleted-voxels,remaining-mass,mass-fraction,front,
-requested-mass-step,applied-mass-step,dropped-mass-step
+radius,requested-mass-step,applied-mass-step,dropped-mass-step
 ```
 
 ## VTU Cell Data

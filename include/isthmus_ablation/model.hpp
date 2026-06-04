@@ -2,8 +2,10 @@
 
 #include "isthmus_ablation/types.hpp"
 
+#include <array>
 #include <ostream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace iac {
@@ -22,8 +24,26 @@ public:
   void verify() const;
 
 private:
+  struct SurfaceTriangle {
+    std::array<double, 3> a{{0.0, 0.0, 0.0}};
+    std::array<double, 3> b{{0.0, 0.0, 0.0}};
+    std::array<double, 3> c{{0.0, 0.0, 0.0}};
+    std::array<double, 3> normal{{0.0, 0.0, 0.0}};
+    double area = 0.0;
+    std::vector<std::size_t> voxel_ids;
+    std::vector<double> fractions;
+    double requested_mass = 0.0;
+    double last_requested_mass = 0.0;
+  };
+
+  struct SurfaceState {
+    std::string name;
+    std::vector<SurfaceTriangle> triangles;
+  };
+
   Config config_;
   std::vector<Voxel> voxels_;
+  std::unordered_map<std::string, SurfaceState> surfaces_;
   std::vector<HistoryRow> history_;
   double voxel_mass_ = 0.0;
   double initial_mass_ = 0.0;
@@ -39,17 +59,24 @@ private:
 
   void validate_and_initialize();
   void initialize_slab();
+  void initialize_sphere();
   void derive_timestep();
   void validate_ablation(const AblationCommand &ablate, const std::string &context) const;
+  void validate_isthmus_surface(const IsthmusSurfaceCommand &surface) const;
+  void validate_surface_flux(const SurfaceFluxCommand &flux) const;
   void run_steps(const RunConfig &run, std::ostream *stats);
   void begin_step();
   void open_step();
   void advance_local_slab(const AblationCommand &ablate);
+  void advance_surface_ablation(const AblationCommand &ablate);
+  void generate_isthmus_surface(const IsthmusSurfaceCommand &surface);
+  void apply_surface_flux(const SurfaceFluxCommand &flux);
   void record_history(int step, double time);
   HistoryRow make_history_row(int step, double time) const;
   void write_scheduled_dumps(int step) const;
   void write_history_csv(const VoxelDump &dump) const;
   void write_vtu(const VoxelDump &dump, int step) const;
+  void write_vtp(const SurfaceDump &dump, int step) const;
   void print_run_summary(std::ostream &out) const;
   void print_header(std::ostream &out) const;
   void print_row(std::ostream &out, const HistoryRow &row) const;
@@ -59,6 +86,7 @@ private:
   int deleted_voxel_count() const;
   double remaining_mass() const;
   int front_ix() const;
+  double inferred_radius() const;
 };
 
 } // namespace iac

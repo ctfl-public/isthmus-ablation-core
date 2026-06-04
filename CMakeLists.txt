@@ -18,6 +18,16 @@ add_library(isthmus_ablation_core
 
 target_include_directories(isthmus_ablation_core PUBLIC include)
 
+find_package(isthmus_cpp CONFIG QUIET PATHS
+  "$ENV{ISTHMUS_CPP_DIR}"
+  "/Users/tstoffel1/isthmus/build-wsl"
+)
+
+if(isthmus_cpp_FOUND)
+  target_link_libraries(isthmus_ablation_core PUBLIC isthmus_cpp::isthmus_cpp)
+  target_compile_definitions(isthmus_ablation_core PRIVATE IAC_HAS_ISTHMUS=1)
+endif()
+
 if(MSVC)
   target_compile_options(isthmus_ablation_core PRIVATE /W4)
 else()
@@ -38,6 +48,13 @@ add_test(
   NAME slab-local-fix-verification
   COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-local-ablation/in.slab-local-ablation.fix-verify
 )
+
+if(isthmus_cpp_FOUND)
+  add_test(
+    NAME sphere-isthmus-verification
+    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-ablation.verify
+  )
+endif()
 
 add_custom_target(
   check-verbose

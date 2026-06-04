@@ -24,14 +24,14 @@ The current flowchart is available here:
 
 [Architecture flowchart](../architecture_flowchart.pdf)
 
-## Future ISTHMUS Coupling
+## ISTHMUS Coupling
 
-The planned ISTHMUS path is:
+The current standalone ISTHMUS path is:
 
 1. Convert active voxels to an `isthmus::VoxelSet`.
 2. Call `isthmus::MarchingWindows`.
 3. Cache the surface mesh and triangle-to-voxel ownership fractions.
-4. Run `isthmus map ...` to map surface flux or DSMC reaction mass to voxels.
+4. Run `surface flux ...` to apply mass flux to selected triangles.
 5. Run `voxel ablate ...` to update voxel mass and delete empty voxels.
 6. Run `isthmus surface ...` again if the voxel state changed.
 
@@ -45,8 +45,8 @@ The command-loop path would look like:
 ```text
 label ablate-loop
 run 10000
-isthmus map surf1 source f_avg to voxels solid
-voxel ablate solid source mapped policy local delete yes
+surface flux surf1 source dsmc-flux select all
+voxel ablate solid surface surf1 policy local delete yes
 isthmus surface surf1 voxels solid map yes
 surface update surf1 install yes
 jump SELF ablate-loop

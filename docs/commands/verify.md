@@ -6,15 +6,16 @@ expressions.
 ## Syntax
 
 ```text
-verify <quantity> exact "<expression>" tolerance <value> norm <final|max|rms>
+verify <quantity> exact "<expression>" tolerance <value> [absolute|percent] norm <final|max|rms>
 ```
 
 ## Examples
 
 ```text
-verify remaining-mass exact "initial-mass - q1*area*time" tolerance 1.0e-27 norm max
-verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 1.0e-14 norm max
-verify front exact "q1*time/rho" tolerance 1.0e-6 norm max
+verify remaining-mass exact "initial-mass - q1*area*time" tolerance 0.01 percent norm max
+verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
+verify front exact "q1*time/rho" tolerance 0.01 percent norm final
+verify radius exact "initial-radius - q1*time/rho" tolerance 3.0 percent norm final
 ```
 
 ## Description
@@ -22,6 +23,18 @@ verify front exact "q1*time/rho" tolerance 1.0e-6 norm max
 The command evaluates an exact expression against the selected tracked quantity.
 The executable exits with a nonzero status if the error exceeds the tolerance.
 This makes verification cases natural CTest tests.
+
+Regression tests generally use percent tolerances. Add `percent` after the
+tolerance value to check:
+
+```text
+100 * abs(actual - exact) / abs(exact)
+```
+
+Percent error is undefined when the exact value is zero unless the actual value
+is also zero.
+
+Use `absolute` or omit the mode when an absolute tolerance is more appropriate.
 
 ## Norms
 
@@ -56,4 +69,3 @@ front
 q1
 source:q1
 ```
-

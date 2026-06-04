@@ -186,16 +186,46 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
         require_size(tokens, 5, line_number);
         config.voxel_name = tokens[2];
         const auto &kind = tokens[3];
-        if (kind != "slab") {
-          throw InputError(line_error(line_number, "only 'voxel create <name> slab' is supported"));
-        }
         const auto values = parse_pairs(tokens, 4, line_number);
-        config.slab.nx = parse_int(required(values, "nx", line_number), line_number);
-        config.slab.ny = parse_int(required(values, "ny", line_number), line_number);
-        config.slab.nz = parse_int(required(values, "nz", line_number), line_number);
-        config.slab.dx = parse_double(required(values, "dx", line_number), line_number);
-        config.slab.material = required(values, "material", line_number);
+        if (kind == "slab") {
+          config.geometry = GeometryKind::Slab;
+          config.slab.nx = parse_int(required(values, "nx", line_number), line_number);
+          config.slab.ny = parse_int(required(values, "ny", line_number), line_number);
+          config.slab.nz = parse_int(required(values, "nz", line_number), line_number);
+          config.slab.dx = parse_double(required(values, "dx", line_number), line_number);
+          config.slab.material = required(values, "material", line_number);
+        } else if (kind == "sphere") {
+          config.geometry = GeometryKind::Sphere;
+          config.sphere.diameter =
+              parse_double(required(values, "diameter", line_number), line_number);
+          const auto dx = values.find("dx");
+          const auto resolution = values.find("resolution");
+          if ((dx == values.end()) == (resolution == values.end())) {
+            throw InputError(line_error(
+                line_number, "voxel create sphere requires exactly one of dx or resolution"));
+          }
+          if (dx != values.end()) {
+            config.sphere.dx = parse_double(dx->second, line_number);
+            config.sphere.resolution = 0;
+          } else {
+            config.sphere.resolution = parse_int(resolution->second, line_number);
+            if (config.sphere.resolution <= 0) {
+              throw InputError(line_error(line_number,
+                                          "voxel create sphere resolution must be positive"));
+            }
+            config.sphere.dx =
+                config.sphere.diameter / static_cast<double>(config.sphere.resolution);
+          }
+          config.sphere.material = required(values, "material", line_number);
+        } else {
+          throw InputError(line_error(
+              line_number, "voxel create geometry must be slab or sphere"));
+        }
       } else if (subcommand == "dump") {
+        if (tokens.size() == 3 && tokens[2] == "off") {
+          config.dumps.clear();
+          continue;
+        }
         require_size(tokens, 7, line_number);
         VoxelDump dump;
         dump.id = tokens[2];
@@ -234,7 +264,18 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
         command_entry.kind = CommandKind::VoxelAblate;
         command_entry.ablate.voxels = tokens[2];
         const auto values = parse_pairs(tokens, 3, line_number);
-        command_entry.ablate.source = required(values, "source", line_number);
+        const auto source = values.find("source");
+        if (source != values.end()) {
+          command_entry.ablate.source = source->second;
+        }
+        const auto surface = values.find("surface");
+        if (surface != values.end()) {
+          command_entry.ablate.surface = surface->second;
+        }
+        if (command_entry.ablate.source.empty() && command_entry.ablate.surface.empty()) {
+          throw InputError(line_error(
+              line_number, "voxel ablate requires source <name> or surface <name>"));
+        }
         command_entry.ablate.policy = required(values, "policy", line_number);
         const auto delete_it = values.find("delete");
         if (delete_it != values.end()) {
@@ -243,6 +284,83 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
         config.program.push_back(std::move(command_entry));
       } else {
         throw InputError(line_error(line_number, "unknown voxel subcommand '" + subcommand + "'"));
+      }
+    } else if (command == "isthmus") {
+      require_size(tokens, 5, line_number);
+      if (tokens[1] != "surface") {
+        throw InputError(line_error(line_number, "only 'isthmus surface' is supported"));
+      }
+      ScriptCommand command_entry;
+      command_entry.kind = CommandKind::IsthmusSurface;
+      command_entry.isthmus_surface.name = tokens[2];
+      const auto values = parse_pairs(tokens, 3, line_number);
+      command_entry.isthmus_surface.voxels = required(values, "voxels", line_number);
+      const auto buffer = values.find("buffer");
+      if (buffer != values.end()) {
+        command_entry.isthmus_surface.buffer = parse_int(buffer->second, line_number);
+      }
+      const auto weighting = values.find("weighting");
+      if (weighting != values.end()) {
+        command_entry.isthmus_surface.weighting = parse_bool(weighting->second, line_number);
+      }
+      const auto map = values.find("map");
+      if (map != values.end()) {
+        command_entry.isthmus_surface.map = parse_bool(map->second, line_number);
+      }
+      config.program.push_back(std::move(command_entry));
+    } else if (command == "surface") {
+      require_size(tokens, 2, line_number);
+      if (tokens[1] == "flux") {
+        require_size(tokens, 5, line_number);
+        ScriptCommand command_entry;
+        command_entry.kind = CommandKind::SurfaceFlux;
+        command_entry.surface_flux.surface = tokens[2];
+        const auto values = parse_pairs(tokens, 3, line_number);
+        command_entry.surface_flux.source = required(values, "source", line_number);
+        const auto select = values.find("select");
+        if (select != values.end()) {
+          command_entry.surface_flux.select = select->second;
+        }
+        if (command_entry.surface_flux.select == "normal") {
+          command_entry.surface_flux.direction[0] =
+              parse_double(required(values, "nx", line_number), line_number);
+          command_entry.surface_flux.direction[1] =
+              parse_double(required(values, "ny", line_number), line_number);
+          command_entry.surface_flux.direction[2] =
+              parse_double(required(values, "nz", line_number), line_number);
+          const auto min_cos = values.find("min-cos");
+          if (min_cos != values.end()) {
+            command_entry.surface_flux.min_cos = parse_double(min_cos->second, line_number);
+          }
+        } else if (command_entry.surface_flux.select == "voxels") {
+          command_entry.surface_flux.voxels = required(values, "voxels", line_number);
+        } else if (command_entry.surface_flux.select != "all") {
+          throw InputError(line_error(
+              line_number, "surface flux select must be all, normal, or voxels"));
+        }
+        config.program.push_back(std::move(command_entry));
+      } else if (tokens[1] == "dump") {
+        if (tokens.size() == 3 && tokens[2] == "off") {
+          config.surface_dumps.clear();
+          continue;
+        }
+        require_size(tokens, 7, line_number);
+        SurfaceDump dump;
+        dump.id = tokens[2];
+        dump.surface = tokens[3];
+        dump.style = tokens[4];
+        if (dump.style != "vtp") {
+          throw InputError(line_error(line_number, "surface dump style must be vtp"));
+        }
+        dump.every = parse_int(tokens[5], line_number);
+        if (dump.every <= 0) {
+          throw InputError(line_error(line_number, "surface dump interval must be positive"));
+        }
+        dump.path = tokens[6];
+        config.surface_dumps.push_back(std::move(dump));
+      } else {
+        throw InputError(line_error(line_number, "unknown surface subcommand '" +
+                                                 tokens[1] + "'"));
       }
     } else if (command == "source") {
       require_size(tokens, 4, line_number);
@@ -348,16 +466,30 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
       if (tokens[2] != "exact") {
         throw InputError(line_error(
             line_number,
-            "expected 'verify <quantity> exact <expression> tolerance <value> [norm <name>]'"));
+            "expected 'verify <quantity> exact <expression> tolerance <value> [percent|absolute] [norm <name>]'"));
       }
       VerificationCheck check;
       check.quantity = tokens[1];
       check.expression = tokens[3];
-      const auto values = parse_pairs(tokens, 4, line_number);
-      check.tolerance = parse_double(required(values, "tolerance", line_number), line_number);
-      const auto norm = values.find("norm");
-      if (norm != values.end()) {
-        check.norm = norm->second;
+      if (tokens[4] != "tolerance") {
+        throw InputError(line_error(line_number, "verify requires tolerance <value>"));
+      }
+      check.tolerance = parse_double(tokens[5], line_number);
+      std::size_t i = 6;
+      if (i < tokens.size() && (tokens[i] == "percent" || tokens[i] == "absolute")) {
+        check.tolerance_mode = tokens[i];
+        ++i;
+      }
+      while (i < tokens.size()) {
+        if (tokens[i] == "norm") {
+          if (i + 1 >= tokens.size()) {
+            throw InputError(line_error(line_number, "verify norm is missing a value"));
+          }
+          check.norm = tokens[i + 1];
+          i += 2;
+        } else {
+          throw InputError(line_error(line_number, "unknown verify option '" + tokens[i] + "'"));
+        }
       }
       config.checks.push_back(std::move(check));
     } else {

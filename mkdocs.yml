@@ -32,12 +32,15 @@ nav:
       - loop commands: commands/loops.md
       - voxel ablate: commands/voxel-ablate.md
       - fix voxel/ablate: commands/fix-voxel-ablate.md
+      - isthmus surface: commands/isthmus-surface.md
+      - surface: commands/surface.md
       - stats and stats_style: commands/stats.md
       - voxel dump: commands/voxel-dump.md
       - verify: commands/verify.md
       - run: commands/run.md
   - Examples:
       - Local Slab Ablation: examples/slab-local.md
+      - Sphere ISTHMUS Ablation: examples/sphere-isthmus.md
   - Development:
       - Directory Layout: development/directory-layout.md
       - Testing: development/testing.md

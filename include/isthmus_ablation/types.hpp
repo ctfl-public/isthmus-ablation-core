@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <stdexcept>
 #include <string>
@@ -26,6 +27,19 @@ struct SlabGeometry {
   int nz = 0;
   double dx = 0.0;
   std::string material;
+};
+
+struct SphereGeometry {
+  double diameter = 0.0;
+  double dx = 0.0;
+  int resolution = 0;
+  std::string material;
+};
+
+enum class GeometryKind {
+  None,
+  Slab,
+  Sphere,
 };
 
 struct ConstantSource {
@@ -58,8 +72,26 @@ struct AblationFix {
 struct AblationCommand {
   std::string voxels;
   std::string source;
+  std::string surface;
   std::string policy = "local";
   bool delete_empty = true;
+};
+
+struct IsthmusSurfaceCommand {
+  std::string name;
+  std::string voxels;
+  int buffer = 1;
+  bool weighting = false;
+  bool map = true;
+};
+
+struct SurfaceFluxCommand {
+  std::string surface;
+  std::string source;
+  std::string select = "all";
+  std::string voxels;
+  std::array<double, 3> direction{{0.0, 0.0, 1.0}};
+  double min_cos = 0.0;
 };
 
 struct VoxelDump {
@@ -70,6 +102,14 @@ struct VoxelDump {
   std::string path;
   std::string select = "active";
   std::string scalar = "mass-fraction";
+};
+
+struct SurfaceDump {
+  std::string id;
+  std::string surface;
+  std::string style;
+  int every = 1;
+  std::string path;
 };
 
 struct StatsConfig {
@@ -90,6 +130,8 @@ enum class CommandKind {
   Jump,
   Run,
   VoxelAblate,
+  IsthmusSurface,
+  SurfaceFlux,
 };
 
 struct ScriptCommand {
@@ -99,25 +141,31 @@ struct ScriptCommand {
   int count = 0;
   RunConfig run;
   AblationCommand ablate;
+  IsthmusSurfaceCommand isthmus_surface;
+  SurfaceFluxCommand surface_flux;
 };
 
 struct VerificationCheck {
   std::string quantity;
   std::string expression;
   double tolerance = 0.0;
+  std::string tolerance_mode = "absolute";
   std::string norm = "final";
 };
 
 struct Config {
   std::string units = "si";
   std::string voxel_name;
+  GeometryKind geometry = GeometryKind::None;
   Material material;
   SlabGeometry slab;
+  SphereGeometry sphere;
   ConstantSource source;
   Timestep timestep;
   AblationFix fix;
   StatsConfig stats;
   std::vector<VoxelDump> dumps;
+  std::vector<SurfaceDump> surface_dumps;
   RunConfig run;
   std::vector<VerificationCheck> checks;
   std::vector<ScriptCommand> program;
@@ -128,6 +176,9 @@ struct Voxel {
   int ix = 0;
   int iy = 0;
   int iz = 0;
+  double x = 0.0;
+  double y = 0.0;
+  double z = 0.0;
   double remaining_mass = 0.0;
   bool active = true;
   bool fixed = false;
@@ -141,6 +192,7 @@ struct HistoryRow {
   double remaining_mass = 0.0;
   double mass_fraction = 0.0;
   double front = 0.0;
+  double radius = 0.0;
   double requested_mass_step = 0.0;
   double applied_mass_step = 0.0;
   double dropped_mass_step = 0.0;

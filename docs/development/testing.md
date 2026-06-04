@@ -43,11 +43,12 @@ python3 tools/run-test-report.py 1-2
 python3 tools/run-test-report.py slab-local-verification
 ```
 
-The current regression test is:
+The current regression tests are:
 
 ```text
 slab-local-verification
 slab-local-fix-verification
+sphere-isthmus-verification
 ```
 
 They run:
@@ -55,6 +56,7 @@ They run:
 ```text
 tests/inputs/slab-local-ablation/in.slab-local-ablation.verify
 tests/inputs/slab-local-ablation/in.slab-local-ablation.fix-verify
+tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-ablation.verify
 ```
 
 The command-loop test includes the example case:
@@ -66,6 +68,13 @@ include ../../../examples/slab-local-ablation/in.slab-local-ablation
 The fix test keeps the compact callback-style path covered while the examples
 move toward explicit `voxel ablate` loops. Tests pass only if all `verify`
 commands in the wrapper input files pass.
+
+The sphere ISTHMUS test is enabled when the build finds the ISTHMUS C++ package.
+It runs marching cubes, applies constant triangle flux, maps that flux back to
+voxels, and compares the inferred radius and mass fraction against the
+continuum shrinking-sphere solution at 0.1 s. It uses percent tolerances because
+the current local surface-to-voxel transfer has visible discretization and
+conservation error.
 
 ## Test Organization
 

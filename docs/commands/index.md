@@ -16,6 +16,8 @@ Current standalone commands:
 - [`variable`, `label`, `next`, and `jump`](loops.md)
 - [`voxel ablate`](voxel-ablate.md)
 - [`fix ... voxel/ablate`](fix-voxel-ablate.md)
+- [`isthmus surface`](isthmus-surface.md)
+- [`surface`](surface.md)
 - [`stats` and `stats_style`](stats.md)
 - [`voxel dump`](voxel-dump.md)
 - [`verify`](verify.md)
