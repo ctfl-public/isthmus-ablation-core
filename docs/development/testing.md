@@ -48,7 +48,9 @@ The current regression tests are:
 ```text
 slab-local-verification
 slab-local-fix-verification
-sphere-isthmus-verification
+sphere-isthmus-local-verification
+sphere-isthmus-normal-verification
+sphere-isthmus-normal-convergence
 ```
 
 They run:
@@ -56,7 +58,9 @@ They run:
 ```text
 tests/inputs/slab-local-ablation/in.slab-local-ablation.verify
 tests/inputs/slab-local-ablation/in.slab-local-ablation.fix-verify
-tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-ablation.verify
+tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local.verify
+tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal.verify
+tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-convergence.verify
 ```
 
 The command-loop test includes the example case:
@@ -69,12 +73,18 @@ The fix test keeps the compact callback-style path covered while the examples
 move toward explicit `voxel ablate` loops. Tests pass only if all `verify`
 commands in the wrapper input files pass.
 
-The sphere ISTHMUS test is enabled when the build finds the ISTHMUS C++ package.
-It runs marching cubes, applies constant triangle flux, maps that flux back to
-voxels, and compares the inferred radius and mass fraction against the
-continuum shrinking-sphere solution at 0.1 s. It uses percent tolerances because
-the current local surface-to-voxel transfer has visible discretization and
-conservation error.
+The sphere ISTHMUS tests are enabled when the build finds the ISTHMUS C++
+package. They run marching cubes, apply constant triangle flux, map that flux
+back to voxels, and compare the inferred radius and mass fraction against the
+continuum shrinking-sphere solution. The local sphere test keeps the
+nonconservative path covered. The normal-carryover sphere test checks the
+conservative path and verifies that final-step dropped mass is essentially zero.
+
+The convergence test is an input file, not an external runner. It uses
+`variable ... equal ...` and a `convergence ... vary ... order ...` command to
+run normal carryover at 5, 10, and 20 voxels across the diameter with
+mass-Courant timing. It requires monotone radius-error reduction and an
+apparent end-to-end order in a broad first-order band.
 
 ## Test Organization
 
@@ -92,5 +102,5 @@ examples/<case-name>/in.<case-name>
 tests/inputs/<case-name>/in.<case-name>.verify
 ```
 
-Future convergence tests should live under `tests/inputs/` and use an explicit
-convergence verification command once implemented.
+Future convergence tests should live under `tests/inputs/` and use the explicit
+`convergence` verification command.

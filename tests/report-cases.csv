@@ -1,0 +1,6 @@
+index,name,input,requires,expected-fail
+1,slab-local-verification,tests/inputs/slab-local-ablation/in.slab-local-ablation.verify,,no
+2,slab-local-fix-verification,tests/inputs/slab-local-ablation/in.slab-local-ablation.fix-verify,,no
+3,sphere-isthmus-local-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local.verify,isthmus,no
+4,sphere-isthmus-normal-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal.verify,isthmus,no
+5,sphere-isthmus-normal-convergence,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-convergence.verify,isthmus,no

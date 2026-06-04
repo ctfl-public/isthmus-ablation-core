@@ -14,6 +14,7 @@ voxel ablate <model> surface <surface-id> policy <policy> delete <yes|no>
 ```text
 voxel ablate solid source q1 policy local delete yes
 voxel ablate solid surface skin policy local delete yes
+voxel ablate solid surface skin policy carryover/normal delete yes
 ```
 
 ## Description
@@ -26,6 +27,13 @@ slab column.
 With `surface`, the command consumes mass already assigned to triangles by
 `surface flux`, uses the ISTHMUS triangle-to-voxel ownership map, and subtracts
 that mass from the associated voxels.
+
+`policy local` removes only the mass available in each mapped voxel and records
+any overshoot as dropped mass.
+
+`policy carryover/normal` conserves overshoot by pushing excess mass loss from
+a depleted voxel into live 26-neighbor voxels along the inward normal direction.
+This policy is intended for closed ISTHMUS surfaces such as spheres.
 
 Use `run 1` after `voxel ablate` to advance time, record history, print stats,
 and write scheduled dumps:
@@ -40,7 +48,7 @@ A surface-coupled loop is:
 ```text
 isthmus surface skin voxels solid buffer 1 weighting no map yes
 surface flux skin source q1 select all
-voxel ablate solid surface skin policy local delete yes
+voxel ablate solid surface skin policy carryover/normal delete yes
 run 1
 ```
 
@@ -50,5 +58,6 @@ inactive and omitted from VTU dumps that use `select active`.
 ## Current Limits
 
 - Only one voxel model is currently supported.
-- Only `policy local` is implemented.
+- `policy carryover/normal` is currently implemented for surface-backed
+  ablation.
 - The current source must be a constant mass flux.

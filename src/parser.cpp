@@ -62,6 +62,39 @@ std::vector<std::string> tokenize(const std::string &line) {
   return tokens;
 }
 
+std::string substitute_variables(const std::string &value,
+                                 const std::unordered_map<std::string, std::string> &variables,
+                                 int line_number) {
+  std::string out;
+  for (std::size_t i = 0; i < value.size();) {
+    if (value[i] == '$' && i + 1 < value.size() && value[i + 1] == '{') {
+      const std::size_t close = value.find('}', i + 2);
+      if (close == std::string::npos) {
+        throw InputError(line_error(line_number, "unterminated variable substitution"));
+      }
+      const std::string name = value.substr(i + 2, close - (i + 2));
+      const auto found = variables.find(name);
+      if (found == variables.end()) {
+        throw InputError(line_error(line_number, "unknown variable '" + name + "'"));
+      }
+      out += found->second;
+      i = close + 1;
+    } else {
+      out.push_back(value[i]);
+      ++i;
+    }
+  }
+  return out;
+}
+
+void substitute_tokens(std::vector<std::string> &tokens,
+                       const std::unordered_map<std::string, std::string> &variables,
+                       int line_number) {
+  for (auto &token : tokens) {
+    token = substitute_variables(token, variables, line_number);
+  }
+}
+
 void require_size(const std::vector<std::string> &tokens, std::size_t size, int line_number) {
   if (tokens.size() < size) {
     throw InputError(line_error(line_number, "not enough arguments for '" + tokens.front() + "'"));
@@ -131,7 +164,9 @@ std::string required(const std::unordered_map<std::string, std::string> &values,
 }
 
 void parse_input_file_into(const std::filesystem::path &path, Config &config,
-                           std::vector<std::filesystem::path> &include_stack) {
+                           std::vector<std::filesystem::path> &include_stack,
+                           std::unordered_map<std::string, std::string> &variables,
+                           const std::unordered_map<std::string, std::string> &overrides) {
   std::ifstream input(path);
   if (!input) {
     throw InputError("could not open input file '" + path.string() + "'");
@@ -158,6 +193,9 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
     if (tokens.empty()) {
       continue;
     }
+    if (!(tokens.size() >= 4 && tokens[0] == "variable" && tokens[2] == "equal")) {
+      substitute_tokens(tokens, variables, line_number);
+    }
 
     const auto &command = tokens[0];
     if (command == "include") {
@@ -169,7 +207,7 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
       if (include_path.is_relative()) {
         include_path = path.parent_path() / include_path;
       }
-      parse_input_file_into(include_path, config, include_stack);
+      parse_input_file_into(include_path, config, include_stack, variables, overrides);
     } else if (command == "units") {
       require_size(tokens, 2, line_number);
       config.units = tokens[1];
@@ -415,17 +453,26 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
       config.stats.columns.assign(tokens.begin() + 1, tokens.end());
     } else if (command == "variable") {
       require_size(tokens, 4, line_number);
-      if (tokens[2] != "loop") {
-        throw InputError(line_error(line_number, "only 'variable <name> loop <N>' is supported"));
+      if (tokens[2] == "equal") {
+        if (tokens.size() != 4) {
+          throw InputError(line_error(line_number, "variable equal takes exactly one value"));
+        }
+        const auto override = overrides.find(tokens[1]);
+        variables[tokens[1]] = override == overrides.end() ? tokens[3] : override->second;
+      } else if (tokens[2] == "loop") {
+        substitute_tokens(tokens, variables, line_number);
+        ScriptCommand command_entry;
+        command_entry.kind = CommandKind::VariableLoop;
+        command_entry.name = tokens[1];
+        command_entry.count = parse_int(tokens[3], line_number);
+        if (command_entry.count <= 0) {
+          throw InputError(line_error(line_number, "variable loop count must be positive"));
+        }
+        config.program.push_back(std::move(command_entry));
+      } else {
+        throw InputError(line_error(line_number,
+                                    "variable must use equal or loop"));
       }
-      ScriptCommand command_entry;
-      command_entry.kind = CommandKind::VariableLoop;
-      command_entry.name = tokens[1];
-      command_entry.count = parse_int(tokens[3], line_number);
-      if (command_entry.count <= 0) {
-        throw InputError(line_error(line_number, "variable loop count must be positive"));
-      }
-      config.program.push_back(std::move(command_entry));
     } else if (command == "label") {
       require_size(tokens, 2, line_number);
       ScriptCommand command_entry;
@@ -492,6 +539,77 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
         }
       }
       config.checks.push_back(std::move(check));
+    } else if (command == "convergence") {
+      require_size(tokens, 10, line_number);
+      if (tokens[2] != "exact") {
+        throw InputError(line_error(line_number,
+                                    "expected 'convergence <quantity> exact <expression> ...'"));
+      }
+      ConvergenceCheck convergence;
+      convergence.check.quantity = tokens[1];
+      convergence.check.expression = tokens[3];
+      if (tokens[4] != "tolerance") {
+        throw InputError(line_error(line_number, "convergence requires tolerance <value>"));
+      }
+      convergence.check.tolerance = parse_double(tokens[5], line_number);
+      std::size_t i = 6;
+      if (i < tokens.size() &&
+          (tokens[i] == "percent" || tokens[i] == "absolute")) {
+        convergence.check.tolerance_mode = tokens[i];
+        ++i;
+      }
+      while (i < tokens.size()) {
+        if (tokens[i] == "norm") {
+          if (i + 1 >= tokens.size()) {
+            throw InputError(line_error(line_number, "convergence norm is missing a value"));
+          }
+          convergence.check.norm = tokens[i + 1];
+          i += 2;
+        } else if (tokens[i] == "vary") {
+          if (i + 2 >= tokens.size()) {
+            throw InputError(line_error(line_number, "convergence vary requires a name and values"));
+          }
+          ConvergenceVariable variable;
+          variable.name = tokens[i + 1];
+          i += 2;
+          while (i < tokens.size() && tokens[i] != "vary" && tokens[i] != "order" &&
+                 tokens[i] != "monotonic") {
+            variable.values.push_back(tokens[i]);
+            ++i;
+          }
+          if (variable.values.empty()) {
+            throw InputError(line_error(line_number, "convergence vary requires values"));
+          }
+          convergence.variables.push_back(std::move(variable));
+        } else if (tokens[i] == "order") {
+          if (i + 2 >= tokens.size()) {
+            throw InputError(line_error(line_number, "convergence order requires min and max"));
+          }
+          convergence.min_order = parse_double(tokens[i + 1], line_number);
+          convergence.max_order = parse_double(tokens[i + 2], line_number);
+          i += 3;
+        } else if (tokens[i] == "monotonic") {
+          if (i + 1 >= tokens.size()) {
+            throw InputError(line_error(line_number, "convergence monotonic is missing a value"));
+          }
+          convergence.require_monotonic = parse_bool(tokens[i + 1], line_number);
+          i += 2;
+        } else {
+          throw InputError(line_error(line_number,
+                                      "unknown convergence option '" + tokens[i] + "'"));
+        }
+      }
+      if (convergence.variables.empty()) {
+        throw InputError(line_error(line_number, "convergence requires at least one vary clause"));
+      }
+      const std::size_t count = convergence.variables.front().values.size();
+      for (const auto &variable : convergence.variables) {
+        if (variable.values.size() != count) {
+          throw InputError(line_error(line_number,
+                                      "all convergence vary clauses must have the same length"));
+        }
+      }
+      config.convergence_checks.push_back(std::move(convergence));
     } else {
       throw InputError(source_error(path, line_number, "unknown command '" + command + "'"));
     }
@@ -503,9 +621,15 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
 } // namespace
 
 Config parse_input_file(const std::string &path) {
+  return parse_input_file(path, {});
+}
+
+Config parse_input_file(const std::string &path,
+                        const std::unordered_map<std::string, std::string> &overrides) {
   Config config;
   std::vector<std::filesystem::path> include_stack;
-  parse_input_file_into(std::filesystem::path(path), config, include_stack);
+  std::unordered_map<std::string, std::string> variables = overrides;
+  parse_input_file_into(std::filesystem::path(path), config, include_stack, variables, overrides);
   return config;
 }
 

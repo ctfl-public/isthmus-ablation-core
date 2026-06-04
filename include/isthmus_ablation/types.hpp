@@ -153,6 +153,19 @@ struct VerificationCheck {
   std::string norm = "final";
 };
 
+struct ConvergenceVariable {
+  std::string name;
+  std::vector<std::string> values;
+};
+
+struct ConvergenceCheck {
+  VerificationCheck check;
+  std::vector<ConvergenceVariable> variables;
+  double min_order = 0.0;
+  double max_order = 10.0;
+  bool require_monotonic = true;
+};
+
 struct Config {
   std::string units = "si";
   std::string voxel_name;
@@ -168,6 +181,7 @@ struct Config {
   std::vector<SurfaceDump> surface_dumps;
   RunConfig run;
   std::vector<VerificationCheck> checks;
+  std::vector<ConvergenceCheck> convergence_checks;
   std::vector<ScriptCommand> program;
 };
 

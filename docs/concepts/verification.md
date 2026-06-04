@@ -33,6 +33,18 @@ scale is more meaningful.
 
 ## Convergence
 
-Grid and time convergence checks are planned. They should build on the same
-verification machinery rather than adding special-case exact solution branches
-to the model.
+Convergence checks are input-driven too. A test can define variables, use them
+inside the case setup, and ask the executable to rerun the same input with
+overrides:
+
+```text
+variable resolution equal 20
+variable steps equal 4
+voxel create solid sphere diameter 1.0e-3 resolution ${resolution} material carbon
+variable i loop ${steps}
+
+convergence radius exact "initial-radius - q1*time/rho" tolerance 100.0 percent norm final vary resolution 5 10 20 vary steps 1 2 4 order 0.75 2.5 monotonic yes
+```
+
+This keeps convergence criteria in the test input instead of a separate helper
+script.

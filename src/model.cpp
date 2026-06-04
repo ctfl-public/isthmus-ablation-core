@@ -351,8 +351,11 @@ void Model::validate_ablation(const AblationCommand &ablate, const std::string &
   if (ablate.source.empty() && ablate.surface.empty()) {
     throw RuntimeError(context + " requires source or surface");
   }
-  if (ablate.policy != "local") {
-    throw RuntimeError("only local ablation policy is currently implemented");
+  if (ablate.policy != "local" && ablate.policy != "carryover/normal") {
+    throw RuntimeError("only local and carryover/normal ablation policies are currently implemented");
+  }
+  if (ablate.surface.empty() && ablate.policy != "local") {
+    throw RuntimeError(context + " policy '" + ablate.policy + "' requires surface ablation");
   }
 }
 
@@ -673,6 +676,7 @@ void Model::advance_surface_ablation(const AblationCommand &ablate) {
     throw RuntimeError("voxel ablate references unknown surface '" + ablate.surface + "'");
   }
 
+  std::vector<double> mass_increments(voxels_.size(), 0.0);
   for (auto &triangle : it->second.triangles) {
     if (triangle.requested_mass <= 0.0) {
       continue;
@@ -683,37 +687,208 @@ void Model::advance_surface_ablation(const AblationCommand &ablate) {
       continue;
     }
 
+    double fraction_sum = 0.0;
+    for (const double fraction : triangle.fractions) {
+      if (fraction > 0.0) {
+        fraction_sum += fraction;
+      }
+    }
+    if (fraction_sum <= 0.0) {
+      dropped_mass_step_ += triangle.requested_mass;
+      triangle.requested_mass = 0.0;
+      continue;
+    }
+
     double mapped = 0.0;
-    for (std::size_t i = 0; i < triangle.voxel_ids.size(); ++i) {
+    for (std::size_t i = 0; i < triangle.voxel_ids.size() && i < triangle.fractions.size(); ++i) {
       const auto id = triangle.voxel_ids[i];
-      const double fraction = i < triangle.fractions.size() ? triangle.fractions[i] : 0.0;
-      const double request = fraction * triangle.requested_mass;
-      mapped += request;
-      if (id >= voxels_.size() || !voxels_[id].active) {
-        dropped_mass_step_ += request;
+      const double fraction = triangle.fractions[i];
+      if (fraction <= 0.0) {
         continue;
       }
-
-      auto &voxel = voxels_[id];
-      const double removed = std::min(voxel.remaining_mass, request);
-      voxel.remaining_mass -= removed;
-      applied_mass_step_ += removed;
-      applied_mass_total_ += removed;
-      const double leftover = request - removed;
-      if (leftover > 0.0) {
-        dropped_mass_step_ += leftover;
-      }
-      if (voxel.remaining_mass <= voxel_mass_ * kEpsilon) {
-        voxel.remaining_mass = 0.0;
-        if (ablate.delete_empty) {
-          voxel.active = false;
-        }
+      const double request = triangle.requested_mass * fraction / fraction_sum;
+      mapped += request;
+      if (id >= voxels_.size()) {
+        dropped_mass_step_ += request;
+      } else {
+        mass_increments[id] += request;
       }
     }
     if (mapped < triangle.requested_mass) {
       dropped_mass_step_ += triangle.requested_mass - mapped;
     }
     triangle.requested_mass = 0.0;
+  }
+
+  if (ablate.policy == "carryover/normal") {
+    apply_surface_normal_carryover(mass_increments, ablate);
+  } else {
+    apply_surface_local_increments(mass_increments, ablate);
+  }
+}
+
+void Model::apply_surface_local_increments(const std::vector<double> &mass_increments,
+                                           const AblationCommand &ablate) {
+  for (std::size_t voxel_id = 0; voxel_id < voxels_.size(); ++voxel_id) {
+    double requested = voxel_id < mass_increments.size() ? mass_increments[voxel_id] : 0.0;
+    if (requested <= 0.0) {
+      continue;
+    }
+    auto &voxel = voxels_[voxel_id];
+    if (!voxel.active || voxel.fixed || voxel.remaining_mass <= 0.0) {
+      dropped_mass_step_ += requested;
+      continue;
+    }
+
+    const double removed = std::min(voxel.remaining_mass, requested);
+    voxel.remaining_mass -= removed;
+    applied_mass_step_ += removed;
+    applied_mass_total_ += removed;
+    requested -= removed;
+    if (voxel.remaining_mass <= voxel_mass_ * kEpsilon) {
+      voxel.remaining_mass = 0.0;
+      if (ablate.delete_empty) {
+        voxel.active = false;
+      }
+    }
+    if (requested > 0.0) {
+      dropped_mass_step_ += requested;
+    }
+  }
+}
+
+void Model::apply_surface_normal_carryover(const std::vector<double> &mass_increments,
+                                           const AblationCommand &ablate) {
+  std::vector<double> removed(voxels_.size(), 0.0);
+  std::vector<bool> keep(voxels_.size(), false);
+  std::vector<bool> processed(voxels_.size(), false);
+
+  for (std::size_t i = 0; i < voxels_.size(); ++i) {
+    const auto &voxel = voxels_[i];
+    if (voxel.active && voxel.remaining_mass > 0.0 && !voxel.fixed) {
+      keep[i] = true;
+      removed[i] = voxel_mass_ - voxel.remaining_mass;
+    }
+  }
+
+  std::vector<std::size_t> queue;
+  queue.reserve(voxels_.size());
+  for (std::size_t i = 0; i < voxels_.size(); ++i) {
+    const double increment = i < mass_increments.size() ? mass_increments[i] : 0.0;
+    if (increment <= 0.0) {
+      continue;
+    }
+    if (!keep[i]) {
+      dropped_mass_step_ += increment;
+      continue;
+    }
+    removed[i] += increment;
+    if (removed[i] >= voxel_mass_ * (1.0 - kEpsilon)) {
+      queue.push_back(i);
+    }
+  }
+
+  const auto center = carryover_center();
+  const int nx = grid_nx();
+  const int ny = grid_ny();
+  const int nz = grid_nz();
+  constexpr int offsets[26][3] = {
+      {-1, -1, -1}, {-1, -1, 0}, {-1, -1, 1}, {-1, 0, -1}, {-1, 0, 0},
+      {-1, 0, 1},  {-1, 1, -1}, {-1, 1, 0},  {-1, 1, 1},  {0, -1, -1},
+      {0, -1, 0},  {0, -1, 1},  {0, 0, -1},  {0, 0, 1},   {0, 1, -1},
+      {0, 1, 0},   {0, 1, 1},   {1, -1, -1}, {1, -1, 0},  {1, -1, 1},
+      {1, 0, -1},  {1, 0, 0},   {1, 0, 1},   {1, 1, -1},  {1, 1, 0},
+      {1, 1, 1},
+  };
+
+  while (!queue.empty()) {
+    const std::size_t i = queue.back();
+    queue.pop_back();
+    if (i >= voxels_.size() || processed[i] || !keep[i] ||
+        removed[i] < voxel_mass_ * (1.0 - kEpsilon)) {
+      continue;
+    }
+    processed[i] = true;
+    const double excess = std::max(removed[i] - voxel_mass_, 0.0);
+    removed[i] = voxel_mass_;
+    keep[i] = false;
+    if (excess <= 0.0) {
+      continue;
+    }
+
+    const auto &from_voxel = voxels_[i];
+    const std::array<double, 3> from{{from_voxel.x, from_voxel.y, from_voxel.z}};
+    auto inward = normalized3({{center[0] - from[0], center[1] - from[1], center[2] - from[2]}});
+    if (norm3(inward) <= 0.0) {
+      dropped_mass_step_ += excess;
+      continue;
+    }
+
+    std::vector<std::size_t> candidates;
+    std::vector<double> weights;
+    double weight_sum = 0.0;
+    for (const auto &offset : offsets) {
+      const int jx = from_voxel.ix + offset[0];
+      const int jy = from_voxel.iy + offset[1];
+      const int jz = from_voxel.iz + offset[2];
+      if (jx < 0 || jy < 0 || jz < 0 || jx >= nx || jy >= ny || jz >= nz) {
+        continue;
+      }
+      const std::size_t j = index(jx, jy, jz);
+      if (j >= voxels_.size() || !keep[j]) {
+        continue;
+      }
+      const auto &to_voxel = voxels_[j];
+      const std::array<double, 3> to{{to_voxel.x, to_voxel.y, to_voxel.z}};
+      auto direction = subtract3(to, from);
+      const double direction_norm = norm3(direction);
+      if (direction_norm <= 0.0) {
+        continue;
+      }
+      direction[0] /= direction_norm;
+      direction[1] /= direction_norm;
+      direction[2] /= direction_norm;
+      const double projection = dot3(direction, inward);
+      if (projection <= 1.0e-12) {
+        continue;
+      }
+      const double weight = projection / direction_norm;
+      candidates.push_back(j);
+      weights.push_back(weight);
+      weight_sum += weight;
+    }
+
+    if (candidates.empty() || weight_sum <= 0.0) {
+      dropped_mass_step_ += excess;
+      continue;
+    }
+    for (std::size_t k = 0; k < candidates.size(); ++k) {
+      const std::size_t j = candidates[k];
+      removed[j] += excess * weights[k] / weight_sum;
+      if (removed[j] >= voxel_mass_ * (1.0 - kEpsilon) && !processed[j]) {
+        queue.push_back(j);
+      }
+    }
+  }
+
+  for (std::size_t i = 0; i < voxels_.size(); ++i) {
+    auto &voxel = voxels_[i];
+    if (!voxel.active || voxel.fixed) {
+      continue;
+    }
+    const double old_mass = voxel.remaining_mass;
+    voxel.remaining_mass = std::max(voxel_mass_ - removed[i], 0.0);
+    if (old_mass > voxel.remaining_mass) {
+      const double removed_now = old_mass - voxel.remaining_mass;
+      applied_mass_step_ += removed_now;
+      applied_mass_total_ += removed_now;
+    }
+    if (!keep[i] || voxel.remaining_mass <= voxel_mass_ * kEpsilon) {
+      voxel.remaining_mass = 0.0;
+      if (ablate.delete_empty) {
+        voxel.active = false;
+      }
+    }
   }
 }
 
@@ -1028,7 +1203,7 @@ void Model::write_verification_csv(const std::string &path) const {
       };
       const double actual = history_value(row, quantity);
       const double exact = evaluate_expression(check.expression, variables);
-      const double error = verification_error(actual, exact, check);
+      const double error = ::iac::verification_error(actual, exact, check);
       out << csv_escape(check.quantity) << ',' << csv_escape(check.expression) << ','
           << row.step << ',' << row.time << ',' << actual << ',' << exact << ','
           << error << ',' << check.tolerance << ',' << csv_escape(check.tolerance_mode)
@@ -1043,92 +1218,96 @@ void Model::verify() const {
     throw RuntimeError("cannot verify before run");
   }
   for (const auto &check : config_.checks) {
-    const std::string quantity = normalize_quantity(check.quantity);
-    double accumulated = 0.0;
-    double max_error = 0.0;
-    int count = 0;
-    const auto evaluate_row = [&](const HistoryRow &row) {
-      const auto &g = config_.slab;
-      const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx
-                                                               : config_.sphere.dx;
-      const double length = config_.geometry == GeometryKind::Slab
-                                ? static_cast<double>(g.nx) * g.dx
-                                : config_.sphere.diameter;
-      const double area = config_.geometry == GeometryKind::Slab
-                              ? static_cast<double>(g.ny) * static_cast<double>(g.nz) *
-                                    g.dx * g.dx
-                              : 4.0 * std::acos(-1.0) * row.radius * row.radius;
-      const double initial_radius =
-          config_.geometry == GeometryKind::Sphere ? 0.5 * config_.sphere.diameter : 0.0;
-      std::unordered_map<std::string, double> variables{
-          {"step", static_cast<double>(row.step)},
-          {"time", row.time},
-          {"t", row.time},
-          {"dt", dt_},
-          {"rho", config_.material.density},
-          {"density", config_.material.density},
-          {"dx", dx},
-          {"nx", static_cast<double>(g.nx)},
-          {"ny", static_cast<double>(g.ny)},
-          {"nz", static_cast<double>(g.nz)},
-          {"length", length},
-          {"diameter", config_.sphere.diameter},
-          {"initial-radius", initial_radius},
-          {"initial_radius", initial_radius},
-          {"radius", row.radius},
-          {"area", area},
-          {"initial-mass", initial_mass_},
-          {"initial_mass", initial_mass_},
-          {"voxel-mass", voxel_mass_},
-          {"voxel_mass", voxel_mass_},
-          {"active-voxels", static_cast<double>(row.active_voxels)},
-          {"active_voxels", static_cast<double>(row.active_voxels)},
-          {"deleted-voxels", static_cast<double>(row.deleted_voxels)},
-          {"deleted_voxels", static_cast<double>(row.deleted_voxels)},
-          {"remaining-mass", row.remaining_mass},
-          {"remaining_mass", row.remaining_mass},
-          {"mass", row.remaining_mass},
-          {"mass-fraction", row.mass_fraction},
-          {"mass_fraction", row.mass_fraction},
-          {"front", row.front},
-          {"radius", row.radius},
-          {"requested-mass-step", row.requested_mass_step},
-          {"requested_mass_step", row.requested_mass_step},
-          {"applied-mass-step", row.applied_mass_step},
-          {"applied_mass_step", row.applied_mass_step},
-          {"dropped-mass-step", row.dropped_mass_step},
-          {"dropped_mass_step", row.dropped_mass_step},
-          {config_.source.name, config_.source.value},
-          {"source:" + config_.source.name, config_.source.value},
-      };
-      const double actual = history_value(row, quantity);
-      const double exact = evaluate_expression(check.expression, variables);
-      return verification_error(actual, exact, check);
-    };
-
-    if (check.norm == "final") {
-      max_error = evaluate_row(history_.back());
-      count = 1;
-    } else if (check.norm == "max" || check.norm == "rms") {
-      for (const auto &row : history_) {
-        const double error = evaluate_row(row);
-        max_error = std::max(max_error, error);
-        accumulated += error * error;
-        ++count;
-      }
-    } else {
-      throw RuntimeError("unknown verify norm '" + check.norm + "'");
-    }
-
-    double error = max_error;
-    if (check.norm == "rms") {
-      error = count > 0 ? std::sqrt(accumulated / static_cast<double>(count)) : 0.0;
-    }
+    const double error = verification_error(check);
     if (!(error <= check.tolerance)) {
       throw RuntimeError(format_error(check.quantity, error, check.tolerance,
                                       check.tolerance_mode));
     }
   }
+}
+
+double Model::verification_error(const VerificationCheck &check) const {
+  if (history_.empty()) {
+    throw RuntimeError("cannot verify before run");
+  }
+  const std::string quantity = normalize_quantity(check.quantity);
+  double accumulated = 0.0;
+  double max_error = 0.0;
+  int count = 0;
+  const auto evaluate_row = [&](const HistoryRow &row) {
+    const auto &g = config_.slab;
+    const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx
+                                                             : config_.sphere.dx;
+    const double length = config_.geometry == GeometryKind::Slab
+                              ? static_cast<double>(g.nx) * g.dx
+                              : config_.sphere.diameter;
+    const double area = config_.geometry == GeometryKind::Slab
+                            ? static_cast<double>(g.ny) * static_cast<double>(g.nz) *
+                                  g.dx * g.dx
+                            : 4.0 * std::acos(-1.0) * row.radius * row.radius;
+    const double initial_radius =
+        config_.geometry == GeometryKind::Sphere ? 0.5 * config_.sphere.diameter : 0.0;
+    std::unordered_map<std::string, double> variables{
+        {"step", static_cast<double>(row.step)},
+        {"time", row.time},
+        {"t", row.time},
+        {"dt", dt_},
+        {"rho", config_.material.density},
+        {"density", config_.material.density},
+        {"dx", dx},
+        {"nx", static_cast<double>(g.nx)},
+        {"ny", static_cast<double>(g.ny)},
+        {"nz", static_cast<double>(g.nz)},
+        {"length", length},
+        {"diameter", config_.sphere.diameter},
+        {"initial-radius", initial_radius},
+        {"initial_radius", initial_radius},
+        {"radius", row.radius},
+        {"area", area},
+        {"initial-mass", initial_mass_},
+        {"initial_mass", initial_mass_},
+        {"voxel-mass", voxel_mass_},
+        {"voxel_mass", voxel_mass_},
+        {"active-voxels", static_cast<double>(row.active_voxels)},
+        {"active_voxels", static_cast<double>(row.active_voxels)},
+        {"deleted-voxels", static_cast<double>(row.deleted_voxels)},
+        {"deleted_voxels", static_cast<double>(row.deleted_voxels)},
+        {"remaining-mass", row.remaining_mass},
+        {"remaining_mass", row.remaining_mass},
+        {"mass", row.remaining_mass},
+        {"mass-fraction", row.mass_fraction},
+        {"mass_fraction", row.mass_fraction},
+        {"front", row.front},
+        {"requested-mass-step", row.requested_mass_step},
+        {"requested_mass_step", row.requested_mass_step},
+        {"applied-mass-step", row.applied_mass_step},
+        {"applied_mass_step", row.applied_mass_step},
+        {"dropped-mass-step", row.dropped_mass_step},
+        {"dropped_mass_step", row.dropped_mass_step},
+        {config_.source.name, config_.source.value},
+        {"source:" + config_.source.name, config_.source.value},
+    };
+    const double actual = history_value(row, quantity);
+    const double exact = evaluate_expression(check.expression, variables);
+    return ::iac::verification_error(actual, exact, check);
+  };
+
+  if (check.norm == "final") {
+    return evaluate_row(history_.back());
+  }
+  if (check.norm == "max" || check.norm == "rms") {
+    for (const auto &row : history_) {
+      const double error = evaluate_row(row);
+      max_error = std::max(max_error, error);
+      accumulated += error * error;
+      ++count;
+    }
+    if (check.norm == "rms") {
+      return count > 0 ? std::sqrt(accumulated / static_cast<double>(count)) : 0.0;
+    }
+    return max_error;
+  }
+  throw RuntimeError("unknown verify norm '" + check.norm + "'");
 }
 
 void Model::print_header(std::ostream &out) const {
@@ -1233,11 +1412,43 @@ void Model::print_run_summary(std::ostream &out) const {
 }
 
 std::size_t Model::index(int ix, int iy, int iz) const {
-  const auto &g = config_.slab;
-  return (static_cast<std::size_t>(ix) * static_cast<std::size_t>(g.ny) +
+  const int ny = grid_ny();
+  const int nz = grid_nz();
+  return (static_cast<std::size_t>(ix) * static_cast<std::size_t>(ny) +
           static_cast<std::size_t>(iy)) *
-             static_cast<std::size_t>(g.nz) +
+             static_cast<std::size_t>(nz) +
          static_cast<std::size_t>(iz);
+}
+
+int Model::grid_nx() const {
+  if (config_.geometry == GeometryKind::Slab) {
+    return config_.slab.nx;
+  }
+  return static_cast<int>(std::ceil(config_.sphere.diameter / config_.sphere.dx));
+}
+
+int Model::grid_ny() const {
+  if (config_.geometry == GeometryKind::Slab) {
+    return config_.slab.ny;
+  }
+  return grid_nx();
+}
+
+int Model::grid_nz() const {
+  if (config_.geometry == GeometryKind::Slab) {
+    return config_.slab.nz;
+  }
+  return grid_nx();
+}
+
+std::array<double, 3> Model::carryover_center() const {
+  if (config_.geometry == GeometryKind::Sphere) {
+    return {{0.0, 0.0, 0.0}};
+  }
+  const auto &g = config_.slab;
+  return {{0.5 * static_cast<double>(g.nx) * g.dx,
+           0.5 * static_cast<double>(g.ny) * g.dx,
+           0.5 * static_cast<double>(g.nz) * g.dx}};
 }
 
 int Model::active_voxel_count() const {

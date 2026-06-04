@@ -37,6 +37,9 @@ endif()
 add_executable(ia-core src/main.cpp)
 target_link_libraries(ia-core PRIVATE isthmus_ablation_core)
 
+find_package(Python3 COMPONENTS Interpreter)
+find_program(PDFLATEX_EXECUTABLE pdflatex)
+
 enable_testing()
 
 add_test(
@@ -51,8 +54,16 @@ add_test(
 
 if(isthmus_cpp_FOUND)
   add_test(
-    NAME sphere-isthmus-verification
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-ablation.verify
+    NAME sphere-isthmus-local-verification
+    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local.verify
+  )
+  add_test(
+    NAME sphere-isthmus-normal-verification
+    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal.verify
+  )
+  add_test(
+    NAME sphere-isthmus-normal-convergence
+    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-convergence.verify
   )
 endif()
 
@@ -62,9 +73,6 @@ add_custom_target(
   DEPENDS ia-core
   COMMENT "Running tests with console stats output"
 )
-
-find_package(Python3 COMPONENTS Interpreter)
-find_program(PDFLATEX_EXECUTABLE pdflatex)
 
 if(Python3_Interpreter_FOUND AND PDFLATEX_EXECUTABLE)
   add_custom_target(

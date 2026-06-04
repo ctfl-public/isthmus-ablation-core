@@ -1,0 +1,23 @@
+units si
+
+voxel material carbon density 1800.0
+voxel create solid sphere diameter 1.0e-3 resolution 20 material carbon
+
+source q1 constant 0.8 units kg/m2/s
+timestep mass/courant 0.5 source q1
+
+stats 1
+stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction radius requested-mass-step applied-mass-step dropped-mass-step
+
+voxel dump hist solid history 1 output/sphere-isthmus-normal/history.csv
+voxel dump vox solid vtu 1 output/sphere-isthmus-normal/voxels_*.vtu select active scalar mass-fraction
+surface dump skin skin vtp 1 output/sphere-isthmus-normal/surface_*.vtp
+
+variable i loop 4
+label ablate-loop
+isthmus surface skin voxels solid buffer 1 weighting no map yes
+surface flux skin source q1 select all
+voxel ablate solid surface skin policy carryover/normal delete yes
+run 1
+next i
+jump SELF ablate-loop

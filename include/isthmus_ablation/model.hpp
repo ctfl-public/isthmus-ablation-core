@@ -22,6 +22,7 @@ public:
   void execute(std::ostream *stats = nullptr);
   void write_verification_csv(const std::string &path) const;
   void verify() const;
+  double verification_error(const VerificationCheck &check) const;
 
 private:
   struct SurfaceTriangle {
@@ -69,6 +70,10 @@ private:
   void open_step();
   void advance_local_slab(const AblationCommand &ablate);
   void advance_surface_ablation(const AblationCommand &ablate);
+  void apply_surface_local_increments(const std::vector<double> &mass_increments,
+                                      const AblationCommand &ablate);
+  void apply_surface_normal_carryover(const std::vector<double> &mass_increments,
+                                      const AblationCommand &ablate);
   void generate_isthmus_surface(const IsthmusSurfaceCommand &surface);
   void apply_surface_flux(const SurfaceFluxCommand &flux);
   void record_history(int step, double time);
@@ -82,6 +87,10 @@ private:
   void print_row(std::ostream &out, const HistoryRow &row) const;
 
   std::size_t index(int ix, int iy, int iz) const;
+  int grid_nx() const;
+  int grid_ny() const;
+  int grid_nz() const;
+  std::array<double, 3> carryover_center() const;
   int active_voxel_count() const;
   int deleted_voxel_count() const;
   double remaining_mass() const;
