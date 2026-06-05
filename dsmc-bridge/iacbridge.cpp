@@ -81,6 +81,11 @@ void set_coupling_interval_from_dsmc(SPARTA *sparta) {
   last_coupling_step = current;
 }
 
+void set_last_coupling_step(SPARTA *sparta) {
+  model(sparta);
+  last_coupling_step = sparta->update->ntimestep;
+}
+
 void install_surface(SPARTA *sparta, const char *surface_id, int partflag, int type) {
   require_grid(sparta);
   Surf *surf = sparta->surf;
@@ -150,7 +155,7 @@ void install_surface(SPARTA *sparta, const char *surface_id, int partflag, int t
   }
 
   grid->clear_surf();
-  grid->surf2grid(1);
+  grid->surf2grid(1, 0);
   surf->check_point_near_surf_3d();
 
   grid->setup_owned();

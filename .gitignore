@@ -31,8 +31,12 @@ ia-core
 # Runtime output
 output/
 **/output/
+!examples/dsmc-sphere-visual/output/
+examples/dsmc-sphere-visual/output/*
+!examples/dsmc-sphere-visual/output/.gitkeep
 reports/
 log.sparta
+dsmc-sphere-visual-*
 
 # Python caches
 __pycache__/

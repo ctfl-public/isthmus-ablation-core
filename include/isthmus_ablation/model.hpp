@@ -12,6 +12,11 @@ namespace iac {
 
 class Model {
 public:
+  struct SurfaceCellField {
+    std::string name;
+    std::vector<double> values;
+  };
+
   struct PublicSurfaceTriangle {
     std::array<double, 3> a{{0.0, 0.0, 0.0}};
     std::array<double, 3> b{{0.0, 0.0, 0.0}};
@@ -41,6 +46,11 @@ public:
   void advance_steps(int steps);
   void execute(std::ostream *stats = nullptr);
   void write_history(const std::string &path) const;
+  void write_voxels_vtu(const std::string &path, const std::string &select,
+                        const std::string &scalar) const;
+  void write_surface_vtp(const std::string &surface, const std::string &path) const;
+  void write_surface_vtp(const std::string &surface, const std::string &path,
+                         const std::vector<SurfaceCellField> &fields) const;
   void write_verification_csv(const std::string &path) const;
   void verify() const;
   double verification_error(const VerificationCheck &check) const;
@@ -115,7 +125,8 @@ private:
   void write_scheduled_dumps(int step) const;
   void write_history_csv(const VoxelDump &dump) const;
   void write_vtu(const VoxelDump &dump, int step) const;
-  void write_vtp(const SurfaceDump &dump, int step) const;
+  void write_vtp(const SurfaceDump &dump, int step,
+                 const std::vector<SurfaceCellField> &fields = {}) const;
   void print_run_summary(std::ostream &out) const;
   void print_header(std::ostream &out) const;
   void print_row(std::ostream &out, const HistoryRow &row) const;

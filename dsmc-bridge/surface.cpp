@@ -6,10 +6,12 @@
 #include "fix.h"
 #include "modify.h"
 #include "surf.h"
+#include "update.h"
 
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <string>
 #include <vector>
 
 using namespace SPARTA_NS;
@@ -67,6 +69,93 @@ void Surface::command(int narg, char **arg) {
     }
     iac::SurfaceFluxCommand flux;
     flux.surface = arg[1];
+
+    if (std::strcmp(arg[2], "dsmc/reaction") == 0) {
+      char **pairs = arg + 3;
+      const int npairs = narg - 3;
+      const char *fix_id = value_after(npairs, pairs, "fix");
+      const char *column_value = value_after(npairs, pairs, "column");
+      const char *sample_steps_value = value_after(npairs, pairs, "sample-steps");
+      const char *solid_mass = value_after(npairs, pairs, "solid-mass-per-reaction");
+      if (!fix_id || !column_value || !sample_steps_value || !solid_mass) {
+        error->all(FLERR, "surface flux dsmc/reaction requires fix, column, sample-steps, and solid-mass-per-reaction");
+      }
+
+      const int ifix = modify->find_fix(fix_id);
+      if (ifix < 0) {
+        error->all(FLERR, "surface flux dsmc/reaction fix ID does not exist");
+      }
+      Fix *ave = modify->fix[ifix];
+      if (!ave->per_surf_flag) {
+        error->all(FLERR, "surface flux dsmc/reaction fix must provide per-surf data");
+      }
+
+      const int column = std::atoi(column_value);
+      const int ncols = ave->size_per_surf_cols == 0 ? 1 : ave->size_per_surf_cols;
+      if (column <= 0 || column > ncols) {
+        error->all(FLERR, "surface flux dsmc/reaction column is out of range");
+      }
+      if (ave->size_per_surf_cols == 0 && !ave->vector_surf) {
+        error->all(FLERR, "surface flux dsmc/reaction fix vector data is not available");
+      }
+      if (ave->size_per_surf_cols > 0 && !ave->array_surf) {
+        error->all(FLERR, "surface flux dsmc/reaction fix array data is not available");
+      }
+      if (comm->nprocs != 1) {
+        error->all(FLERR, "surface flux dsmc/reaction currently supports one MPI rank");
+      }
+
+      const int sample_steps = std::atoi(sample_steps_value);
+      const char *ablation_dt_value = value_after(npairs, pairs, "ablation-dt");
+      const char *time_scale_value = value_after(npairs, pairs, "time-scale");
+      const double solid_mass_per_reaction = std::atof(solid_mass);
+      if (sample_steps <= 0 || solid_mass_per_reaction <= 0.0) {
+        error->all(FLERR, "surface flux dsmc/reaction has invalid sample-steps or solid-mass-per-reaction");
+      }
+      const double time_scale = time_scale_value ? std::atof(time_scale_value) : 1.0;
+      if (time_scale <= 0.0) {
+        error->all(FLERR, "surface flux dsmc/reaction time-scale must be positive");
+      }
+      const double ablation_dt = ablation_dt_value ? std::atof(ablation_dt_value) : 0.0;
+      if (ablation_dt_value && ablation_dt <= 0.0) {
+        error->all(FLERR, "surface flux dsmc/reaction ablation-dt must be positive");
+      }
+
+      try {
+        if (ablation_dt_value) {
+          IACBridge::model(sparta).set_timestep(ablation_dt);
+        } else {
+          IACBridge::model(sparta).set_timestep(static_cast<double>(sample_steps) *
+                                                update->dt * time_scale);
+          IACBridge::set_last_coupling_step(sparta);
+        }
+        const double dt = IACBridge::model(sparta).timestep();
+        const auto triangles = IACBridge::model(sparta).surface_triangles(flux.surface);
+        if (triangles.size() != static_cast<std::size_t>(surf->nsurf)) {
+          error->all(FLERR, "surface flux dsmc/reaction triangle count does not match SPARTA surface count");
+        }
+        std::vector<double> mass_fluxes(static_cast<std::size_t>(surf->nsurf), 0.0);
+        for (int i = 0; i < surf->nown; ++i) {
+          const int triangle_id = surf->tris[i].id;
+          if (triangle_id <= 0 || triangle_id > static_cast<int>(mass_fluxes.size())) {
+            error->all(FLERR, "surface flux dsmc/reaction encountered invalid surface ID");
+          }
+          const double reaction_count =
+              ave->size_per_surf_cols == 0 ? ave->vector_surf[i] : ave->array_surf[i][column - 1];
+          const std::size_t idx = static_cast<std::size_t>(triangle_id - 1);
+          const double area = triangles[idx].area;
+          if (area > 0.0) {
+            const double mass = reaction_count * static_cast<double>(sample_steps) *
+                                update->fnum * solid_mass_per_reaction * time_scale;
+            mass_fluxes[idx] = mass / (area * dt);
+          }
+        }
+        IACBridge::model(sparta).apply_triangle_fluxes(flux.surface, mass_fluxes);
+      } catch (const std::exception &ex) {
+        error->all(FLERR, ex.what());
+      }
+      return;
+    }
 
     if (std::strcmp(arg[2], "dsmc/surf") == 0) {
       char **pairs = arg + 3;
@@ -216,6 +305,71 @@ void Surface::command(int narg, char **arg) {
     }
     try {
       IACBridge::install_surface(sparta, arg[1], partflag, type);
+    } catch (const std::exception &ex) {
+      error->all(FLERR, ex.what());
+    }
+    return;
+  }
+
+  if (std::strcmp(arg[0], "write-vtp") == 0) {
+    if (narg != 3 && narg < 7) {
+      error->all(FLERR, "Illegal surface write-vtp command");
+    }
+    try {
+      std::vector<iac::Model::SurfaceCellField> fields;
+      if (narg > 3) {
+        if (std::strcmp(arg[3], "fix") != 0) {
+          error->all(FLERR, "surface write-vtp optional data must use fix <id>");
+        }
+        const int ifix = modify->find_fix(arg[4]);
+        if (ifix < 0) {
+          error->all(FLERR, "surface write-vtp fix ID does not exist");
+        }
+        Fix *ave = modify->fix[ifix];
+        if (!ave->per_surf_flag) {
+          error->all(FLERR, "surface write-vtp fix must provide per-surf data");
+        }
+        if (ave->size_per_surf_cols == 0 && !ave->vector_surf) {
+          error->all(FLERR, "surface write-vtp fix vector data is not available");
+        }
+        if (ave->size_per_surf_cols > 0 && !ave->array_surf) {
+          error->all(FLERR, "surface write-vtp fix array data is not available");
+        }
+        if (comm->nprocs != 1) {
+          error->all(FLERR, "surface write-vtp fix fields currently support one MPI rank");
+        }
+        if (std::strcmp(arg[5], "fields") != 0) {
+          error->all(FLERR, "surface write-vtp fix data requires fields <name...>");
+        }
+
+        const int ncols = ave->size_per_surf_cols == 0 ? 1 : ave->size_per_surf_cols;
+        const int nfields = narg - 6;
+        if (nfields != ncols) {
+          error->all(FLERR, "surface write-vtp field count must match fix per-surf columns");
+        }
+
+        fields.resize(static_cast<std::size_t>(nfields));
+        for (int j = 0; j < nfields; ++j) {
+          fields[static_cast<std::size_t>(j)].name = arg[6 + j];
+          fields[static_cast<std::size_t>(j)].values.assign(
+              static_cast<std::size_t>(surf->nsurf), 0.0);
+        }
+        for (int i = 0; i < surf->nown; ++i) {
+          const int triangle_id = surf->tris[i].id;
+          if (triangle_id <= 0 || triangle_id > surf->nsurf) {
+            error->all(FLERR, "surface write-vtp encountered invalid surface ID");
+          }
+          const std::size_t field_index = static_cast<std::size_t>(triangle_id - 1);
+          if (ave->size_per_surf_cols == 0) {
+            fields[0].values[field_index] = ave->vector_surf[i];
+          } else {
+            for (int j = 0; j < nfields; ++j) {
+              fields[static_cast<std::size_t>(j)].values[field_index] = ave->array_surf[i][j];
+            }
+          }
+        }
+      }
+      IACBridge::model(sparta).write_surface_vtp(arg[1], arg[2], fields);
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
     }

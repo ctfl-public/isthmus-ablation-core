@@ -111,5 +111,30 @@ void Voxel::command(int narg, char **arg) {
     return;
   }
 
+  if (std::strcmp(arg[0], "write-vtu") == 0) {
+    if (narg < 3) {
+      error->all(FLERR, "Illegal voxel write-vtu command");
+    }
+    if (std::strcmp(arg[1], cfg.voxel_name.c_str()) != 0) {
+      error->all(FLERR, "voxel write-vtu references unknown voxel model");
+    }
+    std::string select = "active";
+    std::string scalar = "mass-fraction";
+    const char *select_value = value_after(narg - 3, arg + 3, "select");
+    const char *scalar_value = value_after(narg - 3, arg + 3, "scalar");
+    if (select_value) {
+      select = select_value;
+    }
+    if (scalar_value) {
+      scalar = scalar_value;
+    }
+    try {
+      IACBridge::model(sparta).write_voxels_vtu(arg[2], select, scalar);
+    } catch (const std::exception &ex) {
+      error->all(FLERR, ex.what());
+    }
+    return;
+  }
+
   error->all(FLERR, "Illegal voxel command");
 }

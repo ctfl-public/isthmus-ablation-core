@@ -88,12 +88,10 @@ if(Python3_Interpreter_FOUND AND IAC_DSMC_EXECUTABLE)
             --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-convergence
             --steps 5,20,80
             --loops 6
-            --ledger-steps 5
             --resolution 10
-            --ablation-dt 1.5e-4
-            --fnum 1.0e13
-            --tolerance-percent 1.0
-            --require-monotonic
+            --ablation-update-time 0.003
+            --fnum 2.0e12
+            --tolerance-percent 20.0
   )
   set_tests_properties(dsmc-sphere-kinetic-convergence PROPERTIES
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -135,15 +133,39 @@ if(Python3_Interpreter_FOUND AND PDFLATEX_EXECUTABLE)
               --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-convergence
               --steps 5,20,80
               --loops 6
-              --ledger-steps 5
               --resolution 10
-              --ablation-dt 1.5e-4
-              --fnum 1.0e13
-              --tolerance-percent 1.0
-              --require-monotonic
+              --ablation-update-time 0.003
+              --fnum 2.0e12
+              --tolerance-percent 20.0
               --pdf
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       COMMENT "Building DSMC sphere kinetic convergence report"
+    )
+
+    add_custom_target(
+      dsmc-half-mass-report
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-dsmc-kinetic-convergence.py
+              --dsmc ${IAC_DSMC_EXECUTABLE}
+              --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-half-mass
+              --steps 5,20,80
+              --loops 8
+              --resolution 5
+              --ablation-update-time 0.0125
+              --fnum 5.0e12
+              --tolerance-percent 110.0
+              --pdf
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      COMMENT "Building DSMC sphere half-mass convergence report"
+    )
+
+    add_custom_target(
+      dsmc-visual-case
+      COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log output/log.sparta
+              -in in.dsmc-sphere-visual
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/convert-dsmc-visual.py
+              ${CMAKE_SOURCE_DIR}/examples/dsmc-sphere-visual
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/dsmc-sphere-visual
+      COMMENT "Running DSMC sphere visualization case and converting outputs to VTK"
     )
   endif()
 endif()

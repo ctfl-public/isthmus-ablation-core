@@ -10,6 +10,9 @@ Triangle surface dumps are configured with [`surface dump`](surface.md).
 voxel dump <id> <model> history <N> <path>
 voxel dump <id> <model> vtu <N> <path> [select all|active] [scalar <field>]
 voxel dump off
+
+# DSMC bridge only:
+voxel write-vtu <model> <path> [select all|active] [scalar <field>]
 ```
 
 ## Examples
@@ -18,6 +21,8 @@ voxel dump off
 voxel dump hist solid history 1 output/slab-direct-ablation/history.csv
 voxel dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mass-fraction
 voxel dump off
+
+voxel write-vtu solid output/voxels-*.vtu select active scalar mass-fraction
 ```
 
 ## Description
@@ -62,6 +67,12 @@ iz
 ```
 
 The default is `scalar mass-fraction`.
+
+Inside DSMC, `voxel write-vtu` writes a one-shot VTU snapshot immediately. This
+is useful in coupled loops where DSMC owns the timestep and the input script
+decides when a voxel snapshot should be written. It uses the same `select` and
+`scalar` options as scheduled `voxel dump ... vtu` output. If the path does not
+contain `*`, the current core step number is inserted before the file extension.
 
 ## History Columns
 

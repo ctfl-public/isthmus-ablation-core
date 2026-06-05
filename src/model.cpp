@@ -1238,6 +1238,42 @@ void Model::write_history(const std::string &path) const {
   }
 }
 
+void Model::write_voxels_vtu(const std::string &path, const std::string &select,
+                             const std::string &scalar) const {
+  if (select != "all" && select != "active") {
+    throw RuntimeError("voxel write-vtu select must be all or active");
+  }
+  if (scalar != "mass-fraction" && scalar != "remaining-mass" && scalar != "active" &&
+      scalar != "fixed" && scalar != "id" && scalar != "ix" && scalar != "iy" &&
+      scalar != "iz") {
+    throw RuntimeError("unknown voxel write-vtu scalar '" + scalar + "'");
+  }
+  VoxelDump dump;
+  dump.id = "write-vtu";
+  dump.voxels = config_.voxel_name;
+  dump.style = "vtu";
+  dump.every = 1;
+  dump.path = path;
+  dump.select = select;
+  dump.scalar = scalar;
+  write_vtu(dump, current_step_);
+}
+
+void Model::write_surface_vtp(const std::string &surface, const std::string &path) const {
+  write_surface_vtp(surface, path, {});
+}
+
+void Model::write_surface_vtp(const std::string &surface, const std::string &path,
+                              const std::vector<SurfaceCellField> &fields) const {
+  SurfaceDump dump;
+  dump.id = "write-vtp";
+  dump.surface = surface;
+  dump.style = "vtp";
+  dump.every = 1;
+  dump.path = path;
+  write_vtp(dump, current_step_, fields);
+}
+
 void Model::write_vtu(const VoxelDump &dump, int step) const {
   const auto path = dump_path_for_step(dump.path, step);
   ensure_parent_directory(path);
@@ -1350,7 +1386,8 @@ void Model::write_vtu(const VoxelDump &dump, int step) const {
   out << "</VTKFile>\n";
 }
 
-void Model::write_vtp(const SurfaceDump &dump, int step) const {
+void Model::write_vtp(const SurfaceDump &dump, int step,
+                      const std::vector<SurfaceCellField> &fields) const {
   const auto found = surfaces_.find(dump.surface);
   if (found == surfaces_.end()) {
     return;
@@ -1364,6 +1401,12 @@ void Model::write_vtp(const SurfaceDump &dump, int step) const {
   }
 
   const auto &triangles = found->second.triangles;
+  for (const auto &field : fields) {
+    if (field.values.size() != triangles.size()) {
+      throw RuntimeError("surface VTP field '" + field.name +
+                         "' does not match triangle count");
+    }
+  }
   out << std::setprecision(17);
   out << "<?xml version=\"1.0\"?>\n";
   out << "<VTKFile type=\"PolyData\" version=\"0.1\" byte_order=\"LittleEndian\">\n";
@@ -1408,6 +1451,14 @@ void Model::write_vtp(const SurfaceDump &dump, int step) const {
     out << "          " << triangle.last_requested_mass << '\n';
   }
   out << "        </DataArray>\n";
+  for (const auto &field : fields) {
+    out << "        <DataArray type=\"Float64\" Name=\"" << field.name
+        << "\" format=\"ascii\">\n";
+    for (const double value : field.values) {
+      out << "          " << value << '\n';
+    }
+    out << "        </DataArray>\n";
+  }
   out << "      </CellData>\n";
   out << "    </Piece>\n";
   out << "  </PolyData>\n";

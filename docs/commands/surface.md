@@ -17,9 +17,15 @@ surface flux <surface-id> kinetic/theory pressure <p> temperature <T> \
 surface flux <surface-id> dsmc/surf fix <fix-id> column <N> \
   reaction-prob <alpha> solid-mass-per-hit <kg> \
   [ablation-dt <dt> | mass-courant <C>]
+surface flux <surface-id> dsmc/reaction fix <fix-id> column <N> \
+  sample-steps <Nstep> solid-mass-per-reaction <kg> \
+  [ablation-dt <dt>] [time-scale <S>]
 
 surface dump <dump-id> <surface-id> vtp <N> <path>
 surface dump off
+
+# DSMC bridge only:
+surface write-vtp <surface-id> <path> [fix <fix-id> fields <name1> ...]
 ```
 
 ## Examples
@@ -33,9 +39,14 @@ surface flux skin kinetic/theory pressure 50.0 temperature 5000.0 \
   solid-mass-per-hit 1.3011869411625376e-23 select all
 surface flux skin dsmc/surf fix sflux column 1 reaction-prob 1.0 \
   solid-mass-per-hit 1.99447348e-26 mass-courant 0.25
+surface flux skin dsmc/reaction fix rco column 1 sample-steps 20 \
+  solid-mass-per-reaction 3.98894696e-26 time-scale 1500
 
 surface dump skin skin vtp 10 output/sphere/surface_*.vtp
 surface dump off
+
+surface write-vtp skin output/surface-*.vtp \
+  fix sqty fields collision-count incident-number-flux pressure
 ```
 
 ## Description
@@ -75,11 +86,29 @@ library owns the voxel mass ledger, ISTHMUS surface ownership map, and ablation.
 The current bridge implementation supports this source on one MPI rank while
 the command and data path are kept compatible with later distributed storage.
 
-By default, `dsmc/surf` advances voxel ablation by the elapsed DSMC time since
-the previous coupling update. The optional `ablation-dt` argument overrides that
-physical ablation time. This is useful for DSMC sampling convergence tests: the
-input can run 1, 2, 5, 10, 20, or 50 DSMC steps before each update while
-applying the same physical ablation timestep to the voxel ledger.
+With `dsmc/reaction`, the command reads per-surface reaction counts from a DSMC
+`fix ave/surf`, usually one that averages `compute react/surf`. The selected
+column is interpreted as an averaged number of simulation-particle reactions per
+surface element per sampled timestep. The bridge converts it to real solid mass
+removed over the coupling window with:
+
+```text
+mass = reaction-count * sample-steps * fnum * solid-mass-per-reaction
+```
+
+and then divides by triangle area and the ablation timestep before passing the
+equivalent mass flux to the voxel ledger. This is the preferred path for
+chemically reacting DSMC ablation because SPARTA owns the surface reaction
+probability, species conversion, and reaction tallies.
+
+By default, DSMC-coupled sources advance voxel ablation by the elapsed DSMC
+time since the previous coupling update. The optional `ablation-dt` argument
+overrides that physical ablation time. For `dsmc/reaction`, `time-scale`
+multiplies both the sampled reaction-count mass and the ablation time. This is
+useful for quasi-steady chemistry probes: the input can sample a short DSMC
+window and advance the solid over a longer reservoir-equivalent ablation time.
+When comparing multiple DSMC sampling lengths at the same ablation time, choose
+`time-scale = ablation-update-time / (sample-steps * timestep)`.
 
 The optional `mass-courant` argument chooses the ablation timestep from the
 sampled DSMC mass flux. The bridge maps the triangle mass fluxes through the
@@ -112,6 +141,19 @@ data includes `area`, `requested-mass`, and `last-requested-mass`. The
 
 `surface dump off` clears surface dumps that were already defined. Regression
 wrappers can use it after including a visual example input.
+
+Inside DSMC, `surface write-vtp` writes a one-shot VTP snapshot immediately.
+This mirrors `voxel write-vtu`: DSMC owns the run loop, and the input script can
+write the current ISTHMUS surface after each `isthmus surface` regeneration. If
+the path does not contain `*`, the current core step number is inserted before
+the file extension.
+
+The optional `fix <fix-id> fields <name1> ...` form reads per-surface values
+from a DSMC `fix ave/surf` and appends them as VTP triangle cell fields. The
+number of field names must match the number of per-surface columns exposed by
+the fix. This is the preferred visualization path for coupled DSMC runs because
+the ISTHMUS triangle geometry and DSMC surface quantities are written into the
+same VTP file.
 
 ## Current Limits
 

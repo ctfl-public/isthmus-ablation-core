@@ -2,15 +2,17 @@
 
 This example runs from this repository but uses the DSMC executable built in
 `/Users/tstoffel1/dsmc/src`. It is a smoke test for the embedded bridge:
-DSMC owns the gas domain, native `run` commands, particles, surface collision
-state, loops, `compute surf`, `fix ave/surf`, `remove_surf`, and `surf_modify`;
-this core owns voxel state, ISTHMUS surface generation, DSMC-to-triangle flux
-conversion, normal-carryover ablation, and regenerated surface geometry.
+DSMC owns the gas domain, native `run` commands, particles, surface reactions,
+surface averaging, loops, `remove_surf`, and `surf_modify`; this core owns voxel
+state, ISTHMUS surface generation, DSMC-to-triangle reaction-count conversion,
+normal-carryover ablation, and regenerated surface geometry.
 
-Run it with:
+Run the chemistry case directly with:
 
 ```bash
-/Users/tstoffel1/dsmc/src/spa_mac_mpi -in examples/dsmc-sphere-kinetic/in.dsmc-sphere-kinetic
+cd examples/dsmc-sphere-kinetic
+/Users/tstoffel1/dsmc/src/spa_mac_mpi \
+  -screen none -log output/log.sparta -in in.dsmc-sphere-kinetic
 ```
 
 To enable this case in CTest, configure with the DSMC executable:
@@ -23,138 +25,171 @@ ctest --test-dir build-dsmc --output-on-failure
 ```
 
 The normal standalone build does not include DSMC tests. A DSMC-enabled build
-runs the standalone tests plus the coupled DSMC convergence test.
+runs the standalone tests plus the coupled DSMC chemistry test.
 
-The case uses a stationary, spatially uniform O2/N2 gas. DSMC samples the
-incident number flux on every installed ISTHMUS triangle:
+## Chemistry Loop
+
+The case uses a stationary initial O2/N2 gas with CO enabled as a product
+species. SPARTA handles the surface reaction:
 
 ```text
-compute sflux surf all air nflux_incident
-fix sflux ave/surf all 1 5 5 c_sflux[*] ave one
-surface flux skin dsmc/surf fix sflux column 1 reaction-prob 1.0 \
-  solid-mass-per-hit 1.99447348e-26 mass-courant 0.25
+species             air.species O2 N2 CO
+mixture             air O2 frac 0.21
+mixture             air N2 frac 0.79
+mixture             air CO frac 0.0
+surf_react          ox prob carbon-co.surf
+surf_modify         all collide 1 react ox
+compute             rco react/surf all ox
+fix                 rco ave/surf all 1 20 20 c_rco[*] ave one
 ```
 
-The bridge interprets the selected `fix ave/surf` column as number flux and
-converts it to solid mass flux with `reaction-prob * solid-mass-per-hit`.
-
-The new DSMC bridge commands used by the example are:
+The local `carbon-co.surf` file represents carbon monoxide formation as:
 
 ```text
-voxel material carbon density 1800.0
-voxel create solid sphere diameter 1.0e-3 resolution 20 material carbon
-isthmus surface skin voxels solid buffer 1 weighting no map yes
-surface install skin particle none type 1
-surface flux skin dsmc/surf fix sflux column 1 reaction-prob 1.0 solid-mass-per-hit 1.99447348e-26 mass-courant 0.25
+O2 --> CO + CO
+D S 1.0
+```
+
+After each DSMC run segment, the bridge maps the averaged surface reaction
+counts to ISTHMUS triangles and removes two carbon atoms of solid mass per O2
+reaction:
+
+```text
+surface flux skin dsmc/reaction fix rco column 1 sample-steps 20 \
+  solid-mass-per-reaction 3.98894696e-26 time-scale 1500
 voxel ablate solid surface skin policy carryover/normal delete yes
-voxel write-history solid output/dsmc-sphere-kinetic/history.csv
 ```
 
-After ablation, the input uses native DSMC commands to clear the old surface and
-then installs the regenerated ISTHMUS surface directly from memory:
+Then native DSMC commands clear the old collision surface and install the
+regenerated ISTHMUS surface directly from memory:
 
 ```text
 remove_surf all
 isthmus surface skin voxels solid buffer 1 weighting no map yes
-surface install skin particle check type 1
-surf_modify all collide 1
+surface install skin particle none type 1
+surf_modify all collide 1 react ox
 ```
 
-`surface install` currently expects existing DSMC surfaces to be removed first.
-That keeps the first bridge implementation simple and lets DSMC's own
-`remove_surf` command clear grid-surface and particle ownership state.
+## Analytical Comparison
 
-The history file records the voxel-side response after each coupling interval.
-For an analytical comparison in this uniform stationary limit, the expected
-continuum recession speed is:
+The report compares the voxel history to a continuum shrinking-sphere solution
+for a uniform stationary O2 reservoir:
 
 ```text
-Gamma = x*p/(kB*T) * sqrt(kB*T/(2*pi*m))
-j = Gamma * reaction-prob * solid-mass-per-hit
+Gamma-O2 = n-O2 * sqrt(kB*T/(2*pi*m-O2))
+j = Gamma-O2 * reaction-probability * solid-mass-per-reaction
 R(t) = R0 - j*t/rho-solid
 mass-fraction = (R/R0)^3
 ```
 
-The helper script below compares the written history against this limit. The
-example uses an effective full-air molecular mass because the DSMC compute
-samples mixture `air` with `mix-ID` set to `air`.
+That comparison is useful, but it has an important caveat. The current DSMC
+case is a closed periodic box. Real SPARTA chemistry consumes O2 and creates CO,
+so longer DSMC sampling windows can change the local gas composition before the
+next ablation update. The convergence report is therefore a coupled
+chemistry-sampling diagnostic, not a perfect monotone convergence proof for an
+infinite gas reservoir.
+
+Build the PDF/CSV report with:
 
 ```bash
-python3 tools/check-dsmc-kinetic.py output/dsmc-sphere-kinetic/history.csv \
-  --number-density 7.244e23 \
-  --temperature 5000.0 \
-  --molecular-mass 4.753323e-26 \
-  --solid-density 1800.0 \
-  --solid-mass-per-hit 1.99447348e-26 \
-  --initial-radius 5.0e-4 \
-  --tolerance-percent 1.0
+cmake --build build-dsmc --target dsmc-convergence-report
 ```
 
-The convergence runner repeats the DSMC-hosted case with several DSMC step
-counts per coupling interval and writes both a CSV and a small PDF report:
-
-The CTest convergence runner uses a fixed ablation timestep instead of a mass
-Courant timestep:
+or run the generator directly:
 
 ```bash
 python3 tools/run-dsmc-kinetic-convergence.py \
   --dsmc /Users/tstoffel1/dsmc/src/spa_mac_mpi \
   --steps 5,20,80 \
   --loops 6 \
-  --ledger-steps 5 \
   --resolution 10 \
-  --ablation-dt 1.5e-4 \
-  --fnum 1.0e13 \
-  --tolerance-percent 1.0 \
-  --require-monotonic \
+  --ablation-update-time 0.003 \
+  --fnum 2.0e12 \
+  --tolerance-percent 20 \
   --pdf
 ```
 
-The fixed `ablation-dt` keeps all DSMC sampling lengths on the same physical
-ablation-time axis. `--ledger-steps 5` applies five voxel mass-ledger updates
-between DSMC/ISTHMUS refreshes, reusing the most recent sampled surface flux.
-This keeps the case quick while still using DSMC surface tallies to set the
-ablation flux. The report plots both mass fraction and equivalent radius errors
-against the continuum analytical solution for each DSMC sampling length. The
-history plots show remaining mass fraction and radius recession in microns.
+The runner keeps the ablation time per coupled update fixed. For each DSMC
+sampling length, it sets:
 
-Using a mass Courant number larger than one is not equivalent to this
-subcycling. `mass-courant 1.0` advances to the next predicted voxel depletion
-event. Larger values intentionally step beyond that event with stale geometry
-and stale mapped flux, which can skip deletion/carryover ordering and roughen
-late-stage surfaces.
+```text
+time-scale = ablation-update-time / (sample-steps * timestep)
+```
+
+so all cases advance the same solid ablation time while sampling the chemistry
+for different numbers of DSMC steps. The generated report plots remaining mass
+fraction and equivalent radius recession against the analytical curve.
+
+For a deliberately deep exploratory probe, run:
+
+```bash
+cmake --build build-dsmc --target dsmc-half-mass-report
+```
+
+This target uses a coarser 5-voxel sphere and a large scaled ablation interval.
+It is intended for stress-testing the coupled plumbing, not for tight
+verification.
+
+## Visualization Case
+
+The repository also includes a DSMC visualization input:
+
+```bash
+cd examples/dsmc-sphere-visual
+/Users/tstoffel1/dsmc/src/spa_mac_mpi \
+  -screen none -log output/log.sparta -in in.dsmc-sphere-visual
+python3 ../../tools/convert-dsmc-visual.py .
+```
 
 or, from a DSMC-enabled CMake build:
 
 ```bash
-cmake --build build-dsmc --target dsmc-convergence-report
+cmake --build build-dsmc --target dsmc-visual-case
 ```
 
-For exploratory deep-recession probes, the runner also accepts:
+This case writes SPARTA-native fluid text dumps, core voxel/surface VTK files,
+and converted ParaView-ready gas files:
 
-```bash
-python3 tools/run-dsmc-kinetic-convergence.py \
-  --dsmc /Users/tstoffel1/dsmc/src/spa_mac_mpi \
-  --steps 20 \
-  --loops 30 \
-  --resolution 20 \
-  --mass-courant 1.0 \
-  --ledger-steps 1 \
-  --bad-edges 20
+```text
+examples/dsmc-sphere-visual/output/grid.*.dump
+examples/dsmc-sphere-visual/output/fluid-*.vtu
+examples/dsmc-sphere-visual/output/voxels-*.vtu
+examples/dsmc-sphere-visual/output/surface-*.vtp
+examples/dsmc-sphere-visual/output/history.csv
 ```
 
-`--resolution` changes the voxel count across the sphere diameter.
-`--ledger-steps` repeats voxel mass-ledger updates between DSMC/ISTHMUS surface
-refreshes, reusing the last sampled DSMC surface flux. This can reduce coupled
-refresh cost, but it is approximate because the DSMC surface is stale during
-the inner ledger loop. `--bad-edges` sets DSMC `global nedgebadnum`; it is an
-exploratory late-stage tolerance for surfaces with a small number of unmatched
-edges. It should not be used as a production fix until the surface cleanup path
-is understood.
+Open `fluid-*.vtu`, `voxels-*.vtu`, and `surface-*.vtp` directly in ParaView.
+The `.dump` files are native SPARTA text dumps retained as converter inputs and
+diagnostics.
 
-The runner also accepts `--gas-collisions no`, but that mode is not used for
-the validation case. With the current periodic domain and diffuse 300 K surface,
-collisionless particles that hit the cold sphere are re-emitted cold and are not
-rethermalized. A collisionless quick case will need an explicit gas-bath
-reinitialization or thermostat before it can represent the intended uniform
-5000 K Maxwellian reservoir.
+The grid dump uses:
+
+```text
+compute gas thermal/grid all air temp press
+compute frac grid all species massfrac
+fix gasave ave/grid all 1 20 20 c_gas[*] c_frac[*] ave one
+dump dgrid grid all 20 output/grid.*.dump id xc yc zc vol f_gasave[*]
+```
+
+The converted fluid VTU files include temperature, pressure, and O2/N2/CO mass
+fractions. The surface VTP snapshots use:
+
+```text
+compute rco react/surf all ox
+compute sqty surf all air n nflux_incident press
+fix sqty ave/surf all 1 20 20 c_sqty[*] c_rco[*] ave one
+surface write-vtp skin output/surface-*.vtp \
+  fix sqty fields collision-count incident-number-flux pressure co-reaction-count
+```
+
+Those VTP files include the current ISTHMUS triangle surface, area and
+mass-request fields, DSMC collision count, incident number flux, surface
+pressure, and the averaged CO-forming reaction count used to remove carbon.
+The voxel VTU files write active voxels with `mass-fraction` as the active cell
+scalar.
+
+Reaction heat release is not yet coupled into the gas. The standard diffuse
+wall collision model still sets product velocities from the 300 K wall
+temperature, so O2 depletion and CO production are physically represented by
+species conversion, but an exothermic near-surface temperature rise is not yet
+part of this bridge.
