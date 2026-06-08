@@ -8,6 +8,7 @@
 #include <cstring>
 #include <exception>
 #include <string>
+#include <utility>
 
 using namespace SPARTA_NS;
 
@@ -49,21 +50,40 @@ void Voxel::command(int narg, char **arg) {
   }
 
   if (std::strcmp(arg[0], "create") == 0) {
-    if (narg < 4 || std::strcmp(arg[2], "sphere") != 0) {
-      error->all(FLERR, "Only voxel create <id> sphere ... is currently supported");
+    if (narg < 4) {
+      error->all(FLERR, "Illegal voxel create command");
     }
     cfg.voxel_name = arg[1];
-    cfg.geometry = iac::GeometryKind::Sphere;
-    const char *diameter = value_after(narg - 3, arg + 3, "diameter");
-    const char *resolution = value_after(narg - 3, arg + 3, "resolution");
-    const char *material = value_after(narg - 3, arg + 3, "material");
-    if (!diameter || !resolution || !material) {
-      error->all(FLERR, "voxel create sphere requires diameter, resolution, and material");
+    if (std::strcmp(arg[2], "sphere") == 0) {
+      cfg.geometry = iac::GeometryKind::Sphere;
+      const char *diameter = value_after(narg - 3, arg + 3, "diameter");
+      const char *resolution = value_after(narg - 3, arg + 3, "resolution");
+      const char *material = value_after(narg - 3, arg + 3, "material");
+      if (!diameter || !resolution || !material) {
+        error->all(FLERR, "voxel create sphere requires diameter, resolution, and material");
+      }
+      cfg.sphere.diameter = std::atof(diameter);
+      cfg.sphere.resolution = std::atoi(resolution);
+      cfg.sphere.dx = cfg.sphere.diameter / static_cast<double>(cfg.sphere.resolution);
+      cfg.sphere.material = material;
+    } else if (std::strcmp(arg[2], "slab") == 0) {
+      cfg.geometry = iac::GeometryKind::Slab;
+      const char *nx = value_after(narg - 3, arg + 3, "nx");
+      const char *ny = value_after(narg - 3, arg + 3, "ny");
+      const char *nz = value_after(narg - 3, arg + 3, "nz");
+      const char *dx = value_after(narg - 3, arg + 3, "dx");
+      const char *material = value_after(narg - 3, arg + 3, "material");
+      if (!nx || !ny || !nz || !dx || !material) {
+        error->all(FLERR, "voxel create slab requires nx, ny, nz, dx, and material");
+      }
+      cfg.slab.nx = std::atoi(nx);
+      cfg.slab.ny = std::atoi(ny);
+      cfg.slab.nz = std::atoi(nz);
+      cfg.slab.dx = std::atof(dx);
+      cfg.slab.material = material;
+    } else {
+      error->all(FLERR, "voxel create style must be slab or sphere");
     }
-    cfg.sphere.diameter = std::atof(diameter);
-    cfg.sphere.resolution = std::atoi(resolution);
-    cfg.sphere.dx = cfg.sphere.diameter / static_cast<double>(cfg.sphere.resolution);
-    cfg.sphere.material = material;
     cfg.timestep.kind = iac::TimestepKind::Explicit;
     cfg.timestep.value = update->dt > 0.0 ? update->dt : 1.0;
     IACBridge::reset_model();
@@ -77,12 +97,18 @@ void Voxel::command(int narg, char **arg) {
     iac::AblationCommand ablate;
     ablate.voxels = arg[1];
     const char *surface = value_after(narg - 2, arg + 2, "surface");
+    const char *source = value_after(narg - 2, arg + 2, "source");
     const char *policy = value_after(narg - 2, arg + 2, "policy");
     const char *delete_empty = value_after(narg - 2, arg + 2, "delete");
-    if (!surface || !policy) {
-      error->all(FLERR, "voxel ablate requires surface and policy");
+    if ((!surface && !source) || !policy) {
+      error->all(FLERR, "voxel ablate requires source or surface, and policy");
     }
-    ablate.surface = surface;
+    if (surface) {
+      ablate.surface = surface;
+    }
+    if (source) {
+      ablate.source = source;
+    }
     ablate.policy = policy;
     if (delete_empty) {
       ablate.delete_empty = parse_bool(delete_empty);
@@ -90,9 +116,43 @@ void Voxel::command(int narg, char **arg) {
     try {
       IACBridge::model(sparta).ablate(ablate);
       IACBridge::model(sparta).advance_steps(1);
+      IACBridge::print_stats_after_step(sparta);
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
     }
+    return;
+  }
+
+  if (std::strcmp(arg[0], "dump") == 0) {
+    if (narg == 2 && std::strcmp(arg[1], "off") == 0) {
+      cfg.dumps.clear();
+      return;
+    }
+    if (narg < 6) {
+      error->all(FLERR, "Illegal voxel dump command");
+    }
+    iac::VoxelDump dump;
+    dump.id = arg[1];
+    dump.voxels = arg[2];
+    dump.style = arg[3];
+    dump.every = std::atoi(arg[4]);
+    dump.path = arg[5];
+    if (dump.every <= 0) {
+      error->all(FLERR, "voxel dump interval must be positive");
+    }
+    if (dump.style != "history" && dump.style != "vtu") {
+      error->all(FLERR, "voxel dump style must be history or vtu");
+    }
+    const char *select_value = value_after(narg - 6, arg + 6, "select");
+    const char *scalar_value = value_after(narg - 6, arg + 6, "scalar");
+    if (select_value) {
+      dump.select = select_value;
+    }
+    if (scalar_value) {
+      dump.scalar = scalar_value;
+    }
+    cfg.dumps.push_back(std::move(dump));
+    IACBridge::reset_model();
     return;
   }
 

@@ -98,6 +98,35 @@ if(Python3_Interpreter_FOUND AND IAC_DSMC_EXECUTABLE)
   )
 endif()
 
+if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
+  add_test(
+    NAME dsmc-slab-direct-ablation-verification
+    COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
+            -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-slab-direct-ablation/in.dsmc-slab-direct-ablation.verify
+  )
+  set_tests_properties(dsmc-slab-direct-ablation-verification PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  )
+
+  add_test(
+    NAME dsmc-sphere-isthmus-normal-carryover-verification
+    COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
+            -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-sphere-isthmus-ablation/in.dsmc-sphere-isthmus-normal-carryover.verify
+  )
+  set_tests_properties(dsmc-sphere-isthmus-normal-carryover-verification PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  )
+
+  add_test(
+    NAME dsmc-sphere-flux-verification
+    COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
+            -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-sphere-flux/in.dsmc-sphere-flux.verify
+  )
+  set_tests_properties(dsmc-sphere-flux-verification PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  )
+endif()
+
 add_custom_target(
   check-verbose
   COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure --verbose

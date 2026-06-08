@@ -8,10 +8,13 @@
 #include "surf.h"
 #include "update.h"
 
+#include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace SPARTA_NS;
@@ -52,6 +55,38 @@ void parse_selector(iac::SurfaceFluxCommand &flux, int narg, char **arg, Error *
       flux.voxels = voxels;
     }
   }
+}
+
+Fix *require_surface_fix(SPARTA *sparta, Modify *modify, Comm *comm, Error *error,
+                         const char *command, const char *fix_id, int column) {
+  const int ifix = modify->find_fix(fix_id);
+  if (ifix < 0) {
+    error->all(FLERR, (std::string(command) + " fix ID does not exist").c_str());
+  }
+  Fix *ave = modify->fix[ifix];
+  if (!ave->per_surf_flag) {
+    error->all(FLERR, (std::string(command) + " fix must provide per-surf data").c_str());
+  }
+  const int ncols = ave->size_per_surf_cols == 0 ? 1 : ave->size_per_surf_cols;
+  if (column <= 0 || column > ncols) {
+    error->all(FLERR, (std::string(command) + " column is out of range").c_str());
+  }
+  if (ave->size_per_surf_cols == 0 && !ave->vector_surf) {
+    error->all(FLERR, (std::string(command) + " fix vector data is not available").c_str());
+  }
+  if (ave->size_per_surf_cols > 0 && !ave->array_surf) {
+    error->all(FLERR, (std::string(command) + " fix array data is not available").c_str());
+  }
+  if (comm->nprocs != 1) {
+    error->all(FLERR, (std::string(command) + " currently supports one MPI rank").c_str());
+  }
+  (void)sparta;
+  return ave;
+}
+
+double fix_surface_value(Fix *ave, int local_index, int column) {
+  return ave->size_per_surf_cols == 0 ? ave->vector_surf[local_index]
+                                      : ave->array_surf[local_index][column - 1];
 }
 
 } // namespace
@@ -273,8 +308,107 @@ void Surface::command(int narg, char **arg) {
     }
 
     try {
-      IACBridge::set_coupling_interval_from_dsmc(sparta);
       IACBridge::model(sparta).apply_flux(flux);
+    } catch (const std::exception &ex) {
+      error->all(FLERR, ex.what());
+    }
+    return;
+  }
+
+  if (std::strcmp(arg[0], "measure-flux") == 0) {
+    if (narg < 12 || std::strcmp(arg[2], "dsmc/reaction") != 0) {
+      error->all(FLERR, "Illegal surface measure-flux command");
+    }
+    const char *surface_id = arg[1];
+    char **pairs = arg + 3;
+    const int npairs = narg - 3;
+    const char *fix_id = value_after(npairs, pairs, "fix");
+    const char *column_value = value_after(npairs, pairs, "column");
+    const char *sample_steps_value = value_after(npairs, pairs, "sample-steps");
+    if (!fix_id || !column_value || !sample_steps_value) {
+      error->all(FLERR, "surface measure-flux dsmc/reaction requires fix, column, and sample-steps");
+    }
+
+    const int column = std::atoi(column_value);
+    const int sample_steps = std::atoi(sample_steps_value);
+    if (sample_steps <= 0) {
+      error->all(FLERR, "surface measure-flux dsmc/reaction sample-steps must be positive");
+    }
+    Fix *ave = require_surface_fix(sparta, modify, comm, error,
+                                   "surface measure-flux dsmc/reaction", fix_id, column);
+
+    const char *expected = value_after(npairs, pairs, "expected");
+    const char *number_density_value = value_after(npairs, pairs, "number-density");
+    const char *mole_fraction_value = value_after(npairs, pairs, "mole-fraction");
+    const char *temperature_value = value_after(npairs, pairs, "temperature");
+    const char *molecular_mass_value = value_after(npairs, pairs, "molecular-mass");
+    const char *reaction_prob_value = value_after(npairs, pairs, "reaction-prob");
+    if (!expected || std::strcmp(expected, "kinetic/theory") != 0 ||
+        !number_density_value || !mole_fraction_value || !temperature_value ||
+        !molecular_mass_value) {
+      error->all(FLERR, "surface measure-flux expected kinetic/theory requires number-density, mole-fraction, temperature, and molecular-mass");
+    }
+
+    const double number_density = std::atof(number_density_value);
+    const double mole_fraction = std::atof(mole_fraction_value);
+    const double temperature = std::atof(temperature_value);
+    const double molecular_mass = std::atof(molecular_mass_value);
+    const double reaction_prob = reaction_prob_value ? std::atof(reaction_prob_value) : 1.0;
+    if (number_density <= 0.0 || mole_fraction < 0.0 || temperature <= 0.0 ||
+        molecular_mass <= 0.0 || reaction_prob < 0.0 || reaction_prob > 1.0) {
+      error->all(FLERR, "surface measure-flux expected kinetic/theory has invalid parameters");
+    }
+
+    try {
+      auto &model = IACBridge::model(sparta);
+      const auto triangles = model.surface_triangles(surface_id);
+      if (triangles.size() != static_cast<std::size_t>(surf->nsurf)) {
+        error->all(FLERR, "surface measure-flux triangle count does not match SPARTA surface count");
+      }
+      double surface_area = 0.0;
+      for (const auto &triangle : triangles) {
+        surface_area += triangle.area;
+      }
+      double reaction_count_sum = 0.0;
+      for (int i = 0; i < surf->nown; ++i) {
+        reaction_count_sum += fix_surface_value(ave, i, column);
+      }
+      const double measured_flux = reaction_count_sum * update->fnum /
+                                   (surface_area * update->dt);
+      const double pi = std::acos(-1.0);
+      const double expected_flux =
+          mole_fraction * number_density *
+          std::sqrt(1.380649e-23 * temperature / (2.0 * pi * molecular_mass)) *
+          reaction_prob;
+      const auto &cfg = IACBridge::config();
+      const double area_exact = cfg.geometry == iac::GeometryKind::Sphere
+                                    ? 4.0 * pi * std::pow(0.5 * cfg.sphere.diameter, 2)
+                                    : surface_area;
+      model.set_diagnostic("surface-area", surface_area);
+      model.set_diagnostic("expected-surface-area", area_exact);
+      model.set_diagnostic("reaction-count-per-step", reaction_count_sum);
+      model.set_diagnostic("sample-steps", static_cast<double>(sample_steps));
+      model.set_diagnostic("reaction-flux", measured_flux);
+      model.set_diagnostic("expected-reaction-flux", expected_flux);
+      model.set_diagnostic("reaction-flux-ratio", measured_flux / expected_flux);
+      model.set_diagnostic("reaction-flux-error-percent",
+                           100.0 * std::abs(measured_flux - expected_flux) /
+                               std::abs(expected_flux));
+      model.set_diagnostic("surface-area-error-percent",
+                           100.0 * std::abs(surface_area - area_exact) /
+                               std::abs(area_exact));
+      if (screen) {
+        std::fprintf(screen,
+                     "IAC surface flux: measured %.8e expected %.8e error %.6g percent\n",
+                     measured_flux, expected_flux,
+                     model.diagnostic("reaction-flux-error-percent"));
+      }
+      if (logfile) {
+        std::fprintf(logfile,
+                     "IAC surface flux: measured %.8e expected %.8e error %.6g percent\n",
+                     measured_flux, expected_flux,
+                     model.diagnostic("reaction-flux-error-percent"));
+      }
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
     }
@@ -373,6 +507,32 @@ void Surface::command(int narg, char **arg) {
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
     }
+    return;
+  }
+
+  if (std::strcmp(arg[0], "dump") == 0) {
+    auto &cfg = IACBridge::config();
+    if (narg == 2 && std::strcmp(arg[1], "off") == 0) {
+      cfg.surface_dumps.clear();
+      return;
+    }
+    if (narg != 6) {
+      error->all(FLERR, "Expected surface dump <id> <surface-id> vtp <N> <path>");
+    }
+    iac::SurfaceDump dump;
+    dump.id = arg[1];
+    dump.surface = arg[2];
+    dump.style = arg[3];
+    dump.every = std::atoi(arg[4]);
+    dump.path = arg[5];
+    if (dump.style != "vtp") {
+      error->all(FLERR, "surface dump style must be vtp");
+    }
+    if (dump.every <= 0) {
+      error->all(FLERR, "surface dump interval must be positive");
+    }
+    cfg.surface_dumps.push_back(std::move(dump));
+    IACBridge::reset_model();
     return;
   }
 

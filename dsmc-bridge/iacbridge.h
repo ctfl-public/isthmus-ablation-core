@@ -15,6 +15,8 @@ void reset_model();
 void set_coupling_interval_from_dsmc(SPARTA *sparta);
 void set_last_coupling_step(SPARTA *sparta);
 void install_surface(SPARTA *sparta, const char *surface_id, int partflag, int type);
+void reset_stats_output();
+void print_stats_after_step(SPARTA *sparta);
 
 } // namespace IACBridge
 

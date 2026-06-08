@@ -42,6 +42,16 @@ dropped-mass-step
 
 ## DSMC/SPARTA Note
 
-In coupled DSMC/SPARTA runs, SPARTA should own its native `stats_style`.
-This project should expose values through compute/fix styles that SPARTA can
-reference with `c_...` or `f_...`.
+In DSMC-hosted runs, use `iac stats` and `iac stats-style` for the core's own
+ablation table:
+
+```text
+iac stats 1
+iac stats-style step time active-voxels deleted-voxels remaining-mass mass-fraction radius
+```
+
+These commands do not change DSMC's native `stats` or `stats_style` settings.
+For coupled gas/solid runs, DSMC can continue printing particle/collision
+statistics while `iac stats` prints the voxel mass ledger after IAC ablation
+steps. Longer term, selected IAC quantities can also be exposed through DSMC
+compute/fix styles for native `c_...` or `f_...` output.

@@ -11,7 +11,9 @@
 #include "update.h"
 
 #include <cstring>
+#include <cstdio>
 #include <memory>
+#include <sstream>
 
 namespace SPARTA_NS {
 namespace IACBridge {
@@ -23,6 +25,7 @@ enum { CELL_UNKNOWN, CELL_OUTSIDE, CELL_INSIDE, CELL_OVERLAP };
 std::unique_ptr<iac::Model> active_model;
 iac::Config active_config;
 bigint last_coupling_step = 0;
+bool stats_header_printed = false;
 
 void initialize_defaults() {
   active_config.require_program = false;
@@ -68,6 +71,7 @@ iac::Model &model(SPARTA *sparta) {
 
 void reset_model() {
   active_model.reset();
+  reset_stats_output();
 }
 
 void set_coupling_interval_from_dsmc(SPARTA *sparta) {
@@ -84,6 +88,35 @@ void set_coupling_interval_from_dsmc(SPARTA *sparta) {
 void set_last_coupling_step(SPARTA *sparta) {
   model(sparta);
   last_coupling_step = sparta->update->ntimestep;
+}
+
+void reset_stats_output() {
+  stats_header_printed = false;
+}
+
+void write_to_dsmc_outputs(SPARTA *sparta, const std::string &text) {
+  if (sparta->screen) {
+    std::fprintf(sparta->screen, "%s", text.c_str());
+  }
+  if (sparta->logfile) {
+    std::fprintf(sparta->logfile, "%s", text.c_str());
+  }
+}
+
+void print_stats_after_step(SPARTA *sparta) {
+  auto &m = model(sparta);
+  const int every = config().stats.every;
+  if (every <= 0 || m.step_count() % every != 0) {
+    return;
+  }
+  std::ostringstream out;
+  if (!stats_header_printed) {
+    m.print_run_summary_public(out);
+    m.print_stats_header(out);
+    stats_header_printed = true;
+  }
+  m.print_latest_stats(out);
+  write_to_dsmc_outputs(sparta, out.str());
 }
 
 void install_surface(SPARTA *sparta, const char *surface_id, int partflag, int type) {

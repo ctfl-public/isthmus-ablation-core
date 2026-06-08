@@ -11,7 +11,9 @@ voxel dump <id> <model> history <N> <path>
 voxel dump <id> <model> vtu <N> <path> [select all|active] [scalar <field>]
 voxel dump off
 
-# DSMC bridge only:
+# Also available in the DSMC bridge:
+voxel dump <id> <model> history <N> <path>
+voxel dump <id> <model> vtu <N> <path> [select all|active] [scalar <field>]
 voxel write-vtu <model> <path> [select all|active] [scalar <field>]
 ```
 
@@ -68,11 +70,16 @@ iz
 
 The default is `scalar mass-fraction`.
 
-Inside DSMC, `voxel write-vtu` writes a one-shot VTU snapshot immediately. This
-is useful in coupled loops where DSMC owns the timestep and the input script
-decides when a voxel snapshot should be written. It uses the same `select` and
-`scalar` options as scheduled `voxel dump ... vtu` output. If the path does not
-contain `*`, the current core step number is inserted before the file extension.
+Inside DSMC, scheduled `voxel dump` output is written whenever a bridge command
+advances the core step, for example after `voxel ablate`. This is useful for
+no-gas verification and coupled loops that use explicit DSMC input-file
+commands for ablation updates.
+
+`voxel write-vtu` writes a one-shot VTU snapshot immediately. This is useful in
+coupled loops where the input script decides exactly when a voxel snapshot
+should be written. It uses the same `select` and `scalar` options as scheduled
+`voxel dump ... vtu` output. If the path does not contain `*`, the current core
+step number is inserted before the file extension.
 
 ## History Columns
 

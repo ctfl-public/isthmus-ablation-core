@@ -72,6 +72,8 @@ The bridge headers in this repository contain those style macros:
 dsmc-bridge/voxel.h      -> CommandStyle(voxel,Voxel)
 dsmc-bridge/isthmus.h    -> CommandStyle(isthmus,Isthmus)
 dsmc-bridge/surface.h    -> CommandStyle(surface,Surface)
+dsmc-bridge/iac.h        -> CommandStyle(iac,Iac)
+dsmc-bridge/source.h     -> CommandStyle(source,Source)
 ```
 
 When these files are copied into `DSMC/src`, DSMC's generated
@@ -81,6 +83,8 @@ When these files are copied into `DSMC/src`, DSMC's generated
 voxel ...
 isthmus ...
 surface ...
+iac ...
+source ...
 ```
 
 That is why we did not need to edit DSMC's parser logic. The current local
@@ -106,6 +110,10 @@ dsmc-bridge/isthmus.cpp
 dsmc-bridge/isthmus.h
 dsmc-bridge/surface.cpp
 dsmc-bridge/surface.h
+dsmc-bridge/iac.cpp
+dsmc-bridge/iac.h
+dsmc-bridge/source.cpp
+dsmc-bridge/source.h
 ```
 
 They are intentionally thin:
@@ -115,6 +123,9 @@ They are intentionally thin:
 - `isthmus` calls the core to generate a surface from active voxels.
 - `surface` installs the generated triangles into DSMC memory and reads DSMC
   `fix ave/surf` data back into triangle mass flux.
+- `iac` verifies and prints scalar diagnostics registered by bridge commands.
+- `source` defines prescribed mass flux sources for no-gas and prescribed
+  ablation cases.
 - `iacbridge` stores the active core model and performs the explicit surface
   installation/remapping work.
 
@@ -176,6 +187,14 @@ Run the coupled example from this repository:
   -in /path/to/isthmus-ablation-core/examples/dsmc-sphere-kinetic/in.dsmc-sphere-kinetic
 ```
 
+Run the fixed-surface DSMC flux verification input:
+
+```bash
+/path/to/dsmc/src/spa_mac_mpi \
+  -screen none -log none \
+  -in /path/to/isthmus-ablation-core/tests/inputs/dsmc-sphere-flux/in.dsmc-sphere-flux.verify
+```
+
 ## DSMC Test Configuration
 
 The default CMake build runs standalone/core tests only. To include DSMC-coupled
@@ -212,6 +231,22 @@ cmake --build build --target install-dsmc-bridge
 
 or a DSMC package/submodule layout where the user only enables a package and
 points to ISTHMUS/core install prefixes.
+
+The intended long-term installation target is:
+
+1. Install or build ISTHMUS so its CMake package and headers are discoverable.
+2. Build and install `isthmus-ablation-core` as a normal library.
+3. Configure DSMC with one package option, for example
+   `-DPKG_IAC=ON -DIAC_ROOT=/path/to/iac -DISTHMUS_ROOT=/path/to/isthmus`.
+4. Let the package copy or symlink bridge command files, regenerate DSMC style
+   headers, and add the correct include/library paths.
+5. Run DSMC input files that use `voxel`, `isthmus`, `surface`, and `iac`
+   commands without changing DSMC parser code.
+
+The current local workflow is the manual version of those steps. The main
+caveat is command-style registration: after new bridge headers are copied into
+`DSMC/src`, DSMC must regenerate or update its style headers so commands such
+as `iac` are visible to the parser.
 
 Until that tooling exists, users need three path choices:
 

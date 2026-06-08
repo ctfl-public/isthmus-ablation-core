@@ -20,6 +20,10 @@ surface flux <surface-id> dsmc/surf fix <fix-id> column <N> \
 surface flux <surface-id> dsmc/reaction fix <fix-id> column <N> \
   sample-steps <Nstep> solid-mass-per-reaction <kg> \
   [ablation-dt <dt>] [time-scale <S>]
+surface measure-flux <surface-id> dsmc/reaction fix <fix-id> column <N> \
+  sample-steps <Nstep> expected kinetic/theory number-density <n> \
+  mole-fraction <x> temperature <T> molecular-mass <kg> \
+  [reaction-prob <alpha>]
 
 surface dump <dump-id> <surface-id> vtp <N> <path>
 surface dump off
@@ -41,6 +45,9 @@ surface flux skin dsmc/surf fix sflux column 1 reaction-prob 1.0 \
   solid-mass-per-hit 1.99447348e-26 mass-courant 0.25
 surface flux skin dsmc/reaction fix rco column 1 sample-steps 20 \
   solid-mass-per-reaction 3.98894696e-26 time-scale 1500
+surface measure-flux skin dsmc/reaction fix rco column 1 sample-steps 80 \
+  expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 \
+  temperature 5000.0 molecular-mass 5.31352e-26 reaction-prob 1.0
 
 surface dump skin skin vtp 10 output/sphere/surface_*.vtp
 surface dump off
@@ -101,6 +108,29 @@ equivalent mass flux to the voxel ledger. This is the preferred path for
 chemically reacting DSMC ablation because SPARTA owns the surface reaction
 probability, species conversion, and reaction tallies.
 
+`surface measure-flux` reads the same kind of DSMC reaction count data but does
+not apply mass loss. It sums the sampled reactions over the installed surface,
+converts them to a number flux with:
+
+```text
+reaction-flux = sum(reaction-count) * fnum / (surface-area * DSMC-timestep)
+```
+
+and stores scalar diagnostics that can be checked later with `iac verify`.
+The `expected kinetic/theory` arguments compute the ideal-gas one-way
+impingement flux for a reactive species:
+
+```text
+expected-reaction-flux =
+  reaction-prob * mole-fraction * number-density
+  * sqrt(kB*temperature/(2*pi*molecular-mass))
+```
+
+This command is the first DSMC-hosted regression hook for the coupled path: it
+tests geometry generation, surface installation, DSMC surface chemistry
+tallies, core diagnostics, and input-file verification without introducing
+voxel deletion or remeshing.
+
 By default, DSMC-coupled sources advance voxel ablation by the elapsed DSMC
 time since the previous coupling update. The optional `ablation-dt` argument
 overrides that physical ablation time. For `dsmc/reaction`, `time-scale`
@@ -138,6 +168,10 @@ Selectors:
 data includes `area`, `requested-mass`, and `last-requested-mass`. The
 `last-requested-mass` field is useful for visual inspection because
 `requested-mass` is cleared after `voxel ablate` consumes it.
+
+Inside DSMC, scheduled `surface dump` output is written when bridge commands
+advance the core step. Define the dump before the first surface generation so
+the active core model is initialized with the desired schedule.
 
 `surface dump off` clears surface dumps that were already defined. Regression
 wrappers can use it after including a visual example input.

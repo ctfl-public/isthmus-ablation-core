@@ -35,6 +35,7 @@ public:
   std::vector<PublicSurfaceTriangle> surface_triangles(const std::string &name) const;
 
   void set_timestep(double dt);
+  void set_timestep_from_source_courant(double courant, const std::string &source);
   void reset_run_state();
   void generate_surface(const IsthmusSurfaceCommand &surface);
   void apply_flux(const SurfaceFluxCommand &flux);
@@ -44,6 +45,7 @@ public:
                                          double courant);
   void ablate(const AblationCommand &ablate);
   void advance_steps(int steps);
+  void advance_steps(int steps, std::ostream *stats);
   void execute(std::ostream *stats = nullptr);
   void write_history(const std::string &path) const;
   void write_voxels_vtu(const std::string &path, const std::string &select,
@@ -54,6 +56,14 @@ public:
   void write_verification_csv(const std::string &path) const;
   void verify() const;
   double verification_error(const VerificationCheck &check) const;
+  void set_diagnostic(const std::string &name, double value);
+  double diagnostic(const std::string &name) const;
+  double diagnostic_verification_error(const VerificationCheck &check) const;
+  void verify_diagnostic(const VerificationCheck &check) const;
+  bool has_diagnostic(const std::string &name) const;
+  void print_run_summary_public(std::ostream &out) const;
+  void print_stats_header(std::ostream &out) const;
+  void print_latest_stats(std::ostream &out) const;
 
 private:
   struct SurfaceTriangle {
@@ -87,6 +97,7 @@ private:
   Config config_;
   std::vector<Voxel> voxels_;
   std::unordered_map<std::string, SurfaceState> surfaces_;
+  std::unordered_map<std::string, double> diagnostics_;
   std::vector<HistoryRow> history_;
   double voxel_mass_ = 0.0;
   double initial_mass_ = 0.0;

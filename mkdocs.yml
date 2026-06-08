@@ -34,6 +34,7 @@ nav:
       - fix voxel/ablate: commands/fix-voxel-ablate.md
       - isthmus surface: commands/isthmus-surface.md
       - surface: commands/surface.md
+      - iac: commands/iac.md
       - stats and stats_style: commands/stats.md
       - voxel dump: commands/voxel-dump.md
       - verify: commands/verify.md

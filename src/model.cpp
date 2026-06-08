@@ -219,6 +219,20 @@ void Model::set_timestep(double dt) {
   dt_ = dt;
 }
 
+void Model::set_timestep_from_source_courant(double courant, const std::string &source) {
+  if (source != config_.source.name) {
+    throw RuntimeError("mass/courant timestep references unknown source '" + source + "'");
+  }
+  if (courant <= 0.0) {
+    throw RuntimeError("mass/courant timestep requires a positive value");
+  }
+  if (config_.source.value <= 0.0) {
+    throw RuntimeError("mass/courant timestep requires a positive source");
+  }
+  const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx : config_.sphere.dx;
+  set_timestep(courant * config_.material.density * dx / config_.source.value);
+}
+
 void Model::reset_run_state() {
   history_.clear();
   current_step_ = 0;
@@ -335,10 +349,14 @@ void Model::ablate(const AblationCommand &ablate) {
 }
 
 void Model::advance_steps(int steps) {
+  advance_steps(steps, nullptr);
+}
+
+void Model::advance_steps(int steps, std::ostream *stats) {
   if (steps <= 0) {
     throw RuntimeError("advance_steps requires a positive step count");
   }
-  run_steps(RunConfig{false, 0.0, steps}, nullptr);
+  run_steps(RunConfig{false, 0.0, steps}, stats);
 }
 
 void Model::validate_and_initialize() {
@@ -1651,6 +1669,97 @@ double Model::verification_error(const VerificationCheck &check) const {
     return max_error;
   }
   throw RuntimeError("unknown verify norm '" + check.norm + "'");
+}
+
+void Model::set_diagnostic(const std::string &name, double value) {
+  diagnostics_[name] = value;
+  diagnostics_[normalize_quantity(name)] = value;
+}
+
+double Model::diagnostic(const std::string &name) const {
+  const auto found = diagnostics_.find(name);
+  if (found != diagnostics_.end()) {
+    return found->second;
+  }
+  const auto normalized = diagnostics_.find(normalize_quantity(name));
+  if (normalized != diagnostics_.end()) {
+    return normalized->second;
+  }
+  throw RuntimeError("unknown diagnostic '" + name + "'");
+}
+
+bool Model::has_diagnostic(const std::string &name) const {
+  return diagnostics_.find(name) != diagnostics_.end() ||
+         diagnostics_.find(normalize_quantity(name)) != diagnostics_.end();
+}
+
+double Model::diagnostic_verification_error(const VerificationCheck &check) const {
+  std::unordered_map<std::string, double> variables = diagnostics_;
+  variables["pi"] = std::acos(-1.0);
+  variables["dt"] = dt_;
+  variables["time"] = current_time_;
+  variables["t"] = current_time_;
+  variables["step"] = static_cast<double>(current_step_);
+  variables["rho"] = config_.material.density;
+  variables["density"] = config_.material.density;
+  if (config_.geometry == GeometryKind::Sphere) {
+    variables["diameter"] = config_.sphere.diameter;
+    variables["initial-radius"] = 0.5 * config_.sphere.diameter;
+    variables["initial_radius"] = 0.5 * config_.sphere.diameter;
+  }
+  variables["initial-mass"] = initial_mass_;
+  variables["initial_mass"] = initial_mass_;
+  variables["voxel-mass"] = voxel_mass_;
+  variables["voxel_mass"] = voxel_mass_;
+  variables["initial-active-voxels"] = static_cast<double>(initial_active_voxels_);
+  variables["initial_active_voxels"] = static_cast<double>(initial_active_voxels_);
+  if (!history_.empty()) {
+    const auto &row = history_.back();
+    variables["active-voxels"] = static_cast<double>(row.active_voxels);
+    variables["active_voxels"] = static_cast<double>(row.active_voxels);
+    variables["deleted-voxels"] = static_cast<double>(row.deleted_voxels);
+    variables["deleted_voxels"] = static_cast<double>(row.deleted_voxels);
+    variables["remaining-mass"] = row.remaining_mass;
+    variables["remaining_mass"] = row.remaining_mass;
+    variables["mass"] = row.remaining_mass;
+    variables["mass-fraction"] = row.mass_fraction;
+    variables["mass_fraction"] = row.mass_fraction;
+    variables["volume-fraction"] = row.volume_fraction;
+    variables["volume_fraction"] = row.volume_fraction;
+    variables["front"] = row.front;
+    variables["radius"] = row.radius;
+  }
+  if (!config_.source.name.empty()) {
+    variables[config_.source.name] = config_.source.value;
+    variables["source:" + config_.source.name] = config_.source.value;
+  }
+
+  const double actual = diagnostic(check.quantity);
+  const double exact = evaluate_expression(check.expression, variables);
+  return ::iac::verification_error(actual, exact, check);
+}
+
+void Model::verify_diagnostic(const VerificationCheck &check) const {
+  const double error = diagnostic_verification_error(check);
+  if (!(error <= check.tolerance)) {
+    throw RuntimeError(format_error(check.quantity, error, check.tolerance,
+                                    check.tolerance_mode));
+  }
+}
+
+void Model::print_run_summary_public(std::ostream &out) const {
+  print_run_summary(out);
+}
+
+void Model::print_stats_header(std::ostream &out) const {
+  print_header(out);
+}
+
+void Model::print_latest_stats(std::ostream &out) const {
+  if (history_.empty()) {
+    throw RuntimeError("cannot print stats before model initialization");
+  }
+  print_row(out, history_.back());
 }
 
 void Model::print_header(std::ostream &out) const {

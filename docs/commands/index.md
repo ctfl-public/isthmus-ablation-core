@@ -18,6 +18,7 @@ Current standalone commands:
 - [`fix ... voxel/ablate`](fix-voxel-ablate.md)
 - [`isthmus surface`](isthmus-surface.md)
 - [`surface`](surface.md)
+- [`iac`](iac.md) for DSMC-hosted diagnostics and verification
 - [`stats` and `stats_style`](stats.md)
 - [`voxel dump`](voxel-dump.md)
 - [`verify`](verify.md)
