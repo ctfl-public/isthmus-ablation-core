@@ -30,7 +30,22 @@ runs the standalone tests plus the coupled DSMC chemistry test.
 ## Chemistry Loop
 
 The case uses a stationary initial O2/N2 gas with CO enabled as a product
-species. SPARTA handles the surface reaction:
+species. The convergence case uses outflow boundaries and face emission to
+approximate a fixed reservoir:
+
+```text
+boundary            o o o
+create_particles    air n 0 twopass
+fix                 reservoir emit/face air all twopass
+surf_collide        1 diffuse 5000.0 1.0
+```
+
+The 5000 K diffuse surface is a verification choice: it keeps the wall at the
+same temperature as the reservoir so the analytical comparison is not polluted
+by cold-wall cooling. The separate visualization case still uses a 300 K wall
+to show the current gas-field behavior.
+
+SPARTA handles the surface reaction:
 
 ```text
 species             air.species O2 N2 CO
@@ -56,7 +71,7 @@ reaction:
 
 ```text
 surface flux skin dsmc/reaction fix rco column 1 sample-steps 20 \
-  solid-mass-per-reaction 3.98894696e-26 time-scale 1500
+  solid-mass-per-reaction 3.98894696e-26 time-scale 500
 voxel ablate solid surface skin policy carryover/normal delete yes
 ```
 
@@ -82,12 +97,13 @@ R(t) = R0 - j*t/rho-solid
 mass-fraction = (R/R0)^3
 ```
 
-That comparison is useful, but it has an important caveat. The current DSMC
-case is a closed periodic box. Real SPARTA chemistry consumes O2 and creates CO,
-so longer DSMC sampling windows can change the local gas composition before the
-next ablation update. The convergence report is therefore a coupled
-chemistry-sampling diagnostic, not a perfect monotone convergence proof for an
-infinite gas reservoir.
+That comparison is useful, but it has an important caveat. The reservoir
+boundary and hot verification wall make the case much closer to the analytical
+assumption than the earlier closed periodic box. It is still a finite DSMC
+domain with a finite emitted reservoir, so local O2 depletion, CO production,
+and surface sampling noise can remain. The report should be read as a
+chemistry-coupling verification against the continuum target, not as a perfect
+monotone proof of the continuum limit.
 
 Build the PDF/CSV report with:
 
@@ -103,9 +119,9 @@ python3 tools/run-dsmc-kinetic-convergence.py \
   --steps 5,20,80 \
   --loops 6 \
   --resolution 10 \
-  --ablation-update-time 0.003 \
+  --ablation-update-time 0.001 \
   --fnum 2.0e12 \
-  --tolerance-percent 20 \
+  --tolerance-percent 5 \
   --pdf
 ```
 

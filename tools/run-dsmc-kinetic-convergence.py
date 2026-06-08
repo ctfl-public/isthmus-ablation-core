@@ -8,6 +8,7 @@ import csv
 import math
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,6 +27,7 @@ class Result:
   radius_error_percent: float
   requested_mass: float
   reactions: float
+  runtime_seconds: float
   history: Path
   input_path: Path
 
@@ -90,7 +92,15 @@ def write_input(template: str, path: Path, steps: int,
   history = path.parent / "history.csv"
   species = root / "examples/dsmc-sphere-kinetic/air.species"
   vss = root / "examples/dsmc-sphere-kinetic/air.vss"
-  reaction = root / "examples/dsmc-sphere-kinetic/carbon-co.surf"
+  reaction = path.parent / "carbon-co.surf"
+  path.parent.mkdir(parents=True, exist_ok=True)
+  reaction.write_text(
+      "# Generated CO-forming surface reaction for the convergence case.\n"
+      "# O2 + 2 C(s) -> 2 CO is represented as one O2 reaction event.\n\n"
+      "O2 --> CO + CO\n"
+      f"D S {args.reaction_probability:.12g}\n",
+      encoding="utf-8",
+  )
 
   time_scale = args.ablation_update_time / (steps * args.dsmc_dt)
   text = template
@@ -102,6 +112,7 @@ def write_input(template: str, path: Path, steps: int,
       "gridcut 0.0 surfmax 2000 splitmax 200 comm/sort yes",
   )
   text = replace_line(text, "timestep", f"timestep            {args.dsmc_dt:.8g}")
+  text = replace_line(text, "boundary", "boundary            o o o")
   text = replace_line(
       text,
       "species",
@@ -116,11 +127,19 @@ def write_input(template: str, path: Path, steps: int,
   text = replace_line(text, "collide", f"collide             vss air {vss}")
   text = replace_line(
       text,
+      "create_particles",
+      "create_particles    air n 0 twopass\n"
+      "fix                 reservoir emit/face air all twopass",
+  )
+  text = replace_line(
+      text,
       "voxel create",
       f"voxel create solid sphere diameter 1.0e-3 resolution {args.resolution} material carbon",
   )
   text = replace_line(text, "surf_react",
                       f"surf_react          ox prob {reaction}")
+  text = replace_line(text, "surf_collide",
+                      f"surf_collide        1 diffuse {args.wall_temperature:.8g} 1.0")
   text = replace_line(
       text,
       "fix                 rco",
@@ -142,7 +161,6 @@ def write_input(template: str, path: Path, steps: int,
       "voxel write-history",
       f"voxel write-history solid {history}",
   )
-  path.parent.mkdir(parents=True, exist_ok=True)
   path.write_text(text, encoding="utf-8")
 
 
@@ -154,7 +172,9 @@ def run_case(dsmc: Path, template: str, out_dir: Path, steps: int,
 
   command = [str(dsmc), "-screen", "none", "-log", str(case_dir / "log.sparta"),
              "-in", str(input_path)]
+  start = time.perf_counter()
   completed = subprocess.run(command, text=True, capture_output=True)
+  runtime_seconds = time.perf_counter() - start
   if completed.returncode != 0:
     print(completed.stdout, end="")
     print(completed.stderr, end="")
@@ -164,8 +184,8 @@ def run_case(dsmc: Path, template: str, out_dir: Path, steps: int,
   last = rows[-1]
   _, _, speed = reaction_quantities(args)
   initial_radius = float(rows[0]["radius"])
-  time = float(last["time"])
-  exact_mass_fraction, exact_radius = exact_values(time, initial_radius, speed)
+  ablation_time = float(last["time"])
+  exact_mass_fraction, exact_radius = exact_values(ablation_time, initial_radius, speed)
   mass_fraction = float(last["mass-fraction"])
   radius = float(last["radius"])
   mass_error = math.inf if exact_mass_fraction == 0.0 else (
@@ -179,9 +199,9 @@ def run_case(dsmc: Path, template: str, out_dir: Path, steps: int,
   for line in (case_dir / "log.sparta").read_text(encoding="utf-8", errors="ignore").splitlines():
     if "reaction O2 --> CO + CO:" in line:
       reaction_total += float(line.rsplit(":", 1)[1].strip())
-  return Result(steps, time, mass_fraction, exact_mass_fraction, mass_error,
+  return Result(steps, ablation_time, mass_fraction, exact_mass_fraction, mass_error,
                 radius, exact_radius, radius_error, requested, reaction_total,
-                case_dir / "history.csv", input_path)
+                runtime_seconds, case_dir / "history.csv", input_path)
 
 
 def write_summary(path: Path, results: list[Result]) -> None:
@@ -192,7 +212,7 @@ def write_summary(path: Path, results: list[Result]) -> None:
         "dsmc-steps", "time", "mass-fraction", "exact-mass-fraction",
         "mass-error-percent", "radius", "exact-radius",
         "radius-error-percent", "requested-mass-step", "sampled-reactions",
-        "history", "input"
+        "runtime-seconds", "history", "input"
     ])
     for result in results:
       writer.writerow([
@@ -203,7 +223,7 @@ def write_summary(path: Path, results: list[Result]) -> None:
           f"{result.exact_radius:.17g}",
           f"{result.radius_error_percent:.17g}",
           f"{result.requested_mass:.17g}", f"{result.reactions:.17g}",
-          result.history, result.input_path,
+          f"{result.runtime_seconds:.17g}", result.history, result.input_path,
       ])
 
 
@@ -266,7 +286,8 @@ def write_report(path: Path, results: list[Result], args: argparse.Namespace) ->
   rows = "\n".join(
       f"{r.steps} & {r.time:.3e} & {r.reactions:.0f} & "
       f"{r.mass_fraction:.6f} & {r.exact_mass_fraction:.6f} & "
-      f"{r.mass_error_percent:.4g} & {r.radius_error_percent:.4g}\\\\"
+      f"{r.mass_error_percent:.4g} & {r.radius_error_percent:.4g} & "
+      f"{r.runtime_seconds:.2f}\\\\"
       for r in results
   )
   mass_errors = coords([(result.steps, result.mass_error_percent)
@@ -288,7 +309,9 @@ coupled ablation updates is varied; longer runs provide more surface-reaction
 sampling before the sampled reaction counts are mapped back to voxel mass loss.
 
 \subsection*{Physical setup}
-The domain is a periodic 3 mm cube containing stationary air with O$_2$ mole
+The domain is a 3 mm cube with outflow boundaries on all faces and
+`fix emit/face air all`, so particles can leave the box while fresh reservoir
+gas is emitted from the domain faces. The emitted reservoir gas has O$_2$ mole
 fraction """
       + f"{args.o2_fraction:.3g}"
       + r""" and N$_2$ mole fraction """
@@ -345,30 +368,28 @@ For this setup, $\Gamma_{O2} = """
       + f"{speed:.6e}"
       + r"""$ m/s.
 
-To make a deep, quick verification case, the bridge uses a quasi-steady
-time-scale factor of """
+To make a quick verification case, the bridge advances the solid by """
       + f"{args.ablation_update_time:.6e}"
       + r""" s per coupled update. For a case with $N$ DSMC sampling steps,
 the bridge time-scale is chosen as $\Delta t_\mathrm{ablate}/(N\Delta
 t_\mathrm{DSMC})$, so all convergence cases advance the same ablation time
 while sampling for different DSMC durations. This tests reaction-count coupling
-and voxel recession against the stationary-reservoir solution; it does not claim
-the finite closed DSMC box would physically remain at the same composition over
-the scaled time. The finest case ends at analytical remaining mass fraction """
+and voxel recession against the stationary-reservoir solution. The finest case
+ends at analytical remaining mass fraction """
       + f"{final_exact_mass:.6f}"
       + r""".
 
-Because the simulated box is closed, longer DSMC sampling windows can consume
-more local O$_2$ and accumulate more CO before the next ablation update. The
-error plot should therefore be read as a coupled chemistry-sampling diagnostic,
-not as a guaranteed monotone convergence proof for an infinite reservoir.
+The reservoir boundary makes this a better comparison to the analytical
+constant-gas solution than the earlier closed periodic box. It is still a
+finite DSMC domain, so surface sampling noise and local composition/temperature
+perturbations can remain.
 
 \subsection*{Final Values}
 \begin{center}
-\begin{tabular}{rrrrrrr}
+\begin{tabular}{rrrrrrrr}
 \toprule
 DSMC steps & time (s) & reactions & actual $m/m_0$ & exact $m/m_0$ &
-mass error (\%) & radius error (\%)\\
+mass error (\%) & radius error (\%) & runtime (s)\\
 \midrule
 """
       + rows
@@ -478,6 +499,7 @@ def main() -> int:
   parser.add_argument("--pdf", action="store_true")
   parser.add_argument("--number-density", type=float, default=7.244e23)
   parser.add_argument("--temperature", type=float, default=5000.0)
+  parser.add_argument("--wall-temperature", type=float, default=5000.0)
   parser.add_argument("--o2-fraction", type=float, default=0.21)
   parser.add_argument("--o2-mass", type=float, default=5.31352e-26)
   parser.add_argument("--solid-density", type=float, default=1800.0)
