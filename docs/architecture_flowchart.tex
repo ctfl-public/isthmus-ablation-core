@@ -6,8 +6,8 @@
 
 \begin{document}
 \begin{tikzpicture}[
-  font=\sffamily\scriptsize,
-  node distance=7mm and 10mm,
+  font=\sffamily\tiny,
+  node distance=6mm and 9mm,
   box/.style={
     draw,
     rounded corners=2pt,
@@ -18,12 +18,17 @@
   },
   widebox/.style={
     box,
-    text width=42mm
+    text width=40mm
   },
   voxelbox/.style={
     box,
-    text width=36mm,
+    text width=35mm,
     minimum height=13mm
+  },
+  buildbox/.style={
+    box,
+    text width=34mm,
+    minimum height=9mm
   },
   group/.style={
     draw,
@@ -49,8 +54,37 @@
 
 \node[font=\sffamily\bfseries\small] (title) at (0,0) {isthmus-ablation-core};
 
+% Build/install path
+\node[buildbox, fill=gray!10, below=6mm of title, xshift=-46mm] (repo) {
+  Clone this repo\\
+  source + bridge commands\\
+  {\ttfamily\tiny cmake --preset dsmc}
+};
+
+\node[buildbox, fill=gray!10, right=7mm of repo] (roots) {
+  Point to dependencies\\
+  DSMC + ISTHMUS roots\\
+  {\ttfamily\tiny DSMC\_ROOT, ISTHMUS\_ROOT}
+};
+
+\node[buildbox, fill=gray!10, right=7mm of roots] (overlay) {
+  Private DSMC overlay\\
+  symlinked source tree\\
+  {\ttfamily\tiny build-dsmc/dsmc-overlay}
+};
+
+\node[buildbox, fill=gray!10, right=7mm of overlay] (exe) {
+  DSMC/IAC executable\\
+  native DSMC + IAC commands\\
+  {\ttfamily\tiny build-dsmc/bin/dsmc-iac}
+};
+
+\draw[seqarrow] (repo) -- (roots);
+\draw[seqarrow] (roots) -- (overlay);
+\draw[seqarrow] (overlay) -- (exe);
+
 % Shared core
-\node[voxelbox, fill=orange!10, below=9mm of title] (voxels) {
+\node[voxelbox, fill=orange!10, below=16mm of roots] (voxels) {
   Voxel model\\
   IDs, mass, material, fields\\
   {\ttfamily\tiny voxel create solid sphere ...}
@@ -105,25 +139,25 @@
 
 % DSMC side
 \node[widebox, fill=green!8, right=19mm of voxels] (dsmc_input) {
-  DSMC input\\
+  DSMC overlay input\\
   native variables, loops, jumps\\
-  {\ttfamily\tiny label ablate-loop}
+  {\ttfamily\tiny dsmc-iac -in case.in}
 };
 
 \node[widebox, fill=green!8, below=11mm of dsmc_input] (dsmc_run) {
-  Converge DSMC interval\\
+  Run DSMC interval\\
   particles, collisions, reactions, MPI\\
   {\ttfamily\tiny run 10000}
 };
 
 \node[widebox, fill=green!8, below=11mm of dsmc_run] (tallies) {
-  Surface tallies\\
-  reactions/collisions by surface ID\\
-  {\ttfamily\tiny compute ... react/surf}
+  Sample surface chemistry\\
+  reactions/collisions by triangle ID\\
+  {\ttfamily\tiny fix ave/surf ...}
 };
 
 \node[widebox, fill=green!8, below=11mm of tallies] (bridge) {
-  Install new DSMC surface\\
+  Reinstall DSMC surface\\
   remap particles and grid-surface state\\
   {\ttfamily\tiny surface update surf1 install yes}
 };
@@ -164,11 +198,15 @@
 
   \node[group, fit=(dsmc_input)(dsmc_run)(tallies)(bridge),
         fill=green!3,
-        label={[font=\sffamily\bfseries\scriptsize]above:DSMC-linked mode}] {};
+        label={[font=\sffamily\bfseries\scriptsize]above:DSMC overlay mode}] {};
 
   \node[group, fit=(voxels)(ablate)(isthmus)(surface),
         fill=orange!3,
         label={[font=\sffamily\bfseries\scriptsize]above:Shared core library}] {};
+
+  \node[group, fit=(repo)(roots)(overlay)(exe),
+        fill=gray!4,
+        label={[font=\sffamily\bfseries\scriptsize]above:Build and install path}] {};
 \end{scope}
 
 \end{tikzpicture}
