@@ -59,13 +59,12 @@ sphere-isthmus-normal-carryover-convergence
 These are standalone/core tests. They run with the `ia-core` binary and should
 be the only tests present in a normal standalone build.
 
-To add coupled DSMC tests, configure CMake with a DSMC executable:
+To add coupled DSMC tests, configure and build the DSMC/IAC overlay:
 
 ```bash
-cmake -S . -B build-dsmc \
-  -DIAC_DSMC_EXECUTABLE=/Users/tstoffel1/dsmc/src/spa_mac_mpi
-cmake --build build-dsmc
-ctest --test-dir build-dsmc --output-on-failure
+cmake --preset dsmc
+cmake --build --preset dsmc
+ctest --preset dsmc
 ```
 
 That build runs the standalone/core tests plus:

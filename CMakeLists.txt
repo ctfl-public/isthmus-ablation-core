@@ -2,6 +2,16 @@ cmake_minimum_required(VERSION 3.16)
 
 project(isthmus_ablation_core LANGUAGES CXX)
 
+function(iac_first_existing_dir out_var)
+  foreach(candidate IN LISTS ARGN)
+    if(candidate AND EXISTS "${candidate}")
+      set(${out_var} "${candidate}" PARENT_SCOPE)
+      return()
+    endif()
+  endforeach()
+  set(${out_var} "" PARENT_SCOPE)
+endfunction()
+
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
 endif()
@@ -18,14 +28,35 @@ add_library(isthmus_ablation_core
 
 target_include_directories(isthmus_ablation_core PUBLIC include)
 
-find_package(isthmus_cpp CONFIG QUIET PATHS
+set(ISTHMUS_ROOT "" CACHE PATH "Optional root directory of an ISTHMUS checkout/build")
+if(NOT ISTHMUS_ROOT AND DEFINED ENV{ISTHMUS_ROOT})
+  set(ISTHMUS_ROOT "$ENV{ISTHMUS_ROOT}" CACHE PATH "Optional root directory of an ISTHMUS checkout/build" FORCE)
+endif()
+
+set(_iac_isthmus_package_paths
+  "${ISTHMUS_ROOT}"
+  "${ISTHMUS_ROOT}/build"
+  "${ISTHMUS_ROOT}/build-wsl"
   "$ENV{ISTHMUS_CPP_DIR}"
-  "/Users/tstoffel1/isthmus/build-wsl"
+  "$ENV{isthmus_cpp_DIR}"
+  "${CMAKE_SOURCE_DIR}/../isthmus/build"
+  "${CMAKE_SOURCE_DIR}/../isthmus/build-wsl"
+  "$ENV{HOME}/isthmus/build"
+  "$ENV{HOME}/isthmus/build-wsl"
+)
+
+find_package(isthmus_cpp CONFIG QUIET PATHS
+  ${_iac_isthmus_package_paths}
 )
 
 if(isthmus_cpp_FOUND)
   target_link_libraries(isthmus_ablation_core PUBLIC isthmus_cpp::isthmus_cpp)
   target_compile_definitions(isthmus_ablation_core PRIVATE IAC_HAS_ISTHMUS=1)
+  get_target_property(IAC_ISTHMUS_INCLUDE_DIRS isthmus_cpp::isthmus_cpp INTERFACE_INCLUDE_DIRECTORIES)
+  get_target_property(IAC_ISTHMUS_LIBRARY isthmus_cpp::isthmus_cpp IMPORTED_LOCATION)
+  if(NOT IAC_ISTHMUS_LIBRARY)
+    get_target_property(IAC_ISTHMUS_LIBRARY isthmus_cpp::isthmus_cpp IMPORTED_LOCATION_NOCONFIG)
+  endif()
 endif()
 
 if(MSVC)
@@ -39,7 +70,84 @@ target_link_libraries(ia-core PRIVATE isthmus_ablation_core)
 
 find_package(Python3 COMPONENTS Interpreter)
 find_program(PDFLATEX_EXECUTABLE pdflatex)
+find_program(IAC_MAKE_EXECUTABLE NAMES make gmake)
+
+set(DSMC_ROOT "" CACHE PATH "Optional root directory of a DSMC/SPARTA source checkout")
+if(NOT DSMC_ROOT AND DEFINED ENV{DSMC_ROOT})
+  set(DSMC_ROOT "$ENV{DSMC_ROOT}" CACHE PATH "Optional root directory of a DSMC/SPARTA source checkout" FORCE)
+endif()
+if(NOT DSMC_ROOT)
+  iac_first_existing_dir(DSMC_ROOT
+    "${CMAKE_SOURCE_DIR}/../dsmc"
+    "$ENV{HOME}/dsmc"
+  )
+  if(DSMC_ROOT)
+    set(DSMC_ROOT "${DSMC_ROOT}" CACHE PATH "Optional root directory of a DSMC/SPARTA source checkout" FORCE)
+  endif()
+endif()
+
+set(DSMC_MACHINE "mac_mpi" CACHE STRING "DSMC make target used by the IAC overlay build")
+set(IAC_DSMC_OVERLAY_SRC "${CMAKE_BINARY_DIR}/dsmc-overlay/src")
+set(IAC_DSMC_OVERLAY_EXECUTABLE "${IAC_DSMC_OVERLAY_SRC}/spa_${DSMC_MACHINE}")
+option(IAC_DSMC_USE_OVERLAY "Use the private DSMC overlay executable for coupled tests" ON)
 set(IAC_DSMC_EXECUTABLE "" CACHE FILEPATH "Optional DSMC/SPARTA executable for coupled tests")
+if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND isthmus_cpp_FOUND)
+  set(IAC_DSMC_EXECUTABLE "${CMAKE_BINARY_DIR}/bin/dsmc-iac" CACHE FILEPATH
+      "Optional DSMC/SPARTA executable for coupled tests" FORCE)
+endif()
+
+set(IAC_DSMC_OVERLAY_ISTHMUS_INCLUDE_ARGS)
+if(IAC_ISTHMUS_INCLUDE_DIRS)
+  foreach(_iac_isthmus_include IN LISTS IAC_ISTHMUS_INCLUDE_DIRS)
+    list(APPEND IAC_DSMC_OVERLAY_ISTHMUS_INCLUDE_ARGS
+      --isthmus-include "${_iac_isthmus_include}")
+  endforeach()
+endif()
+
+if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND isthmus_cpp_FOUND AND Python3_Interpreter_FOUND AND IAC_MAKE_EXECUTABLE)
+  add_custom_target(
+    dsmc
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/create-dsmc-overlay.py
+            --dsmc-root ${DSMC_ROOT}
+            --bridge-dir ${CMAKE_SOURCE_DIR}/dsmc-bridge
+            --overlay-src ${IAC_DSMC_OVERLAY_SRC}
+            --iac-include ${CMAKE_SOURCE_DIR}/include
+            --iac-lib $<TARGET_FILE:isthmus_ablation_core>
+            --isthmus-lib ${IAC_ISTHMUS_LIBRARY}
+            ${IAC_DSMC_OVERLAY_ISTHMUS_INCLUDE_ARGS}
+    COMMAND ${CMAKE_COMMAND} -E chdir ${IAC_DSMC_OVERLAY_SRC}
+            ${IAC_MAKE_EXECUTABLE} ${DSMC_MACHINE}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bin
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+            ${IAC_DSMC_OVERLAY_EXECUTABLE}
+            ${CMAKE_BINARY_DIR}/bin/dsmc-iac
+    DEPENDS isthmus_ablation_core
+    COMMAND_EXPAND_LISTS
+    COMMENT "Building private DSMC/IAC executable in the IAC build tree"
+  )
+else()
+  add_custom_target(
+    dsmc
+    COMMAND ${CMAKE_COMMAND} -E echo "Cannot build DSMC/IAC overlay."
+    COMMAND ${CMAKE_COMMAND} -E echo "Set DSMC_ROOT and ISTHMUS_ROOT, and make sure Python3 and make are available."
+    COMMAND ${CMAKE_COMMAND} -E false
+  )
+endif()
+
+message(STATUS "ISTHMUS found: ${isthmus_cpp_FOUND}")
+if(isthmus_cpp_FOUND)
+  message(STATUS "ISTHMUS library: ${IAC_ISTHMUS_LIBRARY}")
+endif()
+message(STATUS "DSMC root: ${DSMC_ROOT}")
+message(STATUS "DSMC machine: ${DSMC_MACHINE}")
+if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND isthmus_cpp_FOUND)
+  message(STATUS "DSMC/IAC target: cmake --build ${CMAKE_BINARY_DIR} --target dsmc")
+  message(STATUS "DSMC/IAC executable: ${IAC_DSMC_EXECUTABLE}")
+elseif(IAC_DSMC_EXECUTABLE)
+  message(STATUS "DSMC/IAC executable: ${IAC_DSMC_EXECUTABLE}")
+else()
+  message(STATUS "DSMC/IAC overlay: disabled")
+endif()
 
 enable_testing()
 

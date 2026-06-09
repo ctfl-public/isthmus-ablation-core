@@ -1,0 +1,79 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 16,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "standalone",
+      "displayName": "Standalone IAC",
+      "description": "Build the standalone ia-core executable and standalone tests.",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "IAC_DSMC_USE_OVERLAY": "OFF",
+        "IAC_DSMC_EXECUTABLE": ""
+      }
+    },
+    {
+      "name": "dsmc",
+      "displayName": "DSMC/IAC Overlay",
+      "description": "Build IAC and a private DSMC executable with IAC bridge commands.",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-dsmc",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "IAC_DSMC_USE_OVERLAY": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "standalone",
+      "configurePreset": "standalone",
+      "targets": [
+        "all"
+      ]
+    },
+    {
+      "name": "dsmc",
+      "configurePreset": "dsmc",
+      "targets": [
+        "dsmc"
+      ]
+    },
+    {
+      "name": "docs",
+      "configurePreset": "standalone",
+      "targets": [
+        "docs-pdf"
+      ]
+    },
+    {
+      "name": "report",
+      "configurePreset": "standalone",
+      "targets": [
+        "test-report"
+      ]
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "standalone",
+      "configurePreset": "standalone",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "dsmc",
+      "configurePreset": "dsmc",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

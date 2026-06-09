@@ -11,8 +11,8 @@ examples/
   Human-readable standalone input examples, organized as <case>/in.<case>.
 
 dsmc-bridge/
-  DSMC command-style bridge sources copied into /Users/tstoffel1/dsmc/src for
-  local integration experiments.
+  DSMC command-style bridge sources. The dsmc CMake target symlinks these into
+  build-dsmc/dsmc-overlay/src; they should not be copied into the DSMC checkout.
 
 tests/inputs/
   Regression wrappers, organized as <case>/in.<case>.verify.
@@ -22,12 +22,16 @@ docs/
 
 tools/
   Local documentation and development utilities.
+
+build-dsmc/dsmc-overlay/
+  Generated private DSMC source overlay. This is disposable build output.
 ```
 
 Generated files are ignored:
 
 ```text
 build/
+build-dsmc/
 output/
 site/
 ```

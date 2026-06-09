@@ -1,80 +1,117 @@
 # Getting Started
 
-Build the standalone executable:
+The easiest DSMC/IAC workflow is:
 
-```bash
-cmake -S . -B build
-cmake --build build
+1. Install or build DSMC and ISTHMUS somewhere on your machine.
+2. Tell this repository where they are.
+3. Build a private DSMC executable inside this repository's build directory.
+
+Your DSMC checkout is not modified. The build creates an overlay under
+`build-dsmc/dsmc-overlay/` and writes the executable to:
+
+```text
+build-dsmc/bin/dsmc-iac
 ```
 
-Run the first example:
+## One-Time Shell Setup
+
+If DSMC and ISTHMUS live in stable locations, put these in `~/.bashrc`,
+`~/.zshrc`, or your shell startup file:
+
+```bash
+export DSMC_ROOT=$HOME/dsmc
+export ISTHMUS_ROOT=$HOME/isthmus
+```
+
+Then open a new terminal or source the file:
+
+```bash
+source ~/.zshrc
+```
+
+You can skip this and pass paths directly to CMake instead:
+
+```bash
+cmake --preset dsmc -DDSMC_ROOT=/path/to/dsmc -DISTHMUS_ROOT=/path/to/isthmus
+```
+
+## Build DSMC/IAC
+
+From a fresh clone:
+
+```bash
+cmake --preset dsmc
+cmake --build --preset dsmc
+ctest --preset dsmc
+```
+
+The `dsmc` build preset:
+
+- builds `libisthmus_ablation_core.a`;
+- creates `build-dsmc/dsmc-overlay/src`;
+- symlinks DSMC source files into that overlay;
+- symlinks the IAC bridge command files into that overlay;
+- generates the overlay `Makefile.package`;
+- runs DSMC's normal `make <machine>` build there;
+- writes `build-dsmc/bin/dsmc-iac`.
+
+The default DSMC machine target is `mac_mpi`. Override it with:
+
+```bash
+cmake --preset dsmc -DDSMC_MACHINE=mpi
+```
+
+## Run A DSMC/IAC Case
+
+```bash
+build-dsmc/bin/dsmc-iac \
+  -in examples/dsmc-sphere-kinetic/in.dsmc-sphere-kinetic
+```
+
+Run the fast DSMC verification suite:
+
+```bash
+ctest --preset dsmc
+```
+
+## Standalone Only
+
+The standalone binary does not need DSMC:
+
+```bash
+cmake --preset standalone
+cmake --build --preset standalone
+ctest --preset standalone
+```
+
+Run the first standalone example:
 
 ```bash
 ./build/ia-core -in examples/slab-direct-ablation/in.slab-direct-ablation
 ```
 
-Run the regression tests:
+## Visual Outputs
 
-```bash
-ctest --test-dir build --output-on-failure
+Examples write under `output/` by default. For the direct slab example:
+
+```text
+output/slab-direct-ablation/history.csv
+output/slab-direct-ablation/voxels_000000.vtu
+output/slab-direct-ablation/voxels_000001.vtu
+...
 ```
 
-The default build runs standalone/core tests only. To include coupled DSMC
-tests, configure with a DSMC executable:
+Open VTU/VTP files directly in ParaView. The examples usually write active
+voxels only and select `mass-fraction` as the first visible cell scalar.
+
+## Rebuild The Manual
 
 ```bash
-cmake -S . -B build-dsmc \
-  -DIAC_DSMC_EXECUTABLE=/Users/tstoffel1/dsmc/src/spa_mac_mpi
-cmake --build build-dsmc
-ctest --test-dir build-dsmc --output-on-failure
-```
-
-CTest prints output from failing tests by default. To also see the aligned stats
-table for passing tests:
-
-```bash
-cmake --build build --target check-verbose
-```
-
-Rebuild the PDF manual:
-
-```bash
-cmake --build build --target docs-pdf
+cmake --build --preset docs
 ```
 
 The PDF is written to:
 
 ```text
 docs/isthmus-ablation-core-manual.pdf
-```
-
-If CMake has not been configured yet, run the full sequence:
-
-```bash
-cmake -S . -B build
-cmake --build build --target docs-pdf
-```
-
-The example writes a CSV history file:
-
-```text
-output/slab-direct-ablation/history.csv
-```
-
-It also writes VTU voxel files for visual inspection:
-
-```text
-output/slab-direct-ablation/voxels_000000.vtu
-output/slab-direct-ablation/voxels_000001.vtu
-...
-```
-
-The example writes active voxels only and marks `mass-fraction` as the active
-ParaView cell scalar.
-
-When run through CTest, the test writes its output under the CTest working
-directory:
-
-```text
-build/output/slab-direct-ablation/history.csv
 ```

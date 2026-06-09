@@ -11,6 +11,48 @@ backend. The core should also remain useful for voxel bookkeeping, local
 voxel-face ablation, generated geometries, and exact-solution verification
 without a fluid domain.
 
+## Quick Start
+
+If DSMC and ISTHMUS are already installed, set their roots once:
+
+```bash
+export DSMC_ROOT=$HOME/dsmc
+export ISTHMUS_ROOT=$HOME/isthmus
+```
+
+Then build a private DSMC/IAC executable from this repository:
+
+```bash
+cmake --preset dsmc
+cmake --build --preset dsmc
+ctest --preset dsmc
+```
+
+The executable is:
+
+```text
+build-dsmc/bin/dsmc-iac
+```
+
+This does not edit the DSMC checkout. The build creates a disposable overlay in
+`build-dsmc/dsmc-overlay/`, where DSMC source files and IAC bridge commands are
+symlinked together for compilation.
+
+Run a coupled example:
+
+```bash
+build-dsmc/bin/dsmc-iac \
+  -in examples/dsmc-sphere-kinetic/in.dsmc-sphere-kinetic
+```
+
+For standalone-only work:
+
+```bash
+cmake --preset standalone
+cmake --build --preset standalone
+ctest --preset standalone
+```
+
 ## Current Capabilities
 
 - Create a slab voxel model.
@@ -23,8 +65,8 @@ without a fluid domain.
 - Write a CSV history file.
 - Write VTU voxel files for visual inspection.
 - Compute single-species ideal-gas kinetic-theory flux on ISTHMUS triangles.
-- Build a local DSMC executable that calls the core through thin
-  command-style bridge files.
+- Build a private DSMC executable that calls the core through thin
+  command-style bridge files without modifying the DSMC checkout.
 - Include shared input files with `include`.
 - Verify tracked quantities against input-file exact expressions.
 - Optionally build visual verification reports from test data.

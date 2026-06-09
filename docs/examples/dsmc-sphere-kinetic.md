@@ -1,7 +1,7 @@
 # DSMC Sphere Kinetic Example
 
-This example runs from this repository but uses the DSMC executable built in
-`/Users/tstoffel1/dsmc/src`. It is a smoke test for the embedded bridge:
+This example runs from this repository using the private DSMC/IAC executable
+built by the overlay target. It is a smoke test for the embedded bridge:
 DSMC owns the gas domain, native `run` commands, particles, surface reactions,
 surface averaging, loops, `remove_surf`, and `surf_modify`; this core owns voxel
 state, ISTHMUS surface generation, DSMC-to-triangle reaction-count conversion,
@@ -10,18 +10,18 @@ normal-carryover ablation, and regenerated surface geometry.
 Run the chemistry case directly with:
 
 ```bash
+cmake --preset dsmc
+cmake --build --preset dsmc
+
 cd examples/dsmc-sphere-kinetic
-/Users/tstoffel1/dsmc/src/spa_mac_mpi \
+../../build-dsmc/bin/dsmc-iac \
   -screen none -log output/log.sparta -in in.dsmc-sphere-kinetic
 ```
 
-To enable this case in CTest, configure with the DSMC executable:
+To run the DSMC-enabled CTest suite:
 
 ```bash
-cmake -S . -B build-dsmc \
-  -DIAC_DSMC_EXECUTABLE=/Users/tstoffel1/dsmc/src/spa_mac_mpi
-cmake --build build-dsmc
-ctest --test-dir build-dsmc --output-on-failure
+ctest --preset dsmc
 ```
 
 The normal standalone build does not include DSMC tests. A DSMC-enabled build
@@ -115,7 +115,7 @@ or run the generator directly:
 
 ```bash
 python3 tools/run-dsmc-kinetic-convergence.py \
-  --dsmc /Users/tstoffel1/dsmc/src/spa_mac_mpi \
+  --dsmc build-dsmc/bin/dsmc-iac \
   --steps 5,20,80 \
   --loops 6 \
   --resolution 10 \
@@ -152,7 +152,7 @@ The repository also includes a DSMC visualization input:
 
 ```bash
 cd examples/dsmc-sphere-visual
-/Users/tstoffel1/dsmc/src/spa_mac_mpi \
+../../build-dsmc/bin/dsmc-iac \
   -screen none -log output/log.sparta -in in.dsmc-sphere-visual
 python3 ../../tools/convert-dsmc-visual.py .
 ```
