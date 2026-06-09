@@ -81,8 +81,37 @@ void Voxel::command(int narg, char **arg) {
       cfg.slab.nz = std::atoi(nz);
       cfg.slab.dx = std::atof(dx);
       cfg.slab.material = material;
+    } else if (std::strcmp(arg[2], "tiff") == 0) {
+      cfg.geometry = iac::GeometryKind::Tiff;
+      const char *file = value_after(narg - 3, arg + 3, "file");
+      const char *dx = value_after(narg - 3, arg + 3, "dx");
+      const char *threshold = value_after(narg - 3, arg + 3, "threshold");
+      const char *material = value_after(narg - 3, arg + 3, "material");
+      const char *invert = value_after(narg - 3, arg + 3, "invert");
+      const char *ox = value_after(narg - 3, arg + 3, "ox");
+      const char *oy = value_after(narg - 3, arg + 3, "oy");
+      const char *oz = value_after(narg - 3, arg + 3, "oz");
+      if (!file || !dx || !threshold || !material) {
+        error->all(FLERR, "voxel create tiff requires file, dx, threshold, and material");
+      }
+      cfg.tiff.file = file;
+      cfg.tiff.dx = std::atof(dx);
+      cfg.tiff.threshold = std::atof(threshold);
+      cfg.tiff.material = material;
+      if (invert) {
+        cfg.tiff.invert = parse_bool(invert);
+      }
+      if (ox) {
+        cfg.tiff.origin[0] = std::atof(ox);
+      }
+      if (oy) {
+        cfg.tiff.origin[1] = std::atof(oy);
+      }
+      if (oz) {
+        cfg.tiff.origin[2] = std::atof(oz);
+      }
     } else {
-      error->all(FLERR, "voxel create style must be slab or sphere");
+      error->all(FLERR, "voxel create style must be slab, sphere, or tiff");
     }
     cfg.timestep.kind = iac::TimestepKind::Explicit;
     cfg.timestep.value = update->dt > 0.0 ? update->dt : 1.0;
@@ -162,6 +191,28 @@ void Voxel::command(int narg, char **arg) {
       dump.scalar = scalar_value;
     }
     cfg.dumps.push_back(std::move(dump));
+    IACBridge::reset_model();
+    return;
+  }
+
+  if (std::strcmp(arg[0], "ghost") == 0) {
+    if (narg < 7) {
+      error->all(FLERR, "Illegal voxel ghost command");
+    }
+    iac::VoxelGhostCommand ghost;
+    ghost.voxels = arg[1];
+    const char *axis = value_after(narg - 2, arg + 2, "axis");
+    const char *boundary = value_after(narg - 2, arg + 2, "boundary");
+    const char *layers = value_after(narg - 2, arg + 2, "layers");
+    if (!axis || !boundary) {
+      error->all(FLERR, "voxel ghost requires axis and boundary");
+    }
+    ghost.axis = axis;
+    ghost.boundary = boundary;
+    if (layers) {
+      ghost.layers = std::atoi(layers);
+    }
+    cfg.ghosts.push_back(std::move(ghost));
     IACBridge::reset_model();
     return;
   }

@@ -28,6 +28,9 @@ add_library(isthmus_ablation_core
 
 target_include_directories(isthmus_ablation_core PUBLIC include)
 
+find_package(TIFF REQUIRED)
+target_link_libraries(isthmus_ablation_core PUBLIC TIFF::TIFF)
+
 set(ISTHMUS_ROOT "" CACHE PATH "Optional root directory of an ISTHMUS checkout/build")
 if(NOT ISTHMUS_ROOT AND DEFINED ENV{ISTHMUS_ROOT})
   set(ISTHMUS_ROOT "$ENV{ISTHMUS_ROOT}" CACHE PATH "Optional root directory of an ISTHMUS checkout/build" FORCE)
@@ -104,6 +107,14 @@ if(IAC_ISTHMUS_INCLUDE_DIRS)
   endforeach()
 endif()
 
+set(IAC_DSMC_OVERLAY_TIFF_ARGS)
+foreach(_iac_tiff_include IN LISTS TIFF_INCLUDE_DIRS)
+  list(APPEND IAC_DSMC_OVERLAY_TIFF_ARGS --tiff-include "${_iac_tiff_include}")
+endforeach()
+foreach(_iac_tiff_lib IN LISTS TIFF_LIBRARIES)
+  list(APPEND IAC_DSMC_OVERLAY_TIFF_ARGS --tiff-lib "${_iac_tiff_lib}")
+endforeach()
+
 if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND isthmus_cpp_FOUND AND Python3_Interpreter_FOUND AND IAC_MAKE_EXECUTABLE)
   add_custom_target(
     dsmc
@@ -115,6 +126,7 @@ if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND isthmus_cpp_FOUND AND Python3_Interpre
             --iac-lib $<TARGET_FILE:isthmus_ablation_core>
             --isthmus-lib ${IAC_ISTHMUS_LIBRARY}
             ${IAC_DSMC_OVERLAY_ISTHMUS_INCLUDE_ARGS}
+            ${IAC_DSMC_OVERLAY_TIFF_ARGS}
     COMMAND ${CMAKE_COMMAND} -E chdir ${IAC_DSMC_OVERLAY_SRC}
             ${IAC_MAKE_EXECUTABLE} ${DSMC_MACHINE}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bin

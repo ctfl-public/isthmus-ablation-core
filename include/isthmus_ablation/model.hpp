@@ -114,6 +114,7 @@ private:
   void validate_and_initialize();
   void initialize_slab();
   void initialize_sphere();
+  void initialize_tiff();
   void derive_timestep();
   void validate_ablation(const AblationCommand &ablate, const std::string &context) const;
   void validate_isthmus_surface(const IsthmusSurfaceCommand &surface) const;
@@ -143,6 +144,7 @@ private:
   void print_row(std::ostream &out, const HistoryRow &row) const;
 
   std::size_t index(int ix, int iy, int iz) const;
+  double voxel_dx() const;
   int grid_nx() const;
   int grid_ny() const;
   int grid_nz() const;

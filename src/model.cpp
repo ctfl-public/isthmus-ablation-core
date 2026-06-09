@@ -12,6 +12,8 @@
 #include <sstream>
 #include <unordered_map>
 
+#include <tiffio.h>
+
 #ifdef IAC_HAS_ISTHMUS
 #include <isthmus/geometry.hpp>
 #include <isthmus/marching_windows.hpp>
@@ -234,8 +236,7 @@ void Model::set_timestep_from_source_courant(double courant, const std::string &
   if (config_.source.value <= 0.0) {
     throw RuntimeError("mass/courant timestep requires a positive source");
   }
-  const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx : config_.sphere.dx;
-  set_timestep(courant * config_.material.density * dx / config_.source.value);
+  set_timestep(courant * config_.material.density * voxel_dx() / config_.source.value);
 }
 
 void Model::reset_run_state() {
@@ -374,8 +375,14 @@ void Model::validate_and_initialize() {
   if (config_.material.name.empty() || config_.material.density <= 0.0) {
     throw RuntimeError("voxel material requires a positive density");
   }
-  const std::string geometry_material =
-      config_.geometry == GeometryKind::Slab ? config_.slab.material : config_.sphere.material;
+  std::string geometry_material;
+  if (config_.geometry == GeometryKind::Slab) {
+    geometry_material = config_.slab.material;
+  } else if (config_.geometry == GeometryKind::Sphere) {
+    geometry_material = config_.sphere.material;
+  } else if (config_.geometry == GeometryKind::Tiff) {
+    geometry_material = config_.tiff.material;
+  }
   if (geometry_material != config_.material.name) {
     throw RuntimeError("voxel create references unknown material '" + geometry_material + "'");
   }
@@ -428,6 +435,9 @@ void Model::validate_and_initialize() {
     }
     voxel_mass_ = config_.material.density * std::pow(config_.sphere.dx, 3);
     initialize_sphere();
+  } else if (config_.geometry == GeometryKind::Tiff) {
+    voxel_mass_ = config_.material.density * std::pow(config_.tiff.dx, 3);
+    initialize_tiff();
   } else {
     throw RuntimeError("voxel create requires a supported geometry");
   }
@@ -500,6 +510,124 @@ void Model::initialize_sphere() {
   }
 }
 
+void Model::initialize_tiff() {
+  auto &g = config_.tiff;
+  if (g.file.empty() || g.dx <= 0.0) {
+    throw RuntimeError("voxel create tiff requires file and positive dx");
+  }
+
+  TIFF *tiff = TIFFOpen(g.file.c_str(), "r");
+  if (tiff == nullptr) {
+    throw RuntimeError("could not open TIFF file '" + g.file + "'");
+  }
+
+  struct TiffCloser {
+    TIFF *handle = nullptr;
+    ~TiffCloser() {
+      if (handle != nullptr) {
+        TIFFClose(handle);
+      }
+    }
+  } closer{tiff};
+
+  std::vector<std::vector<double>> slices;
+  uint32_t width = 0;
+  uint32_t height = 0;
+  int slice = 0;
+  do {
+    uint32_t current_width = 0;
+    uint32_t current_height = 0;
+    uint16_t bits_per_sample = 0;
+    uint16_t samples_per_pixel = 1;
+    TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &current_width);
+    TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &current_height);
+    TIFFGetField(tiff, TIFFTAG_BITSPERSAMPLE, &bits_per_sample);
+    TIFFGetFieldDefaulted(tiff, TIFFTAG_SAMPLESPERPIXEL, &samples_per_pixel);
+    if (current_width == 0 || current_height == 0) {
+      throw RuntimeError("TIFF file contains an empty image directory");
+    }
+    if (samples_per_pixel != 1) {
+      throw RuntimeError("voxel create tiff currently requires one sample per pixel");
+    }
+    if (bits_per_sample != 8 && bits_per_sample != 16) {
+      throw RuntimeError("voxel create tiff currently supports 8-bit or 16-bit images");
+    }
+    if (slice == 0) {
+      width = current_width;
+      height = current_height;
+    } else if (current_width != width || current_height != height) {
+      throw RuntimeError("TIFF stack directories must all have the same dimensions");
+    }
+
+    const tsize_t scanline_size = TIFFScanlineSize(tiff);
+    if (scanline_size <= 0) {
+      throw RuntimeError("could not determine TIFF scanline size");
+    }
+    std::vector<unsigned char> scanline(static_cast<std::size_t>(scanline_size));
+    std::vector<double> values(static_cast<std::size_t>(width) * height, 0.0);
+    for (uint32_t row = 0; row < height; ++row) {
+      if (TIFFReadScanline(tiff, scanline.data(), row, 0) < 0) {
+        throw RuntimeError("error reading TIFF scanline from '" + g.file + "'");
+      }
+      for (uint32_t col = 0; col < width; ++col) {
+        if (bits_per_sample == 8) {
+          values[static_cast<std::size_t>(row) * width + col] = scanline[col];
+        } else {
+          const auto *data = reinterpret_cast<const uint16_t *>(scanline.data());
+          values[static_cast<std::size_t>(row) * width + col] = data[col];
+        }
+      }
+    }
+    slices.push_back(std::move(values));
+    ++slice;
+  } while (TIFFReadDirectory(tiff));
+
+  if (slices.empty()) {
+    throw RuntimeError("TIFF file contains no image directories");
+  }
+  if (width > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
+      height > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
+      slices.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+    throw RuntimeError("TIFF stack is too large for current voxel index storage");
+  }
+
+  g.nx = static_cast<int>(slices.size());
+  g.ny = static_cast<int>(height);
+  g.nz = static_cast<int>(width);
+
+  voxels_.clear();
+  voxels_.reserve(static_cast<std::size_t>(g.nx) * g.ny * g.nz);
+  std::size_t id = 0;
+  for (int ix = 0; ix < g.nx; ++ix) {
+    const auto &slice_values = slices[static_cast<std::size_t>(ix)];
+    for (int iy = 0; iy < g.ny; ++iy) {
+      for (int iz = 0; iz < g.nz; ++iz) {
+        const double value =
+            slice_values[static_cast<std::size_t>(iy) * static_cast<std::size_t>(g.nz) +
+                         static_cast<std::size_t>(iz)];
+        const bool above = value >= g.threshold;
+        const bool active = g.invert ? !above : above;
+        voxels_.push_back(Voxel{id++,
+                                ix,
+                                iy,
+                                iz,
+                                g.origin[0] + (static_cast<double>(ix) + 0.5) * g.dx,
+                                g.origin[1] + (static_cast<double>(iy) + 0.5) * g.dx,
+                                g.origin[2] + (static_cast<double>(iz) + 0.5) * g.dx,
+                                active ? voxel_mass_ : 0.0,
+                                active,
+                                false});
+      }
+    }
+  }
+
+  initial_mass_ = remaining_mass();
+  initial_active_voxels_ = active_voxel_count();
+  if (initial_active_voxels_ <= 0) {
+    throw RuntimeError("voxel create tiff produced no active voxels");
+  }
+}
+
 void Model::derive_timestep() {
   if (config_.timestep.kind == TimestepKind::Explicit) {
     dt_ = config_.timestep.value;
@@ -520,9 +648,8 @@ void Model::derive_timestep() {
     throw RuntimeError("mass/courant timestep requires a positive source");
   }
 
-  const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx : config_.sphere.dx;
   const double safe_dt =
-      config_.timestep.courant * config_.material.density * dx / config_.source.value;
+      config_.timestep.courant * config_.material.density * voxel_dx() / config_.source.value;
   dt_ = safe_dt;
 }
 
@@ -811,7 +938,7 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
   (void)surface;
   throw RuntimeError("isthmus surface requires building with ISTHMUS C++ support");
 #else
-  const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx : config_.sphere.dx;
+  const double dx = voxel_dx();
 
   const auto records = surface_voxel_records();
   if (records.empty()) {
@@ -905,7 +1032,7 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
 }
 
 std::vector<Model::SurfaceVoxelRecord> Model::surface_voxel_records() const {
-  const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx : config_.sphere.dx;
+  const double dx = voxel_dx();
   std::vector<SurfaceVoxelRecord> records;
   records.reserve(voxels_.size());
   std::set<std::array<int, 4>> seen;
@@ -1229,10 +1356,10 @@ HistoryRow Model::make_history_row(int step, double time) const {
   const double remaining = remaining_mass();
   const int front = front_ix();
   const double discrete_front =
-      config_.geometry == GeometryKind::Slab
-          ? (front < 0 ? static_cast<double>(config_.slab.nx) * config_.slab.dx
-                       : static_cast<double>(front) * config_.slab.dx)
-          : 0.0;
+      config_.geometry == GeometryKind::Sphere
+          ? 0.0
+          : (front < 0 ? static_cast<double>(grid_nx()) * voxel_dx()
+                       : static_cast<double>(front) * voxel_dx());
 
   HistoryRow row;
   row.step = step;
@@ -1349,7 +1476,7 @@ void Model::write_vtu(const VoxelDump &dump, int step) const {
     selected.push_back(&voxel);
   }
 
-  const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx : config_.sphere.dx;
+  const double dx = voxel_dx();
   out << std::setprecision(17);
   out << "<?xml version=\"1.0\"?>\n";
   out << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">\n";
@@ -1537,16 +1664,14 @@ void Model::write_verification_csv(const std::string &path) const {
   for (const auto &check : config_.checks) {
     const std::string quantity = normalize_quantity(check.quantity);
     for (const auto &row : history_) {
-      const auto &g = config_.slab;
-      const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx
-                                                               : config_.sphere.dx;
-      const double length = config_.geometry == GeometryKind::Slab
-                                ? static_cast<double>(g.nx) * g.dx
-                                : config_.sphere.diameter;
-      const double area = config_.geometry == GeometryKind::Slab
-                              ? static_cast<double>(g.ny) * static_cast<double>(g.nz) *
-                                    g.dx * g.dx
-                              : 4.0 * std::acos(-1.0) * row.radius * row.radius;
+      const double dx = voxel_dx();
+      const double length = config_.geometry == GeometryKind::Sphere
+                                ? config_.sphere.diameter
+                                : static_cast<double>(grid_nx()) * dx;
+      const double area = config_.geometry == GeometryKind::Sphere
+                              ? 4.0 * std::acos(-1.0) * row.radius * row.radius
+                              : static_cast<double>(grid_ny()) * static_cast<double>(grid_nz()) *
+                                    dx * dx;
       const double initial_radius =
           config_.geometry == GeometryKind::Sphere ? 0.5 * config_.sphere.diameter : 0.0;
       std::unordered_map<std::string, double> variables{
@@ -1557,9 +1682,9 @@ void Model::write_verification_csv(const std::string &path) const {
           {"rho", config_.material.density},
           {"density", config_.material.density},
           {"dx", dx},
-          {"nx", static_cast<double>(g.nx)},
-          {"ny", static_cast<double>(g.ny)},
-          {"nz", static_cast<double>(g.nz)},
+          {"nx", static_cast<double>(grid_nx())},
+          {"ny", static_cast<double>(grid_ny())},
+          {"nz", static_cast<double>(grid_nz())},
           {"length", length},
           {"diameter", config_.sphere.diameter},
           {"initial-radius", initial_radius},
@@ -1630,16 +1755,14 @@ double Model::verification_error(const VerificationCheck &check) const {
   double max_error = 0.0;
   int count = 0;
   const auto evaluate_row = [&](const HistoryRow &row) {
-    const auto &g = config_.slab;
-    const double dx = config_.geometry == GeometryKind::Slab ? config_.slab.dx
-                                                             : config_.sphere.dx;
-    const double length = config_.geometry == GeometryKind::Slab
-                              ? static_cast<double>(g.nx) * g.dx
-                              : config_.sphere.diameter;
-    const double area = config_.geometry == GeometryKind::Slab
-                            ? static_cast<double>(g.ny) * static_cast<double>(g.nz) *
-                                  g.dx * g.dx
-                            : 4.0 * std::acos(-1.0) * row.radius * row.radius;
+    const double dx = voxel_dx();
+    const double length = config_.geometry == GeometryKind::Sphere
+                              ? config_.sphere.diameter
+                              : static_cast<double>(grid_nx()) * dx;
+    const double area = config_.geometry == GeometryKind::Sphere
+                            ? 4.0 * std::acos(-1.0) * row.radius * row.radius
+                            : static_cast<double>(grid_ny()) * static_cast<double>(grid_nz()) *
+                                  dx * dx;
     const double initial_radius =
         config_.geometry == GeometryKind::Sphere ? 0.5 * config_.sphere.diameter : 0.0;
     std::unordered_map<std::string, double> variables{
@@ -1650,9 +1773,9 @@ double Model::verification_error(const VerificationCheck &check) const {
         {"rho", config_.material.density},
         {"density", config_.material.density},
         {"dx", dx},
-        {"nx", static_cast<double>(g.nx)},
-        {"ny", static_cast<double>(g.ny)},
-        {"nz", static_cast<double>(g.nz)},
+        {"nx", static_cast<double>(grid_nx())},
+        {"ny", static_cast<double>(grid_ny())},
+        {"nz", static_cast<double>(grid_nz())},
         {"length", length},
         {"diameter", config_.sphere.diameter},
         {"initial-radius", initial_radius},
@@ -1855,6 +1978,14 @@ void Model::print_run_summary(std::ostream &out) const {
       out << "#   resolution = " << config_.sphere.resolution << " voxels across diameter\n";
     }
     out << "#   dx = " << config_.sphere.dx << " m\n";
+  } else if (config_.geometry == GeometryKind::Tiff) {
+    const auto &g = config_.tiff;
+    out << "#   geometry = tiff\n";
+    out << "#   file = " << g.file << '\n';
+    out << "#   grid = " << g.nx << " x " << g.ny << " x " << g.nz << '\n';
+    out << "#   dx = " << std::setprecision(8) << g.dx << " m\n";
+    out << "#   threshold = " << g.threshold << '\n';
+    out << "#   invert = " << (g.invert ? "yes" : "no") << '\n';
   }
   out << "#   material = " << config_.material.name << '\n';
   out << "#   density = " << config_.material.density << " kg/m^3\n";
@@ -1912,16 +2043,35 @@ std::size_t Model::index(int ix, int iy, int iz) const {
          static_cast<std::size_t>(iz);
 }
 
+double Model::voxel_dx() const {
+  if (config_.geometry == GeometryKind::Slab) {
+    return config_.slab.dx;
+  }
+  if (config_.geometry == GeometryKind::Sphere) {
+    return config_.sphere.dx;
+  }
+  if (config_.geometry == GeometryKind::Tiff) {
+    return config_.tiff.dx;
+  }
+  return 0.0;
+}
+
 int Model::grid_nx() const {
   if (config_.geometry == GeometryKind::Slab) {
     return config_.slab.nx;
   }
-  return static_cast<int>(std::ceil(config_.sphere.diameter / config_.sphere.dx));
+  if (config_.geometry == GeometryKind::Sphere) {
+    return static_cast<int>(std::ceil(config_.sphere.diameter / config_.sphere.dx));
+  }
+  return config_.tiff.nx;
 }
 
 int Model::grid_ny() const {
   if (config_.geometry == GeometryKind::Slab) {
     return config_.slab.ny;
+  }
+  if (config_.geometry == GeometryKind::Tiff) {
+    return config_.tiff.ny;
   }
   return grid_nx();
 }
@@ -1930,6 +2080,9 @@ int Model::grid_nz() const {
   if (config_.geometry == GeometryKind::Slab) {
     return config_.slab.nz;
   }
+  if (config_.geometry == GeometryKind::Tiff) {
+    return config_.tiff.nz;
+  }
   return grid_nx();
 }
 
@@ -1937,18 +2090,20 @@ std::array<double, 3> Model::carryover_center() const {
   if (config_.geometry == GeometryKind::Sphere) {
     return {{0.0, 0.0, 0.0}};
   }
-  const auto &g = config_.slab;
-  return {{0.5 * static_cast<double>(g.nx) * g.dx,
-           0.5 * static_cast<double>(g.ny) * g.dx,
-           0.5 * static_cast<double>(g.nz) * g.dx}};
+  const auto lo = real_domain_lo();
+  const auto hi = real_domain_hi();
+  return {{0.5 * (lo[0] + hi[0]), 0.5 * (lo[1] + hi[1]), 0.5 * (lo[2] + hi[2])}};
 }
 
 std::array<double, 3> Model::real_domain_lo() const {
   if (config_.geometry == GeometryKind::Slab) {
     return {{0.0, 0.0, 0.0}};
   }
+  if (config_.geometry == GeometryKind::Tiff) {
+    return config_.tiff.origin;
+  }
 
-  const double dx = config_.sphere.dx;
+  const double dx = voxel_dx();
   std::array<double, 3> lo{{0.0, 0.0, 0.0}};
   bool initialized = false;
   for (const auto &voxel : voxels_) {
@@ -1975,8 +2130,14 @@ std::array<double, 3> Model::real_domain_hi() const {
     return {{static_cast<double>(g.nx) * g.dx, static_cast<double>(g.ny) * g.dx,
              static_cast<double>(g.nz) * g.dx}};
   }
+  if (config_.geometry == GeometryKind::Tiff) {
+    const auto &g = config_.tiff;
+    return {{g.origin[0] + static_cast<double>(g.nx) * g.dx,
+             g.origin[1] + static_cast<double>(g.ny) * g.dx,
+             g.origin[2] + static_cast<double>(g.nz) * g.dx}};
+  }
 
-  const double dx = config_.sphere.dx;
+  const double dx = voxel_dx();
   std::array<double, 3> hi{{0.0, 0.0, 0.0}};
   bool initialized = false;
   for (const auto &voxel : voxels_) {

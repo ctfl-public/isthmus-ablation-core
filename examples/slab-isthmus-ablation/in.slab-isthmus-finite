@@ -11,7 +11,7 @@ source q1 constant 1.8 units kg/m2/s
 timestep mass/courant 0.5 source q1
 
 stats 1
-stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction front requested-mass-step applied-mass-step dropped-mass-step
+stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction front
 
 voxel dump hist solid history 1 output/slab-isthmus-finite/history.csv
 voxel dump vox solid vtu 1 output/slab-isthmus-finite/voxels_*.vtu select active scalar mass-fraction

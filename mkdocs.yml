@@ -44,6 +44,7 @@ nav:
       - ISTHMUS Slab Ablation: examples/slab-isthmus.md
       - Sphere ISTHMUS Ablation: examples/sphere-isthmus.md
       - DSMC Sphere Kinetic Example: examples/dsmc-sphere-kinetic.md
+      - TIFF Carbon Sample Examples: examples/tiff-carbon-sample.md
   - Development:
       - Directory Layout: development/directory-layout.md
       - Build And Link: development/build-and-link.md

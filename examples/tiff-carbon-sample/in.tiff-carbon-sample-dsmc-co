@@ -1,0 +1,67 @@
+# DSMC-hosted TIFF-import voxel/ISTHMUS recession example.
+# O2 reacts at the imported carbon surface to form CO; reaction counts are
+# mapped back to TIFF-derived voxels and ablated with normal carryover.
+
+shell               mkdir output
+
+seed                12345
+dimension           3
+global              nrho 7.244e23 fnum 1.0e9 gridcut 0.0 surfmax 4000 splitmax 400 comm/sort yes nedgebadnum 500
+timestep            1.0e-7
+
+boundary            o o o
+create_box          -5.0e-5 1.0e-4 -2.0e-5 1.0e-4 -2.0e-5 1.0e-4
+create_grid         15 15 15
+
+species             air.species O2 N2 CO
+mixture             air O2 frac 0.21
+mixture             air N2 frac 0.79
+mixture             air CO frac 0.0
+mixture             air temp 5000.0 vstream 0.0 0.0 0.0
+collide             vss air air.vss
+
+voxel material carbon density 1800.0
+voxel create solid tiff file carbon-sample-top-crop.tif dx 3.3757e-6 threshold 1 invert yes material carbon
+voxel ghost solid axis y boundary infinite layers 1
+voxel ghost solid axis z boundary infinite layers 1
+isthmus surface skin voxels solid buffer 1 weighting no map yes
+surface install skin particle none type 1
+
+surf_collide        1 diffuse 5000.0 1.0
+surf_react          ox prob carbon-co.surf
+surf_modify         all collide 1 react ox
+compute             rco react/surf all ox
+
+create_particles    air n 0 twopass
+
+stats_style         step cpu np nscoll nscheck
+stats_modify        flush yes
+stats               100000
+
+voxel write-vtu     solid output/voxels-*.vtu select active scalar mass-fraction
+surface write-vtp   skin output/surface-*.vtp
+
+variable            i loop 12
+label               coupled-loop
+
+scale_particles     air 0.0
+create_particles    air n 0 twopass
+
+fix                 rco ave/surf all 1 20 20 c_rco[*] ave one
+run                 20 post no
+
+surface write-vtp   skin output/surface-*.vtp fix rco fields co-reaction-count
+surface flux skin dsmc/reaction fix rco column 1 sample-steps 20 solid-mass-per-reaction 3.98894696e-26 time-scale 500
+unfix               rco
+voxel ablate solid surface skin policy carryover/normal delete yes
+voxel write-vtu     solid output/voxels-*.vtu select active scalar mass-fraction
+
+remove_surf         all
+isthmus surface skin voxels solid buffer 1 weighting no map yes
+surface install skin particle none type 1
+surf_modify         all collide 1 react ox
+
+next                i
+jump                SELF coupled-loop
+
+voxel write-history solid output/tiff-carbon-sample-dsmc-co-history.csv

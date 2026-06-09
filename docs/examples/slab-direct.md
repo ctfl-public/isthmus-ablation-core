@@ -18,7 +18,7 @@ timestep mass/courant 0.5 source q1
 # fix ab all voxel/ablate 1 voxels solid source q1 policy local face xlo delete yes
 
 stats 1
-stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction front
+stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction front
 
 voxel dump hist solid history 1 output/slab-direct-ablation/history.csv
 voxel dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mass-fraction

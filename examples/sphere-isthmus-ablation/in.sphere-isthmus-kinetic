@@ -8,7 +8,7 @@ source qkin constant 0.9 units kg/m2/s
 timestep mass/courant 0.5 source qkin
 
 stats 1
-stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction radius requested-mass-step applied-mass-step dropped-mass-step
+stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction radius
 
 voxel dump hist solid history 1 output/sphere-isthmus-kinetic/history.csv
 voxel dump vox solid vtu 1 output/sphere-isthmus-kinetic/voxels_*.vtu select active scalar mass-fraction

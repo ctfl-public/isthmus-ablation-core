@@ -255,9 +255,32 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
                 config.sphere.diameter / static_cast<double>(config.sphere.resolution);
           }
           config.sphere.material = required(values, "material", line_number);
+        } else if (kind == "tiff") {
+          config.geometry = GeometryKind::Tiff;
+          config.tiff.file = required(values, "file", line_number);
+          config.tiff.dx = parse_double(required(values, "dx", line_number), line_number);
+          config.tiff.threshold =
+              parse_double(required(values, "threshold", line_number), line_number);
+          config.tiff.material = required(values, "material", line_number);
+          const auto invert = values.find("invert");
+          if (invert != values.end()) {
+            config.tiff.invert = parse_bool(invert->second, line_number);
+          }
+          const auto ox = values.find("ox");
+          const auto oy = values.find("oy");
+          const auto oz = values.find("oz");
+          if (ox != values.end()) {
+            config.tiff.origin[0] = parse_double(ox->second, line_number);
+          }
+          if (oy != values.end()) {
+            config.tiff.origin[1] = parse_double(oy->second, line_number);
+          }
+          if (oz != values.end()) {
+            config.tiff.origin[2] = parse_double(oz->second, line_number);
+          }
         } else {
           throw InputError(line_error(
-              line_number, "voxel create geometry must be slab or sphere"));
+              line_number, "voxel create geometry must be slab, sphere, or tiff"));
         }
       } else if (subcommand == "dump") {
         if (tokens.size() == 3 && tokens[2] == "off") {

@@ -56,6 +56,7 @@ ctest --preset standalone
 ## Current Capabilities
 
 - Create a slab voxel model.
+- Import a small 8-bit or 16-bit single-sample TIFF stack as voxels.
 - Assign material density.
 - Define a constant mass-loss source.
 - Use explicit or mass-Courant timesteps.
@@ -119,7 +120,7 @@ source q1 constant 1.8 units kg/m2/s
 timestep mass/courant 0.5 source q1
 
 stats 1
-stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction front
+stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction front
 
 voxel dump hist solid history 1 output/slab-direct-ablation/history.csv
 voxel dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mass-fraction

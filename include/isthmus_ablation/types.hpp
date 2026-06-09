@@ -36,10 +36,23 @@ struct SphereGeometry {
   std::string material;
 };
 
+struct TiffGeometry {
+  std::string file;
+  double dx = 0.0;
+  double threshold = 1.0;
+  bool invert = false;
+  std::string material;
+  std::array<double, 3> origin{{0.0, 0.0, 0.0}};
+  int nx = 0;
+  int ny = 0;
+  int nz = 0;
+};
+
 enum class GeometryKind {
   None,
   Slab,
   Sphere,
+  Tiff,
 };
 
 struct ConstantSource {
@@ -191,6 +204,7 @@ struct Config {
   Material material;
   SlabGeometry slab;
   SphereGeometry sphere;
+  TiffGeometry tiff;
   ConstantSource source;
   Timestep timestep;
   AblationFix fix;
