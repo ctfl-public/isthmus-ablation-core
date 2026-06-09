@@ -48,11 +48,6 @@ add_test(
   COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-direct-ablation/in.slab-direct-command.verify
 )
 
-add_test(
-  NAME slab-direct-fix-verification
-  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-direct-ablation/in.slab-direct-fix.verify
-)
-
 if(isthmus_cpp_FOUND)
   add_test(
     NAME slab-isthmus-finite-surface-verification

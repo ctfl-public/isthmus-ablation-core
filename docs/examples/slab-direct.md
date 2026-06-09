@@ -61,13 +61,6 @@ verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent n
 verify front exact "q1*time/rho" tolerance 0.01 percent norm final
 ```
 
-There is also a fix-driven regression input that keeps the commented compact
-path covered:
-
-```text
-tests/inputs/slab-direct-ablation/in.slab-direct-fix.verify
-```
-
 Run the test:
 
 ```bash

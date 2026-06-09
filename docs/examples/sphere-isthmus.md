@@ -39,9 +39,6 @@ build/ia-core -in examples/sphere-isthmus-ablation/in.sphere-isthmus-normal
 ## Outputs
 
 ```text
-output/sphere-isthmus-ablation/history.csv
-output/sphere-isthmus-ablation/voxels_*.vtu
-output/sphere-isthmus-ablation/surface_*.vtp
 output/sphere-isthmus-local/
 output/sphere-isthmus-normal/
 ```

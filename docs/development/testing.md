@@ -39,7 +39,7 @@ To select a subset directly:
 
 ```bash
 python3 tools/run-test-report.py all
-python3 tools/run-test-report.py 1-2
+python3 tools/run-test-report.py 1-3
 python3 tools/run-test-report.py slab-direct-command-verification
 ```
 
@@ -47,11 +47,11 @@ The current regression tests are:
 
 ```text
 slab-direct-command-verification
-slab-direct-fix-verification
 slab-isthmus-finite-surface-verification
 slab-isthmus-ghost-wall-verification
 sphere-isthmus-local-deletion-verification
 sphere-isthmus-normal-carryover-verification
+sphere-isthmus-kinetic-theory-verification
 sphere-isthmus-normal-carryover-convergence
 ```
 
@@ -99,11 +99,11 @@ They run:
 
 ```text
 tests/inputs/slab-direct-ablation/in.slab-direct-command.verify
-tests/inputs/slab-direct-ablation/in.slab-direct-fix.verify
 tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite-surface.verify
 tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost-wall.verify
 tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify
 tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify
+tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-kinetic-theory.verify
 tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover-convergence.verify
 ```
 
