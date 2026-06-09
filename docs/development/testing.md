@@ -5,28 +5,28 @@ The project uses CTest.
 Build and run tests:
 
 ```bash
-cmake -S . -B build
-cmake --build build
-ctest --test-dir build --output-on-failure
+cmake --preset standalone
+cmake --build --preset standalone
+ctest --preset standalone --output-on-failure
 ```
 
 CTest captures output from passing tests by default. To see the stats table
 while the test runs, use verbose CTest output:
 
 ```bash
-ctest --test-dir build --output-on-failure --verbose
+ctest --preset standalone --output-on-failure --verbose
 ```
 
 or use the convenience target:
 
 ```bash
-cmake --build build --target check-verbose
+cmake --build --preset standalone --target check-verbose
 ```
 
 To build the optional visual verification report:
 
 ```bash
-cmake --build build --target test-report
+cmake --build --preset report
 ```
 
 This runs the tests, collects each configured test report CSV, and writes:
@@ -43,7 +43,7 @@ python3 tools/run-test-report.py 1-3
 python3 tools/run-test-report.py slab-direct-command-verification
 ```
 
-The current regression tests are:
+The standalone regression tests are:
 
 ```text
 slab-direct-command-verification
@@ -85,7 +85,7 @@ automatic CTest suite.
 To build the DSMC convergence report:
 
 ```bash
-cmake --build build-dsmc --target dsmc-convergence-report
+cmake --build --preset dsmc --target dsmc-convergence-report
 ```
 
 It writes:
@@ -95,7 +95,7 @@ build-dsmc/output/dsmc-sphere-kinetic-convergence/summary.csv
 build-dsmc/output/dsmc-sphere-kinetic-convergence/report.pdf
 ```
 
-They run:
+The standalone test report currently includes:
 
 ```text
 tests/inputs/slab-direct-ablation/in.slab-direct-command.verify

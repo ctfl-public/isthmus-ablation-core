@@ -44,7 +44,8 @@ widely used, and still keeps every page as readable Markdown.
 The repository also has a local PDF builder:
 
 ```bash
-python3 tools/build-docs-pdf.py
+cmake --preset standalone
+cmake --build --preset docs
 ```
 
 It writes:
@@ -53,11 +54,10 @@ It writes:
 docs/isthmus-ablation-core-manual.pdf
 ```
 
-The CMake build adds a convenience target when Python and `pdflatex` are
-available:
+The lower-level builder is:
 
 ```bash
-cmake --build build --target docs-pdf
+python3 tools/build-docs-pdf.py
 ```
 
 This PDF builder is intentionally lightweight. It is a dependable review

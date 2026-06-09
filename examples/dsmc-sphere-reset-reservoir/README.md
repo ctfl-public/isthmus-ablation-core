@@ -12,10 +12,11 @@ It removes gas-depletion history from the problem, so disagreement with the
 smooth analytical sphere recession mostly points at voxel/surface topology,
 normal carryover, and deep-remesh behavior.
 
-Run from this directory with:
+Build the DSMC overlay from the repository root, then run from this directory
+with:
 
 ```sh
-/Users/tstoffel1/dsmc/src/spa_mac_mpi -screen none -log output/log.sparta -in in.dsmc-sphere-reset-reservoir
+../../build-dsmc/bin/dsmc-iac -screen none -log output/log.sparta -in in.dsmc-sphere-reset-reservoir
 ```
 
 The history file is written to `output/history.csv`. The checked case uses 100

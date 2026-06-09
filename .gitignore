@@ -48,7 +48,9 @@ site/
 # Generated documentation artifacts
 docs/*.pdf
 !docs/isthmus-ablation-core-manual.pdf
+!docs/architecture_flowchart.pdf
 docs/*.png
+!docs/architecture_flowchart_preview-1.png
 
 # LaTeX intermediates
 *.aux

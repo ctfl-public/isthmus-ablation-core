@@ -9,6 +9,7 @@ manual rather than trying to be a complete Markdown implementation.
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -18,6 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 BUILD = ROOT / "build" / "docs"
 OUT_PDF = DOCS / "isthmus-ablation-core-manual.pdf"
+FLOWCHART_TEX = DOCS / "architecture_flowchart.tex"
+FLOWCHART_PDF = DOCS / "architecture_flowchart.pdf"
+FLOWCHART_PNG = DOCS / "architecture_flowchart_preview-1.png"
 
 PAGES = [
     ("Home", DOCS / "index.md"),
@@ -205,8 +209,64 @@ def build_tex() -> str:
 """ + "\n".join(body) + "\n\\end{document}\n"
 
 
+def build_flowchart_assets() -> int:
+    if not FLOWCHART_TEX.exists():
+        return 0
+
+    flowchart_build = BUILD / "flowchart"
+    flowchart_build.mkdir(parents=True, exist_ok=True)
+
+    compile_cmd = [
+        "pdflatex",
+        "-interaction=nonstopmode",
+        "-halt-on-error",
+        f"-output-directory={flowchart_build}",
+        str(FLOWCHART_TEX),
+    ]
+    completed = subprocess.run(compile_cmd, cwd=ROOT, text=True)
+    if completed.returncode != 0:
+        return completed.returncode
+
+    built_pdf = flowchart_build / "architecture_flowchart.pdf"
+    if not built_pdf.exists():
+        print(f"Expected flowchart PDF was not produced: {built_pdf}", file=sys.stderr)
+        return 1
+    FLOWCHART_PDF.write_bytes(built_pdf.read_bytes())
+
+    pdftoppm = shutil.which("pdftoppm")
+    if pdftoppm:
+        png_prefix = flowchart_build / "architecture_flowchart_preview"
+        completed = subprocess.run(
+            [pdftoppm, "-png", "-singlefile", "-r", "220", str(built_pdf), str(png_prefix)],
+            cwd=ROOT,
+            text=True,
+        )
+        if completed.returncode != 0:
+            return completed.returncode
+        built_png = flowchart_build / "architecture_flowchart_preview.png"
+        if built_png.exists():
+            FLOWCHART_PNG.write_bytes(built_png.read_bytes())
+            return 0
+
+    sips = shutil.which("sips")
+    if sips:
+        completed = subprocess.run(
+            [sips, "-s", "format", "png", str(built_pdf), "--out", str(FLOWCHART_PNG)],
+            cwd=ROOT,
+            text=True,
+        )
+        return completed.returncode
+
+    print("Need pdftoppm or sips to generate docs/architecture_flowchart_preview-1.png", file=sys.stderr)
+    return 1
+
+
 def main() -> int:
     BUILD.mkdir(parents=True, exist_ok=True)
+    flowchart_status = build_flowchart_assets()
+    if flowchart_status != 0:
+        return flowchart_status
+
     tex_path = BUILD / "isthmus-ablation-core-manual.tex"
     tex_path.write_text(build_tex(), encoding="utf-8")
 
