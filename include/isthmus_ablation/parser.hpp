@@ -1,6 +1,6 @@
 #pragma once
 
-#include "isthmus_ablation/types.hpp"
+#include "types.hpp"
 
 #include <string>
 #include <unordered_map>
