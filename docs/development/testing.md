@@ -70,25 +70,17 @@ ctest --test-dir build-dsmc --output-on-failure
 That build runs the standalone/core tests plus:
 
 ```text
-dsmc-sphere-kinetic-convergence
+dsmc-slab-direct-ablation-verification
+dsmc-sphere-isthmus-normal-carryover-verification
+dsmc-sphere-flux-verification
 ```
 
-The DSMC convergence test is intentionally kept out of the default standalone
-test set because it depends on an external DSMC executable and bridge files
-copied into DSMC.
-
-This convergence test varies the number of DSMC steps sampled before each
-coupled ablation update. It uses a fixed ablation time increment,
-`surface flux ... dsmc/surf ... ablation-dt 1.5e-4`, so all DSMC sampling
-lengths are compared at the same physical ablation times. The generated inputs
-use five voxel mass-ledger updates between DSMC/ISTHMUS refreshes. This keeps
-the case quick while still using DSMC surface tallies to set the flux.
-
-The test requires the final mass/radius error to decrease as the DSMC sampling
-length increases from 5 to 20 to 80 steps, and it compares mass fraction and
-equivalent radius against the uniform-gas analytical shrinking-sphere solution.
-Its trajectory plots use remaining mass fraction and radius recession in
-microns.
+The DSMC tests are intentionally fast. The flux verification is a one-step
+instantaneous kinetic-theory check: it verifies the initial O2 reaction count
+and equivalent carbon mass flux before the perfectly consuming surface depletes
+the nearby O2 population. Longer DSMC depletion and coupled-ablation studies
+remain available as examples and report targets, but they are not part of the
+automatic CTest suite.
 
 To build the DSMC convergence report:
 

@@ -83,6 +83,72 @@ def input_listing(path: Path | None) -> str:
   return path.read_text(encoding="utf-8")
 
 
+def included_input_paths(path: Path | None) -> list[Path]:
+  if path is None or not path.exists():
+    return []
+
+  seen: set[Path] = set()
+  ordered: list[Path] = []
+
+  def visit(current: Path) -> None:
+    try:
+      lines = current.read_text(encoding="utf-8").splitlines()
+    except OSError:
+      return
+    for line in lines:
+      stripped = line.strip()
+      if not stripped or stripped.startswith("#"):
+        continue
+      parts = stripped.split()
+      if len(parts) < 2 or parts[0] != "include":
+        continue
+      included = (current.parent / parts[1]).resolve()
+      if included in seen:
+        continue
+      seen.add(included)
+      ordered.append(included)
+      visit(included)
+
+  visit(path.resolve())
+  return ordered
+
+
+def input_sections(case: Case) -> str:
+  sections: list[str] = []
+  if case.input_path is None:
+    sections.append(
+        r"""
+\subsection{Test Input}
+No input listing was provided.
+"""
+    )
+    return "\n".join(sections)
+
+  sections.append(
+      rf"""
+\subsection{{Test Input}}
+\textbf{{Path:}} \texttt{{{tex_escape(str(case.input_path))}}}
+\begin{{Verbatim}}[fontsize=\scriptsize]
+{input_listing(case.input_path)}
+\end{{Verbatim}}
+"""
+  )
+
+  for path in included_input_paths(case.input_path):
+    sections.append(
+        rf"""
+\clearpage
+\subsection{{Included Input}}
+\textbf{{Path:}} \texttt{{{tex_escape(str(path))}}}
+\begin{{Verbatim}}[fontsize=\scriptsize]
+{input_listing(path)}
+\end{{Verbatim}}
+"""
+    )
+
+  return "\n".join(sections)
+
+
 def case_summary_rows(name: str, grouped: dict[str, list[dict[str, str]]]) -> list[str]:
   rows: list[str] = []
   for quantity, quantity_rows in grouped.items():
@@ -157,16 +223,15 @@ def build_case_section(case: Case, grouped: dict[str, list[dict[str, str]]]) -> 
   body = "\n".join(sections)
   convergence = build_convergence_section(read_convergence(case))
   return rf"""
+\clearpage
 \section{{{tex_escape(case.name)}}}
 
 \textbf{{Verification data:}} \texttt{{{tex_escape(str(case.csv_path))}}}
 
-\subsection*{{Input}}
-\begin{{Verbatim}}[fontsize=\scriptsize]
-{input_listing(case.input_path)}
-\end{{Verbatim}}
+{input_sections(case)}
 
-\subsection*{{Plots}}
+\clearpage
+\subsection{{Plots}}
 {body}
 {convergence}
 """
@@ -283,8 +348,11 @@ def build_tex(cases: list[Case]) -> str:
 \date{{}}
 \begin{{document}}
 \maketitle
+\tableofcontents
+\clearpage
 
 \section*{{Summary}}
+\addcontentsline{{toc}}{{section}}{{Summary}}
 \resizebox{{\textwidth}}{{!}}{{%
 \begin{{tabular}}{{llllll}}
 \toprule

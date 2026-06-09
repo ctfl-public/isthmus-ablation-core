@@ -23,13 +23,13 @@ surface flux <surface-id> dsmc/reaction fix <fix-id> column <N> \
 surface measure-flux <surface-id> dsmc/reaction fix <fix-id> column <N> \
   sample-steps <Nstep> expected kinetic/theory number-density <n> \
   mole-fraction <x> temperature <T> molecular-mass <kg> \
-  [reaction-prob <alpha>]
+  [reaction-prob <alpha>] [solid-mass-per-reaction <kg>]
 
 surface dump <dump-id> <surface-id> vtp <N> <path>
 surface dump off
 
 # DSMC bridge only:
-surface write-vtp <surface-id> <path> [fix <fix-id> fields <name1> ...]
+surface write-vtp <path> <surface-id> [fix <fix-id> fields <name1> ...]
 ```
 
 ## Examples
@@ -45,9 +45,10 @@ surface flux skin dsmc/surf fix sflux column 1 reaction-prob 1.0 \
   solid-mass-per-hit 1.99447348e-26 mass-courant 0.25
 surface flux skin dsmc/reaction fix rco column 1 sample-steps 20 \
   solid-mass-per-reaction 3.98894696e-26 time-scale 1500
-surface measure-flux skin dsmc/reaction fix rco column 1 sample-steps 80 \
+surface measure-flux skin dsmc/reaction fix rco column 1 sample-steps 1 \
   expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 \
-  temperature 5000.0 molecular-mass 5.31352e-26 reaction-prob 1.0
+  temperature 5000.0 molecular-mass 5.31352e-26 reaction-prob 1.0 \
+  solid-mass-per-reaction 3.98894696e-26
 
 surface dump skin skin vtp 10 output/sphere/surface_*.vtp
 surface dump off
@@ -125,6 +126,12 @@ expected-reaction-flux =
   reaction-prob * mole-fraction * number-density
   * sqrt(kB*temperature/(2*pi*molecular-mass))
 ```
+
+The command also stores `reaction-count-per-step` and
+`expected-reaction-count-per-step`, which are often the clearest DSMC sampling
+diagnostics. If `solid-mass-per-reaction` is supplied, it additionally stores
+`reaction-mass-flux` and `expected-reaction-mass-flux` in kg/m2/s by
+multiplying the number flux by the supplied solid mass consumed per reaction.
 
 This command is the first DSMC-hosted regression hook for the coupled path: it
 tests geometry generation, surface installation, DSMC surface chemistry

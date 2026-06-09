@@ -1,7 +1,6 @@
-# DSMC-hosted fixed-surface chemistry flux verification.
-# This case does not ablate. It checks that the DSMC executable can run
-# ia-core commands, measure surface reaction flux, and verify diagnostics
-# inside the DSMC input stream.
+# DSMC-hosted instantaneous fixed-surface chemistry flux verification.
+# This case does not ablate. It checks the initial O2 reaction count and
+# equivalent carbon mass flux before local O2 depletion develops.
 
 seed                12345
 dimension           3
@@ -29,16 +28,17 @@ surf_react          ox prob examples/dsmc-sphere-kinetic/carbon-co.surf
 surf_modify         all collide 1 react ox
 
 compute             rco react/surf all ox
-fix                 rco ave/surf all 1 80 80 c_rco[*] ave one
+fix                 rco ave/surf all 1 1 1 c_rco[*] ave one
 
 create_particles    air n 0 twopass
 fix                 reservoir emit/face air all twopass
 
 stats_style         step cpu np nscoll nscheck
-stats               80
-run                 80 post no
+stats               1
+run                 1 post no
 
-surface measure-flux skin dsmc/reaction fix rco column 1 sample-steps 80 expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 temperature 5000.0 molecular-mass 5.31352e-26 reaction-prob 1.0
+surface measure-flux skin dsmc/reaction fix rco column 1 sample-steps 1 expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 temperature 5000.0 molecular-mass 5.31352e-26 reaction-prob 1.0 solid-mass-per-reaction 3.98894696e-26
 
 iac verify surface-area exact expected-surface-area tolerance 2.0 percent
-iac verify reaction-flux exact expected-reaction-flux tolerance 65.0 percent
+iac verify reaction-count-per-step exact expected-reaction-count-per-step tolerance 5.0 percent
+iac verify reaction-mass-flux exact expected-reaction-mass-flux tolerance 5.0 percent

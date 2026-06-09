@@ -66,9 +66,11 @@ build/output/test-report-data/<test-name>/report.csv
 
 The report includes:
 
+- a table of contents for jumping to individual cases and input listings;
 - a global summary table with case name, quantity, error, tolerance, norm, and pass/fail;
-- one section per test case;
-- the input file listing for each case;
+- one section per test case, starting on a new page;
+- the test input listing for each case;
+- any input files included by the test input, also starting on new pages;
 - actual vs exact plots for each verified quantity;
 - error plots with tolerance lines for each verified quantity;
 - convergence order tables for convergence cases;

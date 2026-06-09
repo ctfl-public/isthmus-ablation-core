@@ -25,12 +25,14 @@ iac print <quantity>
 ## Examples
 
 ```text
-surface measure-flux skin dsmc/reaction fix rco column 1 sample-steps 80 \
+surface measure-flux skin dsmc/reaction fix rco column 1 sample-steps 1 \
   expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 \
-  temperature 5000.0 molecular-mass 5.31352e-26 reaction-prob 1.0
+  temperature 5000.0 molecular-mass 5.31352e-26 reaction-prob 1.0 \
+  solid-mass-per-reaction 3.98894696e-26
 
 iac verify surface-area exact expected-surface-area tolerance 2.0 percent
-iac verify reaction-flux exact expected-reaction-flux tolerance 65.0 percent
+iac verify reaction-count-per-step exact expected-reaction-count-per-step tolerance 5.0 percent
+iac verify reaction-mass-flux exact expected-reaction-mass-flux tolerance 5.0 percent
 iac print reaction-flux-error-percent
 
 source q1 constant 1.8 units kg/m2/s
@@ -70,16 +72,20 @@ refer to diagnostics registered by earlier bridge commands. For example,
 - `expected-surface-area`
 - `surface-area-error-percent`
 - `reaction-count-per-step`
+- `expected-reaction-count-per-step`
 - `reaction-flux`
 - `expected-reaction-flux`
 - `reaction-flux-ratio`
 - `reaction-flux-error-percent`
+- `reaction-mass-flux`, when `solid-mass-per-reaction` is provided
+- `expected-reaction-mass-flux`, when `solid-mass-per-reaction` is provided
 
-The current DSMC flux verification is deliberately broad because it documents a
-known setup problem: the sampled reaction flux in the current reservoir sphere
-case is substantially below the ideal-gas kinetic-theory value. The test still
-belongs in the suite because it proves that DSMC can host the core's
-diagnostic/verification machinery directly.
+The DSMC flux verification in `tests/inputs/dsmc-sphere-flux` is deliberately
+an instantaneous one-step test. It checks the initial kinetic-theory O2
+reaction count and equivalent solid mass flux before the perfectly consuming
+surface depletes the nearby O2 population. Longer depletion and coupled
+ablation cases belong in examples and report targets, not the default test
+suite.
 
 `iac print` writes one diagnostic to the DSMC screen and log. It is intended for
 small interactive probes and should not replace `iac verify` in regression

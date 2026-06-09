@@ -343,6 +343,7 @@ void Surface::command(int narg, char **arg) {
     const char *temperature_value = value_after(npairs, pairs, "temperature");
     const char *molecular_mass_value = value_after(npairs, pairs, "molecular-mass");
     const char *reaction_prob_value = value_after(npairs, pairs, "reaction-prob");
+    const char *solid_mass_value = value_after(npairs, pairs, "solid-mass-per-reaction");
     if (!expected || std::strcmp(expected, "kinetic/theory") != 0 ||
         !number_density_value || !mole_fraction_value || !temperature_value ||
         !molecular_mass_value) {
@@ -354,8 +355,10 @@ void Surface::command(int narg, char **arg) {
     const double temperature = std::atof(temperature_value);
     const double molecular_mass = std::atof(molecular_mass_value);
     const double reaction_prob = reaction_prob_value ? std::atof(reaction_prob_value) : 1.0;
+    const double solid_mass_per_reaction = solid_mass_value ? std::atof(solid_mass_value) : 0.0;
     if (number_density <= 0.0 || mole_fraction < 0.0 || temperature <= 0.0 ||
-        molecular_mass <= 0.0 || reaction_prob < 0.0 || reaction_prob > 1.0) {
+        molecular_mass <= 0.0 || reaction_prob < 0.0 || reaction_prob > 1.0 ||
+        (solid_mass_value && solid_mass_per_reaction <= 0.0)) {
       error->all(FLERR, "surface measure-flux expected kinetic/theory has invalid parameters");
     }
 
@@ -387,6 +390,8 @@ void Surface::command(int narg, char **arg) {
       model.set_diagnostic("surface-area", surface_area);
       model.set_diagnostic("expected-surface-area", area_exact);
       model.set_diagnostic("reaction-count-per-step", reaction_count_sum);
+      model.set_diagnostic("expected-reaction-count-per-step",
+                           expected_flux * surface_area * update->dt / update->fnum);
       model.set_diagnostic("sample-steps", static_cast<double>(sample_steps));
       model.set_diagnostic("reaction-flux", measured_flux);
       model.set_diagnostic("expected-reaction-flux", expected_flux);
@@ -394,6 +399,11 @@ void Surface::command(int narg, char **arg) {
       model.set_diagnostic("reaction-flux-error-percent",
                            100.0 * std::abs(measured_flux - expected_flux) /
                                std::abs(expected_flux));
+      if (solid_mass_value) {
+        model.set_diagnostic("reaction-mass-flux", measured_flux * solid_mass_per_reaction);
+        model.set_diagnostic("expected-reaction-mass-flux",
+                             expected_flux * solid_mass_per_reaction);
+      }
       model.set_diagnostic("surface-area-error-percent",
                            100.0 * std::abs(surface_area - area_exact) /
                                std::abs(area_exact));

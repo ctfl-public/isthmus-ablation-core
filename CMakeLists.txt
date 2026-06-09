@@ -80,24 +80,6 @@ if(isthmus_cpp_FOUND)
   )
 endif()
 
-if(Python3_Interpreter_FOUND AND IAC_DSMC_EXECUTABLE)
-  add_test(
-    NAME dsmc-sphere-kinetic-convergence
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-dsmc-kinetic-convergence.py
-            --dsmc ${IAC_DSMC_EXECUTABLE}
-            --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-convergence
-            --steps 5,20,80
-            --loops 6
-            --resolution 10
-            --ablation-update-time 0.001
-            --fnum 2.0e12
-            --tolerance-percent 5.0
-  )
-  set_tests_properties(dsmc-sphere-kinetic-convergence PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  )
-endif()
-
 if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
   add_test(
     NAME dsmc-slab-direct-ablation-verification
