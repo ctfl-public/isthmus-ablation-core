@@ -116,6 +116,11 @@ double kinetic_theory_mass_flux(const SurfaceFluxCommand &flux) {
   return flux.reaction_prob * flux.solid_mass_per_hit * impingement;
 }
 
+bool is_slab_face(const std::string &face) {
+  return face == "xlo" || face == "xhi" || face == "ylo" || face == "yhi" ||
+         face == "zlo" || face == "zhi";
+}
+
 std::string csv_escape(const std::string &value) {
   if (value.find_first_of(",\"\n") == std::string::npos) {
     return value;
@@ -380,7 +385,7 @@ void Model::validate_and_initialize() {
   if (!config_.fix.name.empty()) {
     validate_ablation(
         AblationCommand{config_.fix.voxels, config_.fix.source, "", config_.fix.policy,
-                        config_.fix.delete_empty},
+                        config_.fix.face, config_.fix.delete_empty},
         "fix '" + config_.fix.name + "'");
     if (config_.fix.every <= 0) {
       throw RuntimeError("fix every value must be positive");
@@ -536,6 +541,15 @@ void Model::validate_ablation(const AblationCommand &ablate, const std::string &
   }
   if (ablate.surface.empty() && ablate.policy != "local") {
     throw RuntimeError(context + " policy '" + ablate.policy + "' requires surface ablation");
+  }
+  if (ablate.surface.empty() && ablate.face.empty()) {
+    throw RuntimeError(context + " source ablation requires face <xlo|xhi|ylo|yhi|zlo|zhi>");
+  }
+  if (ablate.surface.empty() && !is_slab_face(ablate.face)) {
+    throw RuntimeError(context + " face must be one of xlo, xhi, ylo, yhi, zlo, zhi");
+  }
+  if (!ablate.surface.empty() && !ablate.face.empty()) {
+    throw RuntimeError(context + " face is only valid for source ablation; use surface flux selection for surface ablation");
   }
 }
 
@@ -703,7 +717,8 @@ void Model::run_steps(const RunConfig &run, std::ostream *stats) {
     const int next_step = current_step_ + 1;
     if (!config_.fix.name.empty() && next_step % config_.fix.every == 0) {
       advance_local_slab(AblationCommand{config_.fix.voxels, config_.fix.source, "",
-                                         config_.fix.policy, config_.fix.delete_empty});
+                                         config_.fix.policy, config_.fix.face,
+                                         config_.fix.delete_empty});
     }
     current_step_ = next_step;
     current_time_ += dt_;
@@ -732,35 +747,60 @@ void Model::open_step() {
 void Model::advance_local_slab(const AblationCommand &ablate) {
   const auto &g = config_.slab;
   const double face_area = g.dx * g.dx;
-  for (int iy = 0; iy < g.ny; ++iy) {
-    for (int iz = 0; iz < g.nz; ++iz) {
-      int column_front = -1;
-      for (int ix = 0; ix < g.nx; ++ix) {
-        if (voxels_[index(ix, iy, iz)].active) {
-          column_front = ix;
-          break;
-        }
+  const auto ablate_voxel = [&](int ix, int iy, int iz) {
+    double requested = config_.source.value * face_area * dt_;
+    requested_mass_step_ += requested;
+    auto &voxel = voxels_[index(ix, iy, iz)];
+    const double removed = std::min(voxel.remaining_mass, requested);
+    voxel.remaining_mass -= removed;
+    applied_mass_step_ += removed;
+    applied_mass_total_ += removed;
+    requested -= removed;
+    if (voxel.remaining_mass <= voxel_mass_ * kEpsilon) {
+      voxel.remaining_mass = 0.0;
+      if (ablate.delete_empty) {
+        voxel.active = false;
       }
-      if (column_front < 0) {
-        continue;
-      }
+    }
+    if (requested > 0.0) {
+      dropped_mass_step_ += requested;
+    }
+  };
 
-      double requested = config_.source.value * face_area * dt_;
-      requested_mass_step_ += requested;
-      auto &voxel = voxels_[index(column_front, iy, iz)];
-      const double removed = std::min(voxel.remaining_mass, requested);
-      voxel.remaining_mass -= removed;
-      applied_mass_step_ += removed;
-      applied_mass_total_ += removed;
-      requested -= removed;
-      if (voxel.remaining_mass <= voxel_mass_ * kEpsilon) {
-        voxel.remaining_mass = 0.0;
-        if (ablate.delete_empty) {
-          voxel.active = false;
+  if (ablate.face == "xlo" || ablate.face == "xhi") {
+    for (int iy = 0; iy < g.ny; ++iy) {
+      for (int iz = 0; iz < g.nz; ++iz) {
+        for (int offset = 0; offset < g.nx; ++offset) {
+          const int ix = ablate.face == "xlo" ? offset : g.nx - 1 - offset;
+          if (voxels_[index(ix, iy, iz)].active) {
+            ablate_voxel(ix, iy, iz);
+            break;
+          }
         }
       }
-      if (requested > 0.0) {
-        dropped_mass_step_ += requested;
+    }
+  } else if (ablate.face == "ylo" || ablate.face == "yhi") {
+    for (int ix = 0; ix < g.nx; ++ix) {
+      for (int iz = 0; iz < g.nz; ++iz) {
+        for (int offset = 0; offset < g.ny; ++offset) {
+          const int iy = ablate.face == "ylo" ? offset : g.ny - 1 - offset;
+          if (voxels_[index(ix, iy, iz)].active) {
+            ablate_voxel(ix, iy, iz);
+            break;
+          }
+        }
+      }
+    }
+  } else {
+    for (int ix = 0; ix < g.nx; ++ix) {
+      for (int iy = 0; iy < g.ny; ++iy) {
+        for (int offset = 0; offset < g.nz; ++offset) {
+          const int iz = ablate.face == "zlo" ? offset : g.nz - 1 - offset;
+          if (voxels_[index(ix, iy, iz)].active) {
+            ablate_voxel(ix, iy, iz);
+            break;
+          }
+        }
       }
     }
   }

@@ -9,7 +9,7 @@ source q1 constant 1.8 units kg/m2/s
 timestep mass/courant 0.5 source q1
 
 # Compact callback-style alternative:
-# fix ab all voxel/ablate 1 voxels solid source q1 policy local delete yes
+# fix ab all voxel/ablate 1 voxels solid source q1 policy local face xlo delete yes
 
 stats 1
 stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction front
@@ -19,7 +19,7 @@ voxel dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select activ
 
 variable i loop 8
 label ablate-loop
-voxel ablate solid source q1 policy local delete yes
+voxel ablate solid source q1 policy local face xlo delete yes
 run 1
 next i
 jump SELF ablate-loop

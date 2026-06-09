@@ -99,9 +99,16 @@ void Voxel::command(int narg, char **arg) {
     const char *surface = value_after(narg - 2, arg + 2, "surface");
     const char *source = value_after(narg - 2, arg + 2, "source");
     const char *policy = value_after(narg - 2, arg + 2, "policy");
+    const char *face = value_after(narg - 2, arg + 2, "face");
     const char *delete_empty = value_after(narg - 2, arg + 2, "delete");
     if ((!surface && !source) || !policy) {
       error->all(FLERR, "voxel ablate requires source or surface, and policy");
+    }
+    if (source && !surface && !face) {
+      error->all(FLERR, "voxel ablate source mode requires face <xlo|xhi|ylo|yhi|zlo|zhi>");
+    }
+    if (surface && face) {
+      error->all(FLERR, "voxel ablate face is only valid for source mode; use surface flux selection for surface mode");
     }
     if (surface) {
       ablate.surface = surface;
@@ -110,6 +117,9 @@ void Voxel::command(int narg, char **arg) {
       ablate.source = source;
     }
     ablate.policy = policy;
+    if (face) {
+      ablate.face = face;
+    }
     if (delete_empty) {
       ablate.delete_empty = parse_bool(delete_empty);
     }

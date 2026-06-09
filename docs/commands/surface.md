@@ -60,8 +60,10 @@ surface write-vtp skin output/surface-*.vtp \
 ## Description
 
 `surface flux` assigns one timestep of mass loss to selected triangles on an
-existing surface. With `source`, the source is a constant mass flux in
-`kg/m2/s`. The requested mass on each selected triangle is:
+existing surface. Source and kinetic-theory modes require an explicit
+`select all`, `select normal`, or `select voxels` clause. With `source`, the
+source is a constant mass flux in `kg/m2/s`. The requested mass on each
+selected triangle is:
 
 ```text
 mass = flux * triangle-area * timestep

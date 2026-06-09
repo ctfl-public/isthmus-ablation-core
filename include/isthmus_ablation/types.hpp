@@ -66,6 +66,7 @@ struct AblationFix {
   std::string voxels;
   std::string source;
   std::string policy = "local";
+  std::string face;
   bool delete_empty = true;
 };
 
@@ -74,6 +75,7 @@ struct AblationCommand {
   std::string source;
   std::string surface;
   std::string policy = "local";
+  std::string face;
   bool delete_empty = true;
 };
 
@@ -90,7 +92,7 @@ struct SurfaceFluxCommand {
   std::string surface;
   std::string style = "source";
   std::string source;
-  std::string select = "all";
+  std::string select;
   std::string voxels;
   std::array<double, 3> direction{{0.0, 0.0, 1.0}};
   double min_cos = 0.0;

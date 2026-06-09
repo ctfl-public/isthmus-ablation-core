@@ -16,7 +16,7 @@ jump SELF <label>
 ```text
 variable i loop 8
 label ablate-loop
-voxel ablate solid source q1 policy local delete yes
+voxel ablate solid source q1 policy local face xlo delete yes
 run 1
 next i
 jump SELF ablate-loop

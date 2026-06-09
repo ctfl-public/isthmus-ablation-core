@@ -32,9 +32,10 @@ const char *value_after(int narg, char **arg, const char *key) {
 
 void parse_selector(iac::SurfaceFluxCommand &flux, int narg, char **arg, Error *error) {
   const char *select = value_after(narg, arg, "select");
-  if (select) {
-    flux.select = select;
+  if (!select) {
+    error->all(FLERR, "surface flux source and kinetic/theory modes require select <all|normal|voxels>");
   }
+  flux.select = select;
   if (flux.select == "normal") {
     const char *nx = value_after(narg, arg, "nx");
     const char *ny = value_after(narg, arg, "ny");

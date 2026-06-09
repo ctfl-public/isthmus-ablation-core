@@ -5,14 +5,15 @@ The `voxel ablate` command applies one timestep of mass loss to a voxel model.
 ## Syntax
 
 ```text
-voxel ablate <model> source <source-id> policy <policy> delete <yes|no>
+voxel ablate <model> source <source-id> policy <policy> face <face> delete <yes|no>
 voxel ablate <model> surface <surface-id> policy <policy> delete <yes|no>
 ```
 
 ## Example
 
 ```text
-voxel ablate solid source q1 policy local delete yes
+voxel ablate solid source q1 policy local face xlo delete yes
+voxel ablate solid source q1 policy local face yhi delete yes
 voxel ablate solid surface skin policy local delete yes
 voxel ablate solid surface skin policy carryover/normal delete yes
 ```
@@ -22,7 +23,8 @@ voxel ablate solid surface skin policy carryover/normal delete yes
 The command applies one mass-loss update over the current timestep.
 
 With `source`, `policy local` removes mass from the first active voxel in each
-slab column.
+slab column on the selected face. The required `face` argument accepts `xlo`,
+`xhi`, `ylo`, `yhi`, `zlo`, or `zhi`.
 
 With `surface`, the command consumes mass already assigned to triangles by
 `surface flux`, uses the ISTHMUS triangle-to-voxel ownership map, and subtracts
@@ -39,7 +41,8 @@ Use `run 1` after `voxel ablate` to advance time, record history, print stats,
 and write scheduled dumps:
 
 ```text
-voxel ablate solid source q1 policy local delete yes
+voxel ablate solid source q1 policy local face xlo delete yes
+voxel ablate solid source q1 policy local face zhi delete yes
 run 1
 ```
 

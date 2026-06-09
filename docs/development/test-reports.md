@@ -36,12 +36,13 @@ to the report runner.
 
 ```csv
 index,name,input,requires,expected-fail
-2,slab-isthmus-finite-surface-verification,tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite-surface.verify,isthmus,no
-3,slab-isthmus-ghost-wall-verification,tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost-wall.verify,isthmus,no
-4,sphere-isthmus-local-deletion-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify,isthmus,no
-5,sphere-isthmus-normal-carryover-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify,isthmus,no
-6,sphere-isthmus-kinetic-theory-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-kinetic-theory.verify,isthmus,no
-7,sphere-isthmus-normal-carryover-convergence,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover-convergence.verify,isthmus,no
+2,slab-direct-yhi-verification,tests/inputs/slab-direct-ablation/in.slab-direct-yhi.verify,,no
+3,slab-isthmus-finite-surface-verification,tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite-surface.verify,isthmus,no
+4,slab-isthmus-ghost-wall-verification,tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost-wall.verify,isthmus,no
+5,sphere-isthmus-local-deletion-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify,isthmus,no
+6,sphere-isthmus-normal-carryover-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify,isthmus,no
+7,sphere-isthmus-kinetic-theory-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-kinetic-theory.verify,isthmus,no
+8,sphere-isthmus-normal-carryover-convergence,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover-convergence.verify,isthmus,no
 ```
 
 The runner auto-detects optional features from the CMake build cache. Cases

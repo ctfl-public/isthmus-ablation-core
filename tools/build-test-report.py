@@ -155,8 +155,12 @@ def case_summary_rows(name: str, grouped: dict[str, list[dict[str, str]]]) -> li
     tolerance = quantity_rows[0]["tolerance"]
     tolerance_mode = quantity_rows[0].get("tolerance-mode", "absolute")
     norm = quantity_rows[0]["norm"]
-    passed = "yes" if all(row["pass"] == "yes" for row in quantity_rows) else "no"
-    max_error = max(float(row["error"]) for row in quantity_rows)
+    if norm == "final":
+      summary_rows = [quantity_rows[-1]]
+    else:
+      summary_rows = quantity_rows
+    passed = "yes" if all(row["pass"] == "yes" for row in summary_rows) else "no"
+    max_error = max(float(row["error"]) for row in summary_rows)
     rows.append(
         f"{tex_escape(name)} & {tex_escape(quantity)} & {tex_escape(norm)} & "
         f"{max_error:.6e} & {float(tolerance):.6e} {tex_escape(tolerance_mode)} & "

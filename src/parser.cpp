@@ -315,6 +315,10 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
               line_number, "voxel ablate requires source <name> or surface <name>"));
         }
         command_entry.ablate.policy = required(values, "policy", line_number);
+        const auto face = values.find("face");
+        if (face != values.end()) {
+          command_entry.ablate.face = face->second;
+        }
         const auto delete_it = values.find("delete");
         if (delete_it != values.end()) {
           command_entry.ablate.delete_empty = parse_bool(delete_it->second, line_number);
@@ -413,10 +417,7 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
                 parse_double(reaction_prob->second, line_number);
           }
         }
-        const auto select = values.find("select");
-        if (select != values.end()) {
-          command_entry.surface_flux.select = select->second;
-        }
+        command_entry.surface_flux.select = required(values, "select", line_number);
         if (command_entry.surface_flux.select == "normal") {
           command_entry.surface_flux.direction[0] =
               parse_double(required(values, "nx", line_number), line_number);
@@ -496,6 +497,10 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
       config.fix.voxels = required(values, "voxels", line_number);
       config.fix.source = required(values, "source", line_number);
       config.fix.policy = required(values, "policy", line_number);
+      const auto face = values.find("face");
+      if (face != values.end()) {
+        config.fix.face = face->second;
+      }
       const auto delete_it = values.find("delete");
       if (delete_it != values.end()) {
         config.fix.delete_empty = parse_bool(delete_it->second, line_number);

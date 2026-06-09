@@ -14,7 +14,7 @@ iac timestep mass/courant 0.5 source q1
 
 variable i loop 8
 label ablate-loop
-voxel ablate solid source q1 policy local delete yes
+voxel ablate solid source q1 policy local face xlo delete yes
 next i
 jump SELF ablate-loop
 

@@ -47,6 +47,7 @@ The current regression tests are:
 
 ```text
 slab-direct-command-verification
+slab-direct-yhi-verification
 slab-isthmus-finite-surface-verification
 slab-isthmus-ghost-wall-verification
 sphere-isthmus-local-deletion-verification
@@ -99,6 +100,7 @@ They run:
 
 ```text
 tests/inputs/slab-direct-ablation/in.slab-direct-command.verify
+tests/inputs/slab-direct-ablation/in.slab-direct-yhi.verify
 tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite-surface.verify
 tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost-wall.verify
 tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify
