@@ -21,6 +21,15 @@ cmake --build --preset dsmc
 ctest --preset dsmc
 ```
 
+The preset commands require CMake 3.20 or newer. On older systems, either load
+a newer CMake module or use:
+
+```bash
+cmake -S . -B build-dsmc -DIAC_DSMC_USE_OVERLAY=ON
+cmake --build build-dsmc --target dsmc
+ctest --test-dir build-dsmc --output-on-failure
+```
+
 The executable is:
 
 ```text

@@ -45,6 +45,21 @@ cmake --build --preset dsmc
 ctest --preset dsmc
 ```
 
+These preset commands require CMake 3.20 or newer. Check with:
+
+```bash
+cmake --version
+```
+
+If your machine has an older CMake, either load a newer module or use the
+non-preset form:
+
+```bash
+cmake -S . -B build-dsmc -DIAC_DSMC_USE_OVERLAY=ON
+cmake --build build-dsmc --target dsmc
+ctest --test-dir build-dsmc --output-on-failure
+```
+
 The `dsmc` build preset:
 
 - builds `libisthmus_ablation_core.a`;
@@ -59,6 +74,12 @@ The default DSMC machine target is `mac_mpi`. Override it with:
 
 ```bash
 cmake --preset dsmc -DDSMC_MACHINE=mpi
+```
+
+or without presets:
+
+```bash
+cmake -S . -B build-dsmc -DIAC_DSMC_USE_OVERLAY=ON -DDSMC_MACHINE=mpi
 ```
 
 ## Run A DSMC/IAC Case
@@ -82,6 +103,14 @@ The standalone binary does not need DSMC:
 cmake --preset standalone
 cmake --build --preset standalone
 ctest --preset standalone
+```
+
+Without presets:
+
+```bash
+cmake -S . -B build -DIAC_DSMC_USE_OVERLAY=OFF
+cmake --build build
+ctest --test-dir build --output-on-failure
 ```
 
 Run the first standalone example:
