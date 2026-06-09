@@ -47,6 +47,7 @@ site/
 
 # Generated documentation artifacts
 docs/*.pdf
+!docs/isthmus-ablation-core-manual.pdf
 docs/*.png
 
 # LaTeX intermediates

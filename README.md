@@ -2,6 +2,8 @@
 
 Voxel ablation and DSMC/ISTHMUS coupling core.
 
+Manual PDF: [docs/isthmus-ablation-core-manual.pdf](docs/isthmus-ablation-core-manual.pdf)
+
 ## Quick Start
 
 If DSMC and ISTHMUS are already installed, set their roots once:
