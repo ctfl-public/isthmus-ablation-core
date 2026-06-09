@@ -71,10 +71,10 @@ cmake --preset dsmc \
   -DISTHMUS_ROOT=/path/to/isthmus
 ```
 
-The default DSMC machine target is `mac_mpi`. Override it with:
+The default DSMC machine target is `mpi`. Override it with:
 
 ```bash
-cmake --preset dsmc -DDSMC_MACHINE=mpi
+cmake --preset dsmc -DDSMC_MACHINE=mac_mpi
 ```
 
 See [docs/getting-started.md](docs/getting-started.md) and

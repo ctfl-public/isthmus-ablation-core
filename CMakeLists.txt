@@ -86,7 +86,7 @@ if(NOT DSMC_ROOT)
   endif()
 endif()
 
-set(DSMC_MACHINE "mac_mpi" CACHE STRING "DSMC make target used by the IAC overlay build")
+set(DSMC_MACHINE "mpi" CACHE STRING "DSMC make target used by the IAC overlay build")
 set(IAC_DSMC_OVERLAY_SRC "${CMAKE_BINARY_DIR}/dsmc-overlay/src")
 set(IAC_DSMC_OVERLAY_EXECUTABLE "${IAC_DSMC_OVERLAY_SRC}/spa_${DSMC_MACHINE}")
 option(IAC_DSMC_USE_OVERLAY "Use the private DSMC overlay executable for coupled tests" ON)

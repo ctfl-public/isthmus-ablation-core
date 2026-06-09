@@ -142,6 +142,11 @@ def main() -> int:
             raise SystemExit(f"Missing bridge file: {source}")
         symlink_or_copy(source.resolve(), args.overlay_src / name)
 
+    public_include = args.iac_include / "isthmus_ablation"
+    if not public_include.is_dir():
+        raise SystemExit(f"IAC public include directory does not exist: {public_include}")
+    symlink_or_copy(public_include.resolve(), args.overlay_src / "isthmus_ablation")
+
     write_package(
         args.overlay_src,
         args.iac_include.resolve(),

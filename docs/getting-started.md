@@ -70,16 +70,16 @@ The `dsmc` build preset:
 - runs DSMC's normal `make <machine>` build there;
 - writes `build-dsmc/bin/dsmc-iac`.
 
-The default DSMC machine target is `mac_mpi`. Override it with:
+The default DSMC machine target is `mpi`. Override it with:
 
 ```bash
-cmake --preset dsmc -DDSMC_MACHINE=mpi
+cmake --preset dsmc -DDSMC_MACHINE=mac_mpi
 ```
 
 or without presets:
 
 ```bash
-cmake -S . -B build-dsmc -DIAC_DSMC_USE_OVERLAY=ON -DDSMC_MACHINE=mpi
+cmake -S . -B build-dsmc -DIAC_DSMC_USE_OVERLAY=ON -DDSMC_MACHINE=mac_mpi
 ```
 
 ## Run A DSMC/IAC Case

@@ -106,20 +106,20 @@ build-dsmc/bin/dsmc-iac \
 The default DSMC make target is:
 
 ```text
-mac_mpi
+mpi
 ```
 
 Override it with:
 
 ```bash
-cmake --preset dsmc -DDSMC_MACHINE=mpi
+cmake --preset dsmc -DDSMC_MACHINE=mac_mpi
 cmake --build --preset dsmc
 ```
 
 or:
 
 ```bash
-cmake -S . -B build-dsmc -DIAC_DSMC_USE_OVERLAY=ON -DDSMC_MACHINE=mpi
+cmake -S . -B build-dsmc -DIAC_DSMC_USE_OVERLAY=ON -DDSMC_MACHINE=mac_mpi
 cmake --build build-dsmc --target dsmc
 ```
 
@@ -172,6 +172,16 @@ dsmc-bridge/surface.h
 dsmc-bridge/voxel.cpp
 dsmc-bridge/voxel.h
 ```
+
+The overlay also symlinks this repository's public include directory:
+
+```text
+include/isthmus_ablation -> build-dsmc/dsmc-overlay/src/isthmus_ablation
+```
+
+This keeps bridge includes such as `#include "isthmus_ablation/model.hpp"`
+resolvable even during DSMC's dependency-generation rules, before the normal
+package include flags are applied consistently by every machine makefile.
 
 DSMC's existing make system scans headers in the overlay and regenerates
 `style_command.h`. Because the bridge headers are present in the overlay,
