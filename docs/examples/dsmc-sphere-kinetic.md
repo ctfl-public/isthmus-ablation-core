@@ -52,42 +52,38 @@ fix                 sflux ave/surf all 1 100 100 c_sflux[*] ave one
 run                 100 post no
 ```
 
-IAC reads the `incident-number-flux` quantity and converts it to carbon mass
-flux:
+IAC reads the incident number flux and converts it to carbon mass flux:
 
 ```text
-surface flux skin dsmc/surf fix sflux quantity incident-number-flux \
-  reaction carbon-co.surf \
-  mass-courant 0.1666666667
-voxel ablate solid surface skin policy carryover/normal delete yes
+surf_flux skin dsmc/surf fix sflux mass-courant 0.1666666667
+iac limit time ${ablation_time}
+voxel_ablate solid surface skin policy carryover/normal delete yes
 ```
 
-Here `carbon-co.surf` is a normal SPARTA `surf_react prob` file:
-
-```text
-O2 --> CO + CO
-D S 1.0
-```
-
-Even though CO chemistry is not solved in this collision-flux example, IAC
-reads the file to infer the reaction probability and the carbon mass consumed
-per hit. With `voxel material carbon ... molar-mass 0.0120107 formula C`, the
-gas-side formula implies two carbon atoms are consumed by each incident O2 hit.
-The DSMC-measured incident flux is applied triangle-by-triangle, then mapped
-back to voxels through the ISTHMUS ownership fractions.
+Because chemistry is intentionally disabled here, the command uses the compact
+`dsmc/surf` default: the incident flux is treated as a perfectly reactive
+collision flux and one carbon formula unit is consumed per counted O2 hit. With
+`voxel_material carbon ... molar-mass 0.0120107 formula C`, that means one
+carbon atom per hit. This is deliberately simpler than the reacting
+`surf_react` path; if the physical interpretation should be `O2 -> CO + CO`,
+the analytical comparison differs by a factor of two in solid mass consumed per
+incident O2 molecule. The DSMC-measured incident flux is still applied
+triangle-by-triangle, then mapped back to voxels through the ISTHMUS ownership
+fractions.
 
 After each ablation update, native DSMC commands clear the old collision
 surface and install the regenerated ISTHMUS surface directly from memory:
 
 ```text
 remove_surf all
-isthmus surface skin voxels solid buffer 1 weighting no map yes
-surface install skin particle none type 1
+isthmus_surf skin voxels solid buffer 1 weighting no map yes
+surf_install skin particle none type 1
 surf_modify all collide 1
 ```
 
-The committed example uses a 10-voxel sphere, `C_m = 1/6`, and enough coupled
-updates to recess to about 20% remaining mass while exercising the full
+The committed example uses a 10-voxel sphere, `C_m = 1/6`, and a named
+`ablation_time` target. `iac limit time` clips the last solid timestep so the
+history ends at exactly that physical ablation time while exercising the full
 DSMC-to-ISTHMUS-to-voxel loop. It is a workflow example; the grid-refinement
 report below is the stronger accuracy check.
 
@@ -117,7 +113,7 @@ python3 ../../tools/check-dsmc-kinetic.py output/history.csv \
   --molecular-mass 5.31352e-26 \
   --solid-density 1800 \
   --solid-molar-mass 0.0120107 \
-  --solid-atoms-per-hit 2 \
+  --solid-atoms-per-hit 1 \
   --initial-radius 5e-4
 ```
 

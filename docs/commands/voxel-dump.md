@@ -1,37 +1,37 @@
-# `voxel dump` Command
+# `voxel_dump` Command
 
-The `voxel dump` command writes voxel-model output.
+The `voxel_dump` command writes voxel-model output.
 
-Triangle surface dumps are configured with [`surface dump`](surface.md).
+Triangle surface dumps are configured with [`surf_dump`](surface.md).
 
 ## Syntax
 
 ```text
-voxel dump <id> <model> history <N> <path>
-voxel dump <id> <model> vtu <N> <path> [select all|active] [scalar <field>]
-voxel dump off
+voxel_dump <id> <model> history <N> <path>
+voxel_dump <id> <model> vtu <N> <path> [select all|active] [scalar <field>]
+voxel_dump off
 
 # Also available in the DSMC bridge:
-voxel dump <id> <model> history <N> <path>
-voxel dump <id> <model> vtu <N> <path> [select all|active] [scalar <field>]
-voxel write-vtu <model> <path> [select all|active] [scalar <field>]
+voxel_dump <id> <model> history <N> <path>
+voxel_dump <id> <model> vtu <N> <path> [select all|active] [scalar <field>]
+voxel_write_vtu <model> <path> [select all|active] [scalar <field>]
 ```
 
 ## Examples
 
 ```text
-voxel dump hist solid history 1 output/slab-direct-ablation/history.csv
-voxel dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mass-fraction
-voxel dump off
+voxel_dump hist solid history 1 output/slab-direct-ablation/history.csv
+voxel_dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mass-fraction
+voxel_dump off
 
-voxel write-vtu solid output/voxels-*.vtu select active scalar mass-fraction
+voxel_write_vtu solid output/voxels-*.vtu select active scalar mass-fraction
 ```
 
 ## Description
 
 The `history` style writes one CSV summary after the run.
 
-`voxel dump off` clears voxel dumps that were already defined. This is useful
+`voxel_dump off` clears voxel dumps that were already defined. This is useful
 in regression wrappers that include a visual example input but should avoid
 writing output files during CTest.
 
@@ -70,15 +70,15 @@ iz
 
 The default is `scalar mass-fraction`.
 
-Inside DSMC, scheduled `voxel dump` output is written whenever a bridge command
-advances the core step, for example after `voxel ablate`. This is useful for
+Inside DSMC, scheduled `voxel_dump` output is written whenever a bridge command
+advances the core step, for example after `voxel_ablate`. This is useful for
 no-gas verification and coupled loops that use explicit DSMC input-file
 commands for ablation updates.
 
-`voxel write-vtu` writes a one-shot VTU snapshot immediately. This is useful in
+`voxel_write_vtu` writes a one-shot VTU snapshot immediately. This is useful in
 coupled loops where the input script decides exactly when a voxel snapshot
 should be written. It uses the same `select` and `scalar` options as scheduled
-`voxel dump ... vtu` output. If the path does not contain `*`, the current core
+`voxel_dump ... vtu` output. If the path does not contain `*`, the current core
 step number is inserted before the file extension.
 
 ## History Columns

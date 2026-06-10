@@ -17,7 +17,8 @@ examples below are wrapped only for readability.
 iac timestep <dt>
 iac timestep mass/courant <C> source <source-id>
 iac stats <N>
-iac stats-style <column> <column> ...
+iac stats_style <column> <column> ...
+iac limit time <target>
 iac continue time <target> variable <name>
 iac set <name> time
 iac set <name> step
@@ -30,7 +31,7 @@ iac print <quantity>
 ## Examples
 
 ```text
-surface measure-flux skin dsmc/reaction fix rco column 1 sample-steps 1 \
+surf_measure_flux skin dsmc/reaction fix rco column 1 sample-steps 1 \
   expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 \
   temperature 5000.0 molecular-mass 5.31352e-26 reaction carbon-co.surf
 
@@ -42,11 +43,12 @@ iac print reaction-flux-error-percent
 source q1 constant 1.8 units kg/m2/s
 iac timestep mass/courant 0.5 source q1
 iac stats 1
-iac stats-style step time active-voxels deleted-voxels remaining-mass mass-fraction front
+iac stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction front
 
 variable keep internal 1
 label ablate-loop
-voxel ablate solid source q1 policy local face xlo delete yes
+iac limit time 1.1e-3
+voxel_ablate solid source q1 policy local face xlo delete yes
 iac continue time 1.1e-3 variable keep
 if "${keep} > 0" then "jump SELF ablate-loop"
 ```
@@ -67,31 +69,37 @@ dt = C * density * voxel-size / source
 
 for the named constant source.
 
-`iac stats` and `iac stats-style` print the core's own ablation table while
+`iac stats` and `iac stats_style` print the core's own ablation table while
 DSMC is the host executable. They intentionally do not modify DSMC's native
 `stats` or `stats_style` settings. The title block and table header are printed
 the first time a bridge command advances the core step; later rows are printed
 at the requested IAC interval.
 
+`iac limit time <target>` clips the current IAC solid timestep so the next
+voxel mass update cannot advance past the requested physical ablation time.
+This is usually placed after a command such as `surf_flux ... mass-courant`,
+which may have just recomputed the timestep from the current flux, and before
+`voxel_ablate`.
+
 `iac continue time <target> variable <name>` writes `1` to a DSMC internal
 variable while the IAC solid time is less than the target and `0` once it has
-reached or exceeded the target. Use it with native DSMC `if` and `jump`
-commands to run a coupled ablation loop to a physical solid time:
+reached or exceeded the target. Use it with `iac limit time`, native DSMC `if`,
+and `jump` commands to run a coupled ablation loop to an exact physical solid
+time:
 
 ```text
 variable keep internal 1
 label coupled-loop
 run 100 post no
-surface flux skin dsmc/surf fix sflux quantity incident-number-flux ... mass-courant 0.1666666667
-voxel ablate solid surface skin policy carryover/normal delete yes
+surf_flux skin dsmc/surf fix sflux mass-courant 0.1666666667
+iac limit time 2.5e-2
+voxel_ablate solid surface skin policy carryover/normal delete yes
 iac continue time 2.5e-2 variable keep
 if "${keep} > 0" then "jump SELF coupled-loop"
 ```
 
-The command stops after crossing the target time; it does not clip the final
-IAC timestep. This matches standalone `run duration` behavior. If the named
-variable does not exist, the bridge creates it as an internal variable. If it
-does exist, it must already be internal style.
+If the named variable does not exist, the bridge creates it as an internal
+variable. If it does exist, it must already be internal style.
 
 `iac set` copies IAC state into a DSMC internal variable. Supported quantities
 are `time`, `step`, `dt`, and `diagnostic <diagnostic-name>`. This is useful
@@ -105,7 +113,7 @@ print "IAC solid time = ${solidtime}"
 `iac verify` compares a named diagnostic to an exact expression using the same
 tolerance modes as the standalone `verify` command. The exact expression can
 refer to diagnostics registered by earlier bridge commands. For example,
-`surface measure-flux` registers:
+`surf_measure_flux` registers:
 
 - `surface-area`
 - `expected-surface-area`

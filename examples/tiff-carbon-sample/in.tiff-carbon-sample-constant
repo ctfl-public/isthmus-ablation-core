@@ -4,25 +4,25 @@
 
 units si
 
-voxel material carbon density 1800.0
-voxel create solid tiff file examples/tiff-carbon-sample/carbon-sample-top-crop.tif dx 3.3757e-6 material carbon
-voxel ghost solid axis y boundary infinite layers 1
-voxel ghost solid axis z boundary infinite layers 1
+voxel_material carbon density 1800.0
+voxel_create solid tiff file examples/tiff-carbon-sample/carbon-sample-top-crop.tif dx 3.3757e-6 material carbon
+voxel_ghost solid axis y boundary infinite layers 1
+voxel_ghost solid axis z boundary infinite layers 1
 
 source q1 constant 1800.0 units kg/m2/s
 timestep mass/courant 0.5 source q1
+variable ablation_time equal 2.02542e-5
 
 stats 1
 stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction
-voxel dump hist solid history 1 output/tiff-carbon-sample-constant/history.csv
-voxel dump vox solid vtu 1 output/tiff-carbon-sample-constant/voxels_*.vtu select active scalar mass-fraction
-surface dump skin skin vtp 1 output/tiff-carbon-sample-constant/surface_*.vtp
+voxel_dump hist solid history 1 output/tiff-carbon-sample-constant/history.csv
+voxel_dump vox solid vtu 1 output/tiff-carbon-sample-constant/voxels_*.vtu select active scalar mass-fraction
+surf_dump skin skin vtp 1 output/tiff-carbon-sample-constant/surface_*.vtp
 
-variable i loop 12
 label ablate-loop
-isthmus surface skin voxels solid buffer 1 weighting no map yes crop real
-surface flux skin source q1 select normal nx -1.0 ny 0.0 nz 0.0 min-cos 0.25
-voxel ablate solid surface skin policy local delete yes
+limit time ${ablation_time}
+isthmus_surf skin voxels solid buffer 1 weighting no map yes crop real
+surf_flux skin source q1 select normal nx -1.0 ny 0.0 nz 0.0 min-cos 0.25
+voxel_ablate solid surface skin policy local delete yes
 run 1
-next i
-jump SELF ablate-loop
+jump SELF ablate-loop until time ${ablation_time}

@@ -23,10 +23,10 @@ DSMC/SPARTA loops:
 
 ```text
 label ablate-loop
-voxel ablate solid source q1 policy local face xlo delete yes
-isthmus surface surf1 voxels solid map yes
-surface flux surf1 source dsmc-tallies select all
-voxel ablate solid surface surf1 policy local delete yes
+voxel_ablate solid source q1 policy local face xlo delete yes
+isthmus_surf surf1 voxels solid map yes
+surf_flux surf1 source dsmc-tallies select all
+voxel_ablate solid surface surf1 policy local delete yes
 jump SELF ablate-loop
 ```
 

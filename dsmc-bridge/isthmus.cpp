@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <vector>
 
 using namespace SPARTA_NS;
 
@@ -25,9 +26,25 @@ const char *value_after(int narg, char **arg, const char *key) {
   return nullptr;
 }
 
+void forward_isthmus(SPARTA *sparta, const char *subcommand, int narg, char **arg) {
+  std::vector<char *> forwarded;
+  forwarded.reserve(static_cast<std::size_t>(narg) + 1);
+  forwarded.push_back(const_cast<char *>(subcommand));
+  for (int i = 0; i < narg; ++i) {
+    forwarded.push_back(arg[i]);
+  }
+  Isthmus isthmus(sparta);
+  isthmus.command(static_cast<int>(forwarded.size()), forwarded.data());
+}
+
 } // namespace
 
 Isthmus::Isthmus(SPARTA *sparta) : Pointers(sparta) {}
+
+IsthmusSurf::IsthmusSurf(SPARTA *sparta) : Pointers(sparta) {}
+void IsthmusSurf::command(int narg, char **arg) {
+  forward_isthmus(sparta, "surface", narg, arg);
+}
 
 void Isthmus::command(int narg, char **arg) {
   if (narg < 4 || std::strcmp(arg[0], "surface") != 0) {

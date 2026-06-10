@@ -115,7 +115,7 @@ include ../../../examples/slab-direct-ablation/in.slab-direct-ablation
 ```
 
 The fix test keeps the compact callback-style path covered while the examples
-move toward explicit `voxel ablate` loops. Tests pass only if all `verify`
+move toward explicit `voxel_ablate` loops. Tests pass only if all `verify`
 commands in the wrapper input files pass.
 
 The sphere ISTHMUS tests are enabled when the build finds the ISTHMUS C++

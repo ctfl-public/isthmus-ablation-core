@@ -1,21 +1,21 @@
-# `voxel ablate` Command
+# `voxel_ablate` Command
 
-The `voxel ablate` command applies one timestep of mass loss to a voxel model.
+The `voxel_ablate` command applies one timestep of mass loss to a voxel model.
 
 ## Syntax
 
 ```text
-voxel ablate <model> source <source-id> policy <policy> face <face> delete <yes|no>
-voxel ablate <model> surface <surface-id> policy <policy> delete <yes|no>
+voxel_ablate <model> source <source-id> policy <policy> face <face> delete <yes|no>
+voxel_ablate <model> surface <surface-id> policy <policy> delete <yes|no>
 ```
 
 ## Example
 
 ```text
-voxel ablate solid source q1 policy local face xlo delete yes
-voxel ablate solid source q1 policy local face yhi delete yes
-voxel ablate solid surface skin policy local delete yes
-voxel ablate solid surface skin policy carryover/normal delete yes
+voxel_ablate solid source q1 policy local face xlo delete yes
+voxel_ablate solid source q1 policy local face yhi delete yes
+voxel_ablate solid surface skin policy local delete yes
+voxel_ablate solid surface skin policy carryover/normal delete yes
 ```
 
 ## Description
@@ -27,7 +27,7 @@ slab column on the selected face. The required `face` argument accepts `xlo`,
 `xhi`, `ylo`, `yhi`, `zlo`, or `zhi`.
 
 With `surface`, the command consumes mass already assigned to triangles by
-`surface flux`, uses the ISTHMUS triangle-to-voxel ownership map, and subtracts
+`surf_flux`, uses the ISTHMUS triangle-to-voxel ownership map, and subtracts
 that mass from the associated voxels.
 
 `policy local` removes only the mass available in each mapped voxel and records
@@ -37,21 +37,21 @@ any overshoot as dropped mass.
 a depleted voxel into live 26-neighbor voxels along the inward normal direction.
 This policy is intended for closed ISTHMUS surfaces such as spheres.
 
-Use `run 1` after `voxel ablate` to advance time, record history, print stats,
+Use `run 1` after `voxel_ablate` to advance time, record history, print stats,
 and write scheduled dumps:
 
 ```text
-voxel ablate solid source q1 policy local face xlo delete yes
-voxel ablate solid source q1 policy local face zhi delete yes
+voxel_ablate solid source q1 policy local face xlo delete yes
+voxel_ablate solid source q1 policy local face zhi delete yes
 run 1
 ```
 
 A surface-coupled loop is:
 
 ```text
-isthmus surface skin voxels solid buffer 1 weighting no map yes
-surface flux skin source q1 select all
-voxel ablate solid surface skin policy carryover/normal delete yes
+isthmus_surf skin voxels solid buffer 1 weighting no map yes
+surf_flux skin source q1 select all
+voxel_ablate solid surface skin policy carryover/normal delete yes
 run 1
 ```
 

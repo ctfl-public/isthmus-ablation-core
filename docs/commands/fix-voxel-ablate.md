@@ -2,7 +2,7 @@
 
 The `voxel/ablate` fix applies mass loss to a voxel model during standalone
 time advancement. It is the compact callback-style alternative to explicit
-`voxel ablate` commands.
+`voxel_ablate` commands.
 
 ## Syntax
 
@@ -45,5 +45,5 @@ voxel set.
 - Column carryover.
 - Axial carryover.
 - Normal-directed carryover.
-- Shared core support for both explicit `voxel ablate` commands and fix-style
+- Shared core support for both explicit `voxel_ablate` commands and fix-style
   timestep callbacks.

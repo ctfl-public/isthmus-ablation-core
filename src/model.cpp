@@ -729,6 +729,8 @@ void Model::execute(std::ostream *stats) {
       if (skip_next_jump) {
         skip_next_jump = false;
         ++pc;
+      } else if (command.use_time_limit && current_time_ >= command.time_limit - kEpsilon) {
+        ++pc;
       } else {
         const auto it = labels.find(command.target);
         if (it == labels.end()) {
@@ -737,6 +739,14 @@ void Model::execute(std::ostream *stats) {
         pc = it->second;
       }
       break;
+    case CommandKind::LimitTime: {
+      const double remaining = command.time_limit - current_time_;
+      if (remaining > kEpsilon && dt_ > remaining) {
+        dt_ = remaining;
+      }
+      ++pc;
+      break;
+    }
     case CommandKind::Run:
       run_steps(command.run, stats);
       ++pc;
@@ -773,7 +783,15 @@ void Model::run_steps(const RunConfig &run, std::ostream *stats) {
   const int steps = run.use_duration
                         ? std::max(1, static_cast<int>(std::ceil(run.duration / dt_ - kEpsilon)))
                         : run.steps;
+  const double nominal_dt = dt_;
   for (int i = 0; i < steps; ++i) {
+    if (run.use_duration) {
+      const double remaining = run.duration - current_time_;
+      if (remaining <= kEpsilon) {
+        break;
+      }
+      dt_ = std::min(nominal_dt, remaining);
+    }
     open_step();
     const int next_step = current_step_ + 1;
     if (!config_.fix.name.empty() && next_step % config_.fix.every == 0) {
@@ -789,6 +807,9 @@ void Model::run_steps(const RunConfig &run, std::ostream *stats) {
     if (stats != nullptr && current_step_ % config_.stats.every == 0) {
       print_row(*stats, history_.back());
     }
+  }
+  if (run.use_duration) {
+    dt_ = nominal_dt;
   }
 }
 

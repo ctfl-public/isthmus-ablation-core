@@ -161,6 +161,19 @@ void add_formula_counts(std::map<std::string, double> &total,
   }
 }
 
+double solid_formula_mass(const iac::Material &material) {
+  if (material.formula.empty() || material.molar_mass <= 0.0) {
+    throw std::runtime_error(
+        "solid mass inference requires voxel material formula and molar-mass");
+  }
+  const auto solid_counts = parse_formula(material.formula);
+  if (solid_counts.size() != 1) {
+    throw std::runtime_error(
+        "solid mass inference currently requires a one-element solid formula");
+  }
+  return material.molar_mass / AVOGADRO;
+}
+
 ReactionFileInfo parse_reaction_file(const char *path, const iac::Material &material) {
   if (material.formula.empty() || material.molar_mass <= 0.0) {
     throw std::runtime_error(
@@ -225,9 +238,43 @@ ReactionFileInfo parse_reaction_file(const char *path, const iac::Material &mate
   return info;
 }
 
+void forward_surface(SPARTA *sparta, const char *subcommand, int narg, char **arg) {
+  std::vector<char *> forwarded;
+  forwarded.reserve(static_cast<std::size_t>(narg) + 1);
+  forwarded.push_back(const_cast<char *>(subcommand));
+  for (int i = 0; i < narg; ++i) {
+    forwarded.push_back(arg[i]);
+  }
+  Surface surface(sparta);
+  surface.command(static_cast<int>(forwarded.size()), forwarded.data());
+}
+
 } // namespace
 
 Surface::Surface(SPARTA *sparta) : Pointers(sparta) {}
+
+SurfaceDumpCommand::SurfaceDumpCommand(SPARTA *sparta) : Pointers(sparta) {}
+void SurfaceDumpCommand::command(int narg, char **arg) {
+  forward_surface(sparta, "dump", narg, arg);
+}
+
+SurfaceFlux::SurfaceFlux(SPARTA *sparta) : Pointers(sparta) {}
+void SurfaceFlux::command(int narg, char **arg) { forward_surface(sparta, "flux", narg, arg); }
+
+SurfaceInstall::SurfaceInstall(SPARTA *sparta) : Pointers(sparta) {}
+void SurfaceInstall::command(int narg, char **arg) {
+  forward_surface(sparta, "install", narg, arg);
+}
+
+SurfaceMeasureFlux::SurfaceMeasureFlux(SPARTA *sparta) : Pointers(sparta) {}
+void SurfaceMeasureFlux::command(int narg, char **arg) {
+  forward_surface(sparta, "measure-flux", narg, arg);
+}
+
+SurfaceWriteVtp::SurfaceWriteVtp(SPARTA *sparta) : Pointers(sparta) {}
+void SurfaceWriteVtp::command(int narg, char **arg) {
+  forward_surface(sparta, "write-vtp", narg, arg);
+}
 
 void Surface::command(int narg, char **arg) {
   if (narg < 1) {
@@ -348,8 +395,8 @@ void Surface::command(int narg, char **arg) {
       const char *quantity_value = value_after(npairs, pairs, "quantity");
       const char *solid_mass = value_after(npairs, pairs, "solid-mass-per-hit");
       const char *reaction_file = value_after(npairs, pairs, "reaction");
-      if (!fix_id || (!column_value && !quantity_value) || (!solid_mass && !reaction_file)) {
-        error->all(FLERR, "surface flux dsmc/surf requires fix, column or quantity, and reaction or solid-mass-per-hit");
+      if (!fix_id) {
+        error->all(FLERR, "surface flux dsmc/surf requires fix");
       }
       if (column_value && quantity_value) {
         error->all(FLERR, "surface flux dsmc/surf cannot use both column and quantity");
@@ -368,7 +415,10 @@ void Surface::command(int narg, char **arg) {
       }
 
       const int column = column_value ? std::atoi(column_value)
-                                      : parse_dsmc_surf_quantity(quantity_value, error);
+                                      : parse_dsmc_surf_quantity(
+                                            quantity_value ? quantity_value
+                                                           : "incident-number-flux",
+                                            error);
       const int ncols = ave->size_per_surf_cols == 0 ? 1 : ave->size_per_surf_cols;
       if (column <= 0 || column > ncols) {
         error->all(FLERR, "surface flux dsmc/surf column is out of range");
@@ -393,6 +443,12 @@ void Surface::command(int narg, char **arg) {
           const auto reaction = parse_reaction_file(reaction_file, IACBridge::config().material);
           solid_mass_per_hit = reaction.solid_mass;
           reaction_prob = reaction.probability;
+        } catch (const std::exception &ex) {
+          error->all(FLERR, ex.what());
+        }
+      } else if (!solid_mass) {
+        try {
+          solid_mass_per_hit = solid_formula_mass(IACBridge::config().material);
         } catch (const std::exception &ex) {
           error->all(FLERR, ex.what());
         }

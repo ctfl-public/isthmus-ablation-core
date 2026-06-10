@@ -1,6 +1,7 @@
 #ifdef COMMAND_CLASS
 
 CommandStyle(isthmus,Isthmus)
+CommandStyle(isthmus_surf,IsthmusSurf)
 
 #else
 
@@ -14,6 +15,12 @@ namespace SPARTA_NS {
 class Isthmus : protected Pointers {
  public:
   Isthmus(class SPARTA *);
+  void command(int, char **);
+};
+
+class IsthmusSurf : protected Pointers {
+ public:
+  IsthmusSurf(class SPARTA *);
   void command(int, char **);
 };
 

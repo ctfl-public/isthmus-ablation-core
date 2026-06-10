@@ -2,8 +2,8 @@
 
 include ../../../examples/sphere-isthmus-ablation/in.sphere-isthmus-normal
 
-voxel dump off
-surface dump off
+voxel_dump off
+surf_dump off
 
 verify radius exact "initial-radius - q1*time/rho" tolerance 4.0 percent norm final
 verify mass-fraction exact "((initial-radius - q1*time/rho)/initial-radius)^3" tolerance 12.0 percent norm final

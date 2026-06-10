@@ -47,7 +47,7 @@ overrides:
 ```text
 variable resolution equal 20
 variable steps equal 4
-voxel create solid sphere diameter 1.0e-3 resolution ${resolution} material carbon
+voxel_create solid sphere diameter 1.0e-3 resolution ${resolution} material carbon
 variable i loop ${steps}
 
 convergence radius exact "initial-radius - q1*time/rho" tolerance 100.0 percent norm final vary resolution 5 10 20 vary steps 1 2 4 order 0.75 2.5 monotonic yes

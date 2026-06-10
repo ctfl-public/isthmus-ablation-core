@@ -13,7 +13,7 @@ voxel. It imports as a `12 x 24 x 23` voxel lattice with `dx = 3.3757e-6 m`
 and 120 active voxels.
 
 ```text
-voxel create solid tiff file carbon-sample-top-crop.tif \
+voxel_create solid tiff file carbon-sample-top-crop.tif \
   dx 3.3757e-6 material carbon
 ```
 
@@ -33,11 +33,11 @@ triangles whose normals face the exposed end, maps the mass loss back to
 voxels, and deletes depleted voxels:
 
 ```text
-voxel ghost solid axis y boundary infinite layers 1
-voxel ghost solid axis z boundary infinite layers 1
-isthmus surface skin voxels solid buffer 1 weighting no map yes crop real
-surface flux skin source q1 select normal nx -1.0 ny 0.0 nz 0.0 min-cos 0.25
-voxel ablate solid surface skin policy local delete yes
+voxel_ghost solid axis y boundary infinite layers 1
+voxel_ghost solid axis z boundary infinite layers 1
+isthmus_surf skin voxels solid buffer 1 weighting no map yes crop real
+surf_flux skin source q1 select normal nx -1.0 ny 0.0 nz 0.0 min-cos 0.25
+voxel_ablate solid surface skin policy local delete yes
 ```
 
 The input is tuned as a visual example rather than a regression test. It runs
@@ -70,9 +70,9 @@ creates hot O2/N2 gas, and uses SPARTA surface chemistry to form CO:
 surf_react          ox prob carbon-co.surf
 compute             rco react/surf all ox
 fix                 rco ave/surf all 1 20 20 c_rco[*] ave one
-surface flux skin dsmc/reaction fix rco column 1 sample-steps 20 \
+surf_flux skin dsmc/reaction fix rco column 1 sample-steps 20 \
   reaction carbon-co.surf time-scale 500
-voxel ablate solid surface skin policy carryover/normal delete yes
+voxel_ablate solid surface skin policy carryover/normal delete yes
 ```
 
 The DSMC parameters are intentionally modest so the example usually runs in a

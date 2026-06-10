@@ -158,6 +158,7 @@ enum class CommandKind {
   VariableLoop,
   Next,
   Jump,
+  LimitTime,
   Run,
   VoxelAblate,
   IsthmusSurface,
@@ -169,6 +170,8 @@ struct ScriptCommand {
   std::string name;
   std::string target;
   int count = 0;
+  bool use_time_limit = false;
+  double time_limit = 0.0;
   RunConfig run;
   AblationCommand ablate;
   IsthmusSurfaceCommand isthmus_surface;

@@ -87,7 +87,7 @@
 \node[voxelbox, fill=orange!10, below=16mm of roots] (voxels) {
   Voxel model\\
   IDs, mass, material, fields\\
-  {\ttfamily\tiny voxel create solid sphere ...}
+  {\ttfamily\tiny voxel\_create solid sphere ...}
 };
 \draw[line width=0.38pt] (voxels.north east) -- ($(voxels.north east)+(2mm,2mm)$)
   -- ($(voxels.north west)+(2mm,2mm)$) -- (voxels.north west);
@@ -97,7 +97,7 @@
 \node[widebox, fill=purple!9, below=of voxels] (isthmus) {
   Generate/update surface\\
   ISTHMUS mesh + ownership map\\
-  {\ttfamily\tiny isthmus surface surf1 ...}
+  {\ttfamily\tiny isthmus\_surf surf1 ...}
 };
 
 \node[widebox, fill=orange!10, below=of isthmus] (surface) {
@@ -115,7 +115,7 @@
 \node[widebox, fill=orange!10, below=of map] (ablate) {
   Ablate voxel mass\\
   local, column, axial, normal carryover\\
-  {\ttfamily\tiny voxel ablate solid ...}
+  {\ttfamily\tiny voxel\_ablate solid ...}
 };
 
 % Standalone side
@@ -134,7 +134,7 @@
 \node[widebox, fill=yellow!15, below=11mm of standalone_source] (standalone_output) {
   Standalone outputs\\
   history, VTU, VTP, .surf\\
-  {\ttfamily\tiny voxel dump hist ...}
+  {\ttfamily\tiny voxel\_dump hist ...}
 };
 
 % DSMC side

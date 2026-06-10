@@ -4,8 +4,8 @@
 
 units si
 
-voxel material carbon density 1800.0
-voxel create solid slab nx 4 ny 8 nz 4 dx 1.0e-6 material carbon
+voxel_material carbon density 1800.0
+voxel_create solid slab nx 4 ny 8 nz 4 dx 1.0e-6 material carbon
 
 source q1 constant 1.8 units kg/m2/s
 timestep mass/courant 0.5 source q1
@@ -15,7 +15,7 @@ stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction
 
 variable i loop 8
 label ablate-loop
-voxel ablate solid source q1 policy local face yhi delete yes
+voxel_ablate solid source q1 policy local face yhi delete yes
 run 1
 next i
 jump SELF ablate-loop

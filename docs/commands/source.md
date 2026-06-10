@@ -22,7 +22,7 @@ interpreted as mass flux in `kg/m2/s` for the local slab ablation case.
 
 In DSMC-hosted inputs, `source` is mainly useful for no-gas verification cases,
 debug probes, and prescribed ablation studies. Coupled DSMC chemistry cases
-usually use `surface flux dsmc/reaction` or `surface flux dsmc/surf` instead.
+usually use `surf_flux dsmc/reaction` or `surf_flux dsmc/surf` instead.
 
 ## Current Limits
 

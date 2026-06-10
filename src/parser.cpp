@@ -95,6 +95,36 @@ void substitute_tokens(std::vector<std::string> &tokens,
   }
 }
 
+void insert_subcommand(std::vector<std::string> &tokens, const std::string &command,
+                       const std::string &subcommand) {
+  tokens[0] = command;
+  tokens.insert(tokens.begin() + 1, subcommand);
+}
+
+void normalize_command_alias(std::vector<std::string> &tokens) {
+  if (tokens.empty()) {
+    return;
+  }
+  const std::string command = tokens[0];
+  if (command == "voxel_material") {
+    insert_subcommand(tokens, "voxel", "material");
+  } else if (command == "voxel_create") {
+    insert_subcommand(tokens, "voxel", "create");
+  } else if (command == "voxel_dump") {
+    insert_subcommand(tokens, "voxel", "dump");
+  } else if (command == "voxel_ablate") {
+    insert_subcommand(tokens, "voxel", "ablate");
+  } else if (command == "voxel_ghost") {
+    insert_subcommand(tokens, "voxel", "ghost");
+  } else if (command == "isthmus_surf") {
+    insert_subcommand(tokens, "isthmus", "surface");
+  } else if (command == "surf_flux") {
+    insert_subcommand(tokens, "surface", "flux");
+  } else if (command == "surf_dump") {
+    insert_subcommand(tokens, "surface", "dump");
+  }
+}
+
 void require_size(const std::vector<std::string> &tokens, std::size_t size, int line_number) {
   if (tokens.size() < size) {
     throw InputError(line_error(line_number, "not enough arguments for '" + tokens.front() + "'"));
@@ -196,6 +226,7 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
     if (!(tokens.size() >= 4 && tokens[0] == "variable" && tokens[2] == "equal")) {
       substitute_tokens(tokens, variables, line_number);
     }
+    normalize_command_alias(tokens);
 
     const auto &command = tokens[0];
     if (command == "include") {
@@ -581,6 +612,28 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
       ScriptCommand command_entry;
       command_entry.kind = CommandKind::Jump;
       command_entry.target = tokens[2];
+      if (tokens.size() > 3) {
+        if (tokens.size() != 6 || tokens[3] != "until" || tokens[4] != "time") {
+          throw InputError(line_error(
+              line_number, "expected 'jump SELF <label> until time <target>'"));
+        }
+        command_entry.use_time_limit = true;
+        command_entry.time_limit = parse_double(tokens[5], line_number);
+        if (command_entry.time_limit <= 0.0) {
+          throw InputError(line_error(line_number, "jump until time target must be positive"));
+        }
+      }
+      config.program.push_back(std::move(command_entry));
+    } else if (command == "limit") {
+      if (tokens.size() != 3 || tokens[1] != "time") {
+        throw InputError(line_error(line_number, "expected 'limit time <target>'"));
+      }
+      ScriptCommand command_entry;
+      command_entry.kind = CommandKind::LimitTime;
+      command_entry.time_limit = parse_double(tokens[2], line_number);
+      if (command_entry.time_limit <= 0.0) {
+        throw InputError(line_error(line_number, "limit time target must be positive"));
+      }
       config.program.push_back(std::move(command_entry));
     } else if (command == "run") {
       require_size(tokens, 2, line_number);

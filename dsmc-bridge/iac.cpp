@@ -123,9 +123,9 @@ void Iac::command(int narg, char **arg) {
     return;
   }
 
-  if (std::strcmp(arg[0], "stats-style") == 0) {
+  if (std::strcmp(arg[0], "stats_style") == 0 || std::strcmp(arg[0], "stats-style") == 0) {
     if (narg < 2) {
-      error->all(FLERR, "Expected iac stats-style <column> ...");
+      error->all(FLERR, "Expected iac stats_style <column> ...");
     }
     auto &columns = IACBridge::config().stats.columns;
     columns.clear();
@@ -148,6 +148,26 @@ void Iac::command(int narg, char **arg) {
     try {
       const double keep_running = IACBridge::model(sparta).time() < target ? 1.0 : 0.0;
       set_internal_variable(input, error, arg[4], keep_running);
+    } catch (const std::exception &ex) {
+      error->all(FLERR, ex.what());
+    }
+    return;
+  }
+
+  if (std::strcmp(arg[0], "limit") == 0) {
+    if (narg != 3 || std::strcmp(arg[1], "time") != 0) {
+      error->all(FLERR, "Expected iac limit time <target>");
+    }
+    const double target = std::atof(arg[2]);
+    if (target <= 0.0) {
+      error->all(FLERR, "iac limit time target must be positive");
+    }
+    try {
+      auto &model = IACBridge::model(sparta);
+      const double remaining = target - model.time();
+      if (remaining > 0.0 && model.timestep() > remaining) {
+        model.set_timestep(remaining);
+      }
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
     }

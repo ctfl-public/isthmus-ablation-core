@@ -18,10 +18,10 @@ mixture             air CO frac 0.0
 mixture             air temp 5000.0 vstream 0.0 0.0 0.0
 collide             vss air examples/dsmc-sphere-kinetic/air.vss
 
-voxel material carbon density 1800.0 molar-mass 0.0120107 formula C
-voxel create solid sphere diameter 1.0e-3 resolution 10 material carbon
-isthmus surface skin voxels solid buffer 1 weighting no map yes
-surface install skin particle none type 1
+voxel_material carbon density 1800.0 molar-mass 0.0120107 formula C
+voxel_create solid sphere diameter 1.0e-3 resolution 10 material carbon
+isthmus_surf skin voxels solid buffer 1 weighting no map yes
+surf_install skin particle none type 1
 
 surf_collide        1 diffuse 5000.0 1.0
 surf_react          ox prob examples/dsmc-sphere-kinetic/carbon-co.surf
@@ -37,7 +37,7 @@ stats_style         step cpu np nscoll nscheck
 stats               1
 run                 1 post no
 
-surface measure-flux skin dsmc/reaction fix rco column 1 sample-steps 1 expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 temperature 5000.0 molecular-mass 5.31352e-26 reaction examples/dsmc-sphere-kinetic/carbon-co.surf
+surf_measure_flux skin dsmc/reaction fix rco column 1 sample-steps 1 expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 temperature 5000.0 molecular-mass 5.31352e-26 reaction examples/dsmc-sphere-kinetic/carbon-co.surf
 
 iac verify surface-area exact expected-surface-area tolerance 2.0 percent
 iac verify reaction-count-per-step exact expected-reaction-count-per-step tolerance 5.0 percent

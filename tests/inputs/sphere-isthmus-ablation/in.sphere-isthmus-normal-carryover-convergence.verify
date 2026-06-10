@@ -5,8 +5,8 @@ units si
 variable resolution equal 20
 variable steps equal 4
 
-voxel material carbon density 1800.0
-voxel create solid sphere diameter 1.0e-3 resolution ${resolution} material carbon
+voxel_material carbon density 1800.0
+voxel_create solid sphere diameter 1.0e-3 resolution ${resolution} material carbon
 
 source q1 constant 0.8 units kg/m2/s
 timestep mass/courant 0.25 source q1
@@ -16,9 +16,9 @@ stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction 
 
 variable i loop ${steps}
 label ablate-loop
-isthmus surface skin voxels solid buffer 1 weighting no map yes
-surface flux skin source q1 select all
-voxel ablate solid surface skin policy carryover/normal delete yes
+isthmus_surf skin voxels solid buffer 1 weighting no map yes
+surf_flux skin source q1 select all
+voxel_ablate solid surface skin policy carryover/normal delete yes
 run 1
 next i
 jump SELF ablate-loop

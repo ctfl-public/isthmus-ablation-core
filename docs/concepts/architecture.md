@@ -31,9 +31,9 @@ The current standalone ISTHMUS path is:
 1. Convert active voxels to an `isthmus::VoxelSet`.
 2. Call `isthmus::MarchingWindows`.
 3. Cache the surface mesh and triangle-to-voxel ownership fractions.
-4. Run `surface flux ...` to apply mass flux to selected triangles.
-5. Run `voxel ablate ...` to update voxel mass and delete empty voxels.
-6. Run `isthmus surface ...` again if the voxel state changed.
+4. Run `surf_flux ...` to apply mass flux to selected triangles.
+5. Run `voxel_ablate ...` to update voxel mass and delete empty voxels.
+6. Run `isthmus_surf ...` again if the voxel state changed.
 
 ## Future DSMC/SPARTA Coupling
 
@@ -45,9 +45,9 @@ The command-loop path would look like:
 ```text
 label ablate-loop
 run 10000
-surface flux surf1 source dsmc-flux select all
-voxel ablate solid surface surf1 policy local delete yes
-isthmus surface surf1 voxels solid map yes
+surf_flux surf1 source dsmc-flux select all
+voxel_ablate solid surface surf1 policy local delete yes
+isthmus_surf surf1 voxels solid map yes
 surface update surf1 install yes
 jump SELF ablate-loop
 ```

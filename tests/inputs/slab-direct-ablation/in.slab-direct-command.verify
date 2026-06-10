@@ -3,7 +3,7 @@
 
 include ../../../examples/slab-direct-ablation/in.slab-direct-ablation
 
-voxel dump off
+voxel_dump off
 
 verify remaining-mass exact "initial-mass - q1*area*time" tolerance 0.01 percent norm max
 verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max

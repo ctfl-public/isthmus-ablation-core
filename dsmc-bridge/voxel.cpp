@@ -9,6 +9,7 @@
 #include <exception>
 #include <string>
 #include <utility>
+#include <vector>
 
 using namespace SPARTA_NS;
 
@@ -28,9 +29,43 @@ const char *value_after(int narg, char **arg, const char *key) {
   return nullptr;
 }
 
+void forward_voxel(SPARTA *sparta, const char *subcommand, int narg, char **arg) {
+  std::vector<char *> forwarded;
+  forwarded.reserve(static_cast<std::size_t>(narg) + 1);
+  forwarded.push_back(const_cast<char *>(subcommand));
+  for (int i = 0; i < narg; ++i) {
+    forwarded.push_back(arg[i]);
+  }
+  Voxel voxel(sparta);
+  voxel.command(static_cast<int>(forwarded.size()), forwarded.data());
+}
+
 } // namespace
 
 Voxel::Voxel(SPARTA *sparta) : Pointers(sparta) {}
+
+VoxelAblate::VoxelAblate(SPARTA *sparta) : Pointers(sparta) {}
+void VoxelAblate::command(int narg, char **arg) { forward_voxel(sparta, "ablate", narg, arg); }
+
+VoxelCreate::VoxelCreate(SPARTA *sparta) : Pointers(sparta) {}
+void VoxelCreate::command(int narg, char **arg) { forward_voxel(sparta, "create", narg, arg); }
+
+VoxelDumpCommand::VoxelDumpCommand(SPARTA *sparta) : Pointers(sparta) {}
+void VoxelDumpCommand::command(int narg, char **arg) { forward_voxel(sparta, "dump", narg, arg); }
+
+VoxelGhost::VoxelGhost(SPARTA *sparta) : Pointers(sparta) {}
+void VoxelGhost::command(int narg, char **arg) { forward_voxel(sparta, "ghost", narg, arg); }
+
+VoxelMaterial::VoxelMaterial(SPARTA *sparta) : Pointers(sparta) {}
+void VoxelMaterial::command(int narg, char **arg) { forward_voxel(sparta, "material", narg, arg); }
+
+VoxelWriteHistory::VoxelWriteHistory(SPARTA *sparta) : Pointers(sparta) {}
+void VoxelWriteHistory::command(int narg, char **arg) {
+  forward_voxel(sparta, "write-history", narg, arg);
+}
+
+VoxelWriteVtu::VoxelWriteVtu(SPARTA *sparta) : Pointers(sparta) {}
+void VoxelWriteVtu::command(int narg, char **arg) { forward_voxel(sparta, "write-vtu", narg, arg); }
 
 void Voxel::command(int narg, char **arg) {
   if (narg < 1) {

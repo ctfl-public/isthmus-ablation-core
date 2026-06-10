@@ -42,12 +42,12 @@ dropped-mass-step
 
 ## DSMC/SPARTA Note
 
-In DSMC-hosted runs, use `iac stats` and `iac stats-style` for the core's own
+In DSMC-hosted runs, use `iac stats` and `iac stats_style` for the core's own
 ablation table:
 
 ```text
 iac stats 1
-iac stats-style step time active-voxels deleted-voxels remaining-mass mass-fraction radius
+iac stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction radius
 ```
 
 These commands do not change DSMC's native `stats` or `stats_style` settings.

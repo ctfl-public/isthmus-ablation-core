@@ -1,19 +1,19 @@
-# `isthmus surface` Command
+# `isthmus_surf` Command
 
-The `isthmus surface` command reconstructs a triangle surface from active
+The `isthmus_surf` command reconstructs a triangle surface from active
 voxels.
 
 ## Syntax
 
 ```text
-isthmus surface <surface-id> voxels <model> [buffer <N>] [weighting yes|no] [map yes|no] [crop real|no]
+isthmus_surf <surface-id> voxels <model> [buffer <N>] [weighting yes|no] [map yes|no] [crop real|no]
 ```
 
 ## Example
 
 ```text
-isthmus surface skin voxels solid buffer 1 weighting no map yes
-isthmus surface skin voxels solid buffer 1 weighting no map yes crop real
+isthmus_surf skin voxels solid buffer 1 weighting no map yes
+isthmus_surf skin voxels solid buffer 1 weighting no map yes crop real
 ```
 
 ## Description
@@ -23,7 +23,7 @@ cubes, stores the resulting triangle mesh, and optionally stores
 triangle-to-voxel ownership fractions.
 
 `map yes` is required when the surface will be used for ablation, because
-`voxel ablate <model> surface <surface-id>` needs those ownership fractions to
+`voxel_ablate <model> surface <surface-id>` needs those ownership fractions to
 send triangle mass loss back to voxels.
 
 `buffer` adds empty voxel layers around the active voxel bounding box before
