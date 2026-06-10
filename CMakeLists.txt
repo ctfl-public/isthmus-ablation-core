@@ -184,6 +184,20 @@ if(isthmus_cpp_FOUND)
 endif()
 
 if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
+  set(IAC_DSMC_KINETIC_CONVERGENCE_ARGS
+      --dsmc ${IAC_DSMC_EXECUTABLE}
+      --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-grid-convergence
+      --resolutions 4,8,12
+      --target-mass-fraction 0.2
+      --sample-steps 10
+      --mass-courant 0.1666666667
+      --fnum 2.0e11
+      --domain-half-width 6.5e-4
+      --grid-cells 6
+      --tolerance-percent 25.0
+      --require-improvement
+  )
+
   add_test(
     NAME dsmc-slab-direct-ablation-verification
     COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
@@ -219,6 +233,18 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
   set_tests_properties(dsmc-sphere-flux-verification PROPERTIES
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
+
+  if(Python3_Interpreter_FOUND)
+    add_test(
+      NAME dsmc-sphere-kinetic-grid-convergence
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-dsmc-kinetic-convergence.py
+              ${IAC_DSMC_KINETIC_CONVERGENCE_ARGS}
+    )
+    set_tests_properties(dsmc-sphere-kinetic-grid-convergence PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      TIMEOUT 30
+    )
+  endif()
 endif()
 
 add_custom_target(
@@ -252,16 +278,7 @@ if(Python3_Interpreter_FOUND AND PDFLATEX_EXECUTABLE)
     add_custom_target(
       dsmc-convergence-report
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-dsmc-kinetic-convergence.py
-              --dsmc ${IAC_DSMC_EXECUTABLE}
-              --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-grid-convergence
-              --resolutions 10,20
-              --target-mass-fraction 0.2
-              --target-attempts 2
-              --sample-steps 200
-              --mass-courant 0.1666666667
-              --fnum 2.0e11
-              --tolerance-percent 30.0
-              --require-improvement
+              ${IAC_DSMC_KINETIC_CONVERGENCE_ARGS}
               --pdf
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       COMMENT "Building DSMC sphere kinetic grid-convergence report"

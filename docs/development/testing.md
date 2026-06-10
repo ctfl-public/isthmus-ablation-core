@@ -73,20 +73,28 @@ That build runs the standalone/core tests plus:
 dsmc-slab-direct-ablation-verification
 dsmc-sphere-isthmus-normal-carryover-verification
 dsmc-sphere-flux-verification
+dsmc-sphere-kinetic-grid-convergence
 ```
 
-The DSMC tests are intentionally fast. The flux verification is a one-step
+The DSMC tests are intentionally modest. The flux verification is a one-step
 instantaneous kinetic-theory check: it verifies the initial O2 reaction count
 and equivalent carbon mass flux before the perfectly consuming surface depletes
-the nearby O2 population. Longer DSMC depletion and coupled-ablation studies
-remain available as examples and report targets, but they are not part of the
-automatic CTest suite.
+the nearby O2 population. The kinetic grid-convergence test then runs the
+coupled collision-flux recession loop on a small `4,8,12` voxel-resolution
+ladder. It compares final mass fraction, voxelized volume fraction, and radius
+to the analytical kinetic-theory sphere recession near 20% remaining mass, and
+requires the finest mass error to improve over the coarsest case. This test is
+only present in DSMC-enabled builds.
 
 To build the DSMC convergence report:
 
 ```bash
 cmake --build --preset dsmc --target dsmc-convergence-report
 ```
+
+The target uses the same optimized `4,8,12` voxel-resolution ladder as the
+`dsmc-sphere-kinetic-grid-convergence` CTest, but also compiles the PDF report.
+The normal CTest path skips PDF generation so the pass/fail check stays quick.
 
 It writes:
 

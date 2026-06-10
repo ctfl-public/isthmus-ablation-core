@@ -25,7 +25,8 @@ ctest --preset dsmc
 ```
 
 The normal standalone build does not include DSMC tests. A DSMC-enabled build
-runs the standalone tests plus DSMC-hosted bridge tests.
+runs the standalone tests plus DSMC-hosted bridge tests, including the
+`dsmc-sphere-kinetic-grid-convergence` check.
 
 ## Collision-Flux Loop
 
@@ -119,7 +120,8 @@ python3 ../../tools/check-dsmc-kinetic.py output/history.csv \
 
 ## Grid-Refinement Report
 
-Build the DSMC grid-refinement report with:
+The DSMC CTest suite runs this grid-refinement case without PDF generation.
+Build the visual DSMC grid-refinement report with:
 
 ```bash
 cmake --build --preset dsmc --target dsmc-convergence-report
@@ -130,30 +132,36 @@ or run the generator directly:
 ```bash
 python3 tools/run-dsmc-kinetic-convergence.py \
   --dsmc build-dsmc/bin/dsmc-iac \
-  --resolutions 10,20 \
+  --resolutions 4,8,12 \
   --target-mass-fraction 0.2 \
-  --sample-steps 200 \
+  --sample-steps 10 \
   --mass-courant 0.1666666667 \
+  --domain-half-width 6.5e-4 \
+  --grid-cells 6 \
   --fnum 2.0e11 \
-  --tolerance-percent 30 \
+  --tolerance-percent 25 \
+  --require-improvement \
   --pdf
 ```
 
-The runner generates temporary input files under the build directory, estimates
-how many coupling loops are needed to approach the requested target mass
-fraction, and lets the runtime `mass-courant` command choose each solid
-ablation timestep from the current maximum triangle mass flux. The analytical
-comparison uses the actual ablation times written in each history file.
+The runner generates temporary input files under the build directory, computes
+the physical ablation time corresponding to the requested target mass fraction,
+and lets the runtime `mass-courant` command choose each solid ablation timestep
+from the current maximum triangle mass flux. The final update is clipped so
+each case ends at the same analytical ablation time. The pass/fail check uses
+the finest-grid mass fraction, voxelized volume fraction, and radius errors;
+`--require-improvement` also requires the finest mass error to improve over the
+coarsest case.
 
 ```text
 build-dsmc/output/dsmc-sphere-kinetic-grid-convergence/summary.csv
 build-dsmc/output/dsmc-sphere-kinetic-grid-convergence/report.pdf
 ```
 
-The per-triangle DSMC flux path needs enough particle statistics that most
-active surface triangles receive collision samples during a coupling interval.
-The report therefore uses more particles and a longer DSMC sampling window than
-the direct workflow example.
+The report is optimized as a quick regression-style coupled check. It uses a
+small periodic box around the sphere and a modest `4,8,12` voxel-resolution
+ladder so the run remains short while still showing grid refinement toward the
+continuum sphere solution.
 
 ## Chemistry Note
 
