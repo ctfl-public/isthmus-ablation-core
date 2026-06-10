@@ -54,6 +54,7 @@ sphere-isthmus-local-deletion-verification
 sphere-isthmus-normal-carryover-verification
 sphere-isthmus-kinetic-theory-verification
 sphere-isthmus-normal-carryover-convergence
+sphere-isthmus-surface-resolution-convergence
 ```
 
 These are standalone/core tests. They run with the `ia-core` binary and should
@@ -138,12 +139,20 @@ patch with y/z infinite-wall ghost voxels. The finite-patch case has broad
 tolerances because edge effects are expected. The ghost case should match the
 one-dimensional slab recession nearly exactly.
 
-The convergence test is an input file, not an external runner. It uses
+The normal-carryover convergence test is an input file, not an external runner. It uses
 `variable ... equal ...` and a `convergence ... vary ... order ...` command to
 run normal carryover at 5, 10, and 20 voxels across the diameter with
 mass-Courant timing. It requires monotone radius-error reduction. The
 voxelized volume-fraction check allows non-monotone coarse stair-step ties but
 still checks the end-to-end apparent order in a broad first-order band.
+
+The surface-resolution convergence test holds the voxel sphere fixed and varies
+the ISTHMUS marching-cubes spacing from `10:1` to `1:1`. It checks apparent
+first-to-last radius-error reduction against the continuum shrinking-sphere
+solution after substantial recession. It does not require monotone intermediate
+errors because a coarse marching grid can smooth a low-resolution voxelized
+sphere and temporarily appear closer to the continuum sphere than the fully
+resolved voxel stair-step geometry.
 
 ## Test Organization
 

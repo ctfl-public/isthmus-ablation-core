@@ -624,6 +624,9 @@ void Model::validate_isthmus_surface(const IsthmusSurfaceCommand &surface) const
   if (surface.buffer < 0) {
     throw RuntimeError("isthmus surface buffer must be nonnegative");
   }
+  if (surface.resolution <= 0.0) {
+    throw RuntimeError("isthmus surface resolution must be positive");
+  }
 }
 
 void Model::validate_surface_flux(const SurfaceFluxCommand &flux) const {
@@ -894,6 +897,7 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
   throw RuntimeError("isthmus surface requires building with ISTHMUS C++ support");
 #else
   const double dx = voxel_dx();
+  const double marching_dx = dx * surface.resolution;
 
   const auto records = surface_voxel_records();
   if (records.empty()) {
@@ -921,13 +925,15 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
     domain.limits[0][d] = lo[d] - (static_cast<double>(surface.buffer) + 0.5) * dx;
     domain.limits[1][d] = hi[d] + (static_cast<double>(surface.buffer) + 0.5) * dx;
     domain.cell_counts[d] =
-        static_cast<std::size_t>(std::max(1.0, std::floor((domain.limits[1][d] -
-                                                           domain.limits[0][d]) /
-                                                          dx + kEpsilon)));
+        static_cast<std::size_t>(std::max(1.0, std::ceil((domain.limits[1][d] -
+                                                          domain.limits[0][d]) /
+                                                         marching_dx - kEpsilon)));
     domain.limits[1][d] = domain.limits[0][d] +
-                          static_cast<double>(domain.cell_counts[d]) * dx *
+                          static_cast<double>(domain.cell_counts[d]) * marching_dx *
                               (1.0 + 1.0e-10);
   }
+  set_diagnostic("isthmus-surface-resolution", surface.resolution);
+  set_diagnostic("isthmus-marching-cell-size", marching_dx);
 
   isthmus::VoxelSet voxel_set;
   voxel_set.voxels.reserve(records.size());

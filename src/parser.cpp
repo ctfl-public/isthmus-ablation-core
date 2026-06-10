@@ -146,6 +146,31 @@ double parse_double(const std::string &value, int line_number) {
   }
 }
 
+double parse_positive_double(const std::string &value, int line_number,
+                             const std::string &name) {
+  const double parsed = parse_double(value, line_number);
+  if (parsed <= 0.0) {
+    throw InputError(line_error(line_number, name + " must be positive"));
+  }
+  return parsed;
+}
+
+double parse_ratio(const std::string &value, int line_number, const std::string &name) {
+  if (value == "voxel") {
+    return 1.0;
+  }
+  const std::size_t colon = value.find(':');
+  if (colon == std::string::npos) {
+    return parse_positive_double(value, line_number, name);
+  }
+  if (value.find(':', colon + 1) != std::string::npos) {
+    throw InputError(line_error(line_number, "invalid " + name + " ratio '" + value + "'"));
+  }
+  const double numerator = parse_positive_double(value.substr(0, colon), line_number, name);
+  const double denominator = parse_positive_double(value.substr(colon + 1), line_number, name);
+  return numerator / denominator;
+}
+
 int parse_int(const std::string &value, int line_number) {
   try {
     std::size_t used = 0;
@@ -418,6 +443,11 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
       const auto buffer = values.find("buffer");
       if (buffer != values.end()) {
         command_entry.isthmus_surface.buffer = parse_int(buffer->second, line_number);
+      }
+      const auto resolution = values.find("resolution");
+      if (resolution != values.end()) {
+        command_entry.isthmus_surface.resolution =
+            parse_ratio(resolution->second, line_number, "isthmus surface resolution");
       }
       const auto weighting = values.find("weighting");
       if (weighting != values.end()) {

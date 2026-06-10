@@ -119,7 +119,7 @@ if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND Python3_Interpreter_FOUND AND IAC_MAKE
     COMMAND ${CMAKE_COMMAND} -E create_symlink
             ${IAC_DSMC_OVERLAY_EXECUTABLE}
             ${CMAKE_BINARY_DIR}/bin/dsmc-iac
-    DEPENDS isthmus_ablation_core
+    DEPENDS ia-core
     COMMAND_EXPAND_LISTS
     COMMENT "Building private DSMC/IAC executable in the IAC build tree"
   )
@@ -180,6 +180,10 @@ if(isthmus_cpp_FOUND)
   add_test(
     NAME sphere-isthmus-normal-carryover-convergence
     COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover-convergence.verify
+  )
+  add_test(
+    NAME sphere-isthmus-surface-resolution-convergence
+    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-surface-resolution-convergence.verify
   )
 endif()
 

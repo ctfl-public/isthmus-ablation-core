@@ -6,7 +6,7 @@ voxels.
 ## Syntax
 
 ```text
-isthmus_surf <surface-id> voxels <model> [buffer <N>] [weighting yes|no] [map yes|no] [crop real|no]
+isthmus_surf <surface-id> voxels <model> [buffer <N>] [resolution <R|A:B|voxel>] [weighting yes|no] [map yes|no] [crop real|no]
 ```
 
 ## Example
@@ -14,6 +14,7 @@ isthmus_surf <surface-id> voxels <model> [buffer <N>] [weighting yes|no] [map ye
 ```text
 isthmus_surf skin voxels solid buffer 1 weighting no map yes
 isthmus_surf skin voxels solid buffer 1 weighting no map yes crop real
+isthmus_surf skin voxels solid buffer 2 resolution 2:1 weighting no map yes
 ```
 
 ## Description
@@ -29,6 +30,14 @@ send triangle mass loss back to voxels.
 `buffer` adds empty voxel layers around the active voxel bounding box before
 marching cubes. This helps ISTHMUS generate a closed surface as the solid
 shrinks.
+
+`resolution` controls the marching-cubes grid spacing relative to the voxel
+spacing. The default is `voxel`, equivalent to `1:1`, meaning one marching cell
+per voxel width. A value such as `2:1` makes the marching-cubes cell spacing
+twice the voxel spacing. Numeric values are accepted as shorthand, so
+`resolution 2` is equivalent to `resolution 2:1`. Larger values are coarser and
+usually need a larger `buffer` because each marching cell spans more voxel
+layers.
 
 `crop real` removes triangles whose centroids are outside the real voxel domain
 after ghost voxels are added. Use it when ghost voxels are only a boundary

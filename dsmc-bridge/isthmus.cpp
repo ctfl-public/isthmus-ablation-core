@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <string>
 #include <vector>
 
 using namespace SPARTA_NS;
@@ -15,6 +16,34 @@ namespace {
 bool parse_bool(const char *value) {
   return std::strcmp(value, "yes") == 0 || std::strcmp(value, "true") == 0 ||
          std::strcmp(value, "1") == 0;
+}
+
+double parse_positive_double(const char *value, Error *error, const char *context) {
+  char *end = nullptr;
+  const double parsed = std::strtod(value, &end);
+  if (end == value || *end != '\0' || parsed <= 0.0) {
+    error->all(FLERR, context);
+  }
+  return parsed;
+}
+
+double parse_ratio(const char *value, Error *error) {
+  if (std::strcmp(value, "voxel") == 0) {
+    return 1.0;
+  }
+  const char *colon = std::strchr(value, ':');
+  if (!colon) {
+    return parse_positive_double(value, error,
+                                 "isthmus surface resolution must be positive");
+  }
+
+  const std::string numerator(value, colon - value);
+  const std::string denominator(colon + 1);
+  const double top = parse_positive_double(
+      numerator.c_str(), error, "isthmus surface resolution ratio is invalid");
+  const double bottom = parse_positive_double(
+      denominator.c_str(), error, "isthmus surface resolution ratio is invalid");
+  return top / bottom;
 }
 
 const char *value_after(int narg, char **arg, const char *key) {
@@ -63,8 +92,12 @@ void Isthmus::command(int narg, char **arg) {
   const char *weighting = value_after(narg - 2, arg + 2, "weighting");
   const char *map = value_after(narg - 2, arg + 2, "map");
   const char *crop = value_after(narg - 2, arg + 2, "crop");
+  const char *resolution = value_after(narg - 2, arg + 2, "resolution");
   if (buffer) {
     surface.buffer = std::atoi(buffer);
+  }
+  if (resolution) {
+    surface.resolution = parse_ratio(resolution, error);
   }
   if (weighting) {
     surface.weighting = parse_bool(weighting);
