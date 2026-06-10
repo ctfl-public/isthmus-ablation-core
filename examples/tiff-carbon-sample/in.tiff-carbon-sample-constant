@@ -1,11 +1,11 @@
 # Standalone TIFF-import voxel/ISTHMUS recession example.
-# The committed TIFF is a small crop from a carbon sample near the exposed
-# surface. It is binary palette data, so invert yes makes palette value 0 solid.
+# The committed TIFF is a small carbon-sample crop converted to ISTHMUS's
+# narrow active-value convention: 1 means solid.
 
 units si
 
 voxel material carbon density 1800.0
-voxel create solid tiff file examples/tiff-carbon-sample/carbon-sample-top-crop.tif dx 3.3757e-6 threshold 1 invert yes material carbon
+voxel create solid tiff file examples/tiff-carbon-sample/carbon-sample-top-crop.tif dx 3.3757e-6 material carbon
 voxel ghost solid axis y boundary infinite layers 1
 voxel ghost solid axis z boundary infinite layers 1
 

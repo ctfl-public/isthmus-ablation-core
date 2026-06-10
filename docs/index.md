@@ -5,11 +5,11 @@ solid voxel state, tracks mass and material properties, supports standalone
 verification runs, and is being shaped so DSMC/SPARTA can call it through thin
 commands, fixes, and computes.
 
-The project is strongly linked to ISTHMUS, but it is not only an ISTHMUS
-wrapper. ISTHMUS is the surface reconstruction and surface-to-voxel mapping
-backend. The core should also remain useful for voxel bookkeeping, local
-voxel-face ablation, generated geometries, and exact-solution verification
-without a fluid domain.
+The project requires ISTHMUS. ISTHMUS provides surface reconstruction,
+surface-to-voxel mapping, and the shared TIFF import utility. The core is still
+more than an ISTHMUS wrapper: it owns voxel bookkeeping, local voxel-face
+ablation, generated geometries, exact-solution verification, and DSMC coupling
+state.
 
 ## Quick Start
 
@@ -56,7 +56,7 @@ ctest --preset standalone
 ## Current Capabilities
 
 - Create a slab voxel model.
-- Import a small 8-bit or 16-bit single-sample TIFF stack as voxels.
+- Import a small ISTHMUS-backed TIFF stack as voxels.
 - Assign material density.
 - Define a constant mass-loss source.
 - Use explicit or mass-Courant timesteps.

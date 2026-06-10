@@ -41,8 +41,6 @@ struct SphereGeometry {
 struct TiffGeometry {
   std::string file;
   double dx = 0.0;
-  double threshold = 1.0;
-  bool invert = false;
   std::string material;
   std::array<double, 3> origin{{0.0, 0.0, 0.0}};
   int nx = 0;

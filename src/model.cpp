@@ -12,11 +12,10 @@
 #include <sstream>
 #include <unordered_map>
 
-#include <tiffio.h>
-
 #ifdef IAC_HAS_ISTHMUS
 #include <isthmus/geometry.hpp>
 #include <isthmus/marching_windows.hpp>
+#include <isthmus/utilities.hpp>
 #endif
 
 namespace iac {
@@ -508,97 +507,40 @@ void Model::initialize_tiff() {
     throw RuntimeError("voxel create tiff requires file and positive dx");
   }
 
-  TIFF *tiff = TIFFOpen(g.file.c_str(), "r");
-  if (tiff == nullptr) {
-    throw RuntimeError("could not open TIFF file '" + g.file + "'");
+  const auto active_voxels =
+      isthmus::utilities::load_active_voxels_from_tiff(std::filesystem::path(g.file), g.dx);
+  if (active_voxels.voxels.empty()) {
+    throw RuntimeError("voxel create tiff produced no active voxels");
   }
 
-  struct TiffCloser {
-    TIFF *handle = nullptr;
-    ~TiffCloser() {
-      if (handle != nullptr) {
-        TIFFClose(handle);
-      }
+  int max_ix = 0;
+  int max_iy = 0;
+  int max_iz = 0;
+  std::set<std::array<int, 3>> active_indices;
+  for (const auto &record : active_voxels.voxels) {
+    const int ix = static_cast<int>(std::llround(record.centroid[0] / g.dx));
+    const int iy = static_cast<int>(std::llround(record.centroid[1] / g.dx));
+    const int iz = static_cast<int>(std::llround(record.centroid[2] / g.dx));
+    if (ix < 0 || iy < 0 || iz < 0) {
+      throw RuntimeError("voxel create tiff received negative voxel coordinates from ISTHMUS");
     }
-  } closer{tiff};
-
-  std::vector<std::vector<double>> slices;
-  uint32_t width = 0;
-  uint32_t height = 0;
-  int slice = 0;
-  do {
-    uint32_t current_width = 0;
-    uint32_t current_height = 0;
-    uint16_t bits_per_sample = 0;
-    uint16_t samples_per_pixel = 1;
-    TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &current_width);
-    TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &current_height);
-    TIFFGetField(tiff, TIFFTAG_BITSPERSAMPLE, &bits_per_sample);
-    TIFFGetFieldDefaulted(tiff, TIFFTAG_SAMPLESPERPIXEL, &samples_per_pixel);
-    if (current_width == 0 || current_height == 0) {
-      throw RuntimeError("TIFF file contains an empty image directory");
-    }
-    if (samples_per_pixel != 1) {
-      throw RuntimeError("voxel create tiff currently requires one sample per pixel");
-    }
-    if (bits_per_sample != 8 && bits_per_sample != 16) {
-      throw RuntimeError("voxel create tiff currently supports 8-bit or 16-bit images");
-    }
-    if (slice == 0) {
-      width = current_width;
-      height = current_height;
-    } else if (current_width != width || current_height != height) {
-      throw RuntimeError("TIFF stack directories must all have the same dimensions");
-    }
-
-    const tsize_t scanline_size = TIFFScanlineSize(tiff);
-    if (scanline_size <= 0) {
-      throw RuntimeError("could not determine TIFF scanline size");
-    }
-    std::vector<unsigned char> scanline(static_cast<std::size_t>(scanline_size));
-    std::vector<double> values(static_cast<std::size_t>(width) * height, 0.0);
-    for (uint32_t row = 0; row < height; ++row) {
-      if (TIFFReadScanline(tiff, scanline.data(), row, 0) < 0) {
-        throw RuntimeError("error reading TIFF scanline from '" + g.file + "'");
-      }
-      for (uint32_t col = 0; col < width; ++col) {
-        if (bits_per_sample == 8) {
-          values[static_cast<std::size_t>(row) * width + col] = scanline[col];
-        } else {
-          const auto *data = reinterpret_cast<const uint16_t *>(scanline.data());
-          values[static_cast<std::size_t>(row) * width + col] = data[col];
-        }
-      }
-    }
-    slices.push_back(std::move(values));
-    ++slice;
-  } while (TIFFReadDirectory(tiff));
-
-  if (slices.empty()) {
-    throw RuntimeError("TIFF file contains no image directories");
-  }
-  if (width > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
-      height > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
-      slices.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
-    throw RuntimeError("TIFF stack is too large for current voxel index storage");
+    max_ix = std::max(max_ix, ix);
+    max_iy = std::max(max_iy, iy);
+    max_iz = std::max(max_iz, iz);
+    active_indices.insert({ix, iy, iz});
   }
 
-  g.nx = static_cast<int>(slices.size());
-  g.ny = static_cast<int>(height);
-  g.nz = static_cast<int>(width);
+  g.nx = max_ix + 1;
+  g.ny = max_iy + 1;
+  g.nz = max_iz + 1;
 
   voxels_.clear();
   voxels_.reserve(static_cast<std::size_t>(g.nx) * g.ny * g.nz);
   std::size_t id = 0;
   for (int ix = 0; ix < g.nx; ++ix) {
-    const auto &slice_values = slices[static_cast<std::size_t>(ix)];
     for (int iy = 0; iy < g.ny; ++iy) {
       for (int iz = 0; iz < g.nz; ++iz) {
-        const double value =
-            slice_values[static_cast<std::size_t>(iy) * static_cast<std::size_t>(g.nz) +
-                         static_cast<std::size_t>(iz)];
-        const bool above = value >= g.threshold;
-        const bool active = g.invert ? !above : above;
+        const bool active = active_indices.count({ix, iy, iz}) != 0;
         voxels_.push_back(Voxel{id++,
                                 ix,
                                 iy,
@@ -1976,8 +1918,6 @@ void Model::print_run_summary(std::ostream &out) const {
     out << "#   file = " << g.file << '\n';
     out << "#   grid = " << g.nx << " x " << g.ny << " x " << g.nz << '\n';
     out << "#   dx = " << std::setprecision(8) << g.dx << " m\n";
-    out << "#   threshold = " << g.threshold << '\n';
-    out << "#   invert = " << (g.invert ? "yes" : "no") << '\n';
   }
   out << "#   material = " << config_.material.name << '\n';
   out << "#   density = " << config_.material.density << " kg/m^3\n";

@@ -28,12 +28,9 @@ add_library(isthmus_ablation_core
 
 target_include_directories(isthmus_ablation_core PUBLIC include)
 
-find_package(TIFF REQUIRED)
-target_link_libraries(isthmus_ablation_core PUBLIC TIFF::TIFF)
-
-set(ISTHMUS_ROOT "" CACHE PATH "Optional root directory of an ISTHMUS checkout/build")
+set(ISTHMUS_ROOT "" CACHE PATH "Root directory of an ISTHMUS checkout/build")
 if(NOT ISTHMUS_ROOT AND DEFINED ENV{ISTHMUS_ROOT})
-  set(ISTHMUS_ROOT "$ENV{ISTHMUS_ROOT}" CACHE PATH "Optional root directory of an ISTHMUS checkout/build" FORCE)
+  set(ISTHMUS_ROOT "$ENV{ISTHMUS_ROOT}" CACHE PATH "Root directory of an ISTHMUS checkout/build" FORCE)
 endif()
 
 set(_iac_isthmus_package_paths
@@ -48,18 +45,16 @@ set(_iac_isthmus_package_paths
   "$ENV{HOME}/isthmus/build-wsl"
 )
 
-find_package(isthmus_cpp CONFIG QUIET PATHS
+find_package(isthmus_cpp CONFIG REQUIRED PATHS
   ${_iac_isthmus_package_paths}
 )
 
-if(isthmus_cpp_FOUND)
-  target_link_libraries(isthmus_ablation_core PUBLIC isthmus_cpp::isthmus_cpp)
-  target_compile_definitions(isthmus_ablation_core PRIVATE IAC_HAS_ISTHMUS=1)
-  get_target_property(IAC_ISTHMUS_INCLUDE_DIRS isthmus_cpp::isthmus_cpp INTERFACE_INCLUDE_DIRECTORIES)
-  get_target_property(IAC_ISTHMUS_LIBRARY isthmus_cpp::isthmus_cpp IMPORTED_LOCATION)
-  if(NOT IAC_ISTHMUS_LIBRARY)
-    get_target_property(IAC_ISTHMUS_LIBRARY isthmus_cpp::isthmus_cpp IMPORTED_LOCATION_NOCONFIG)
-  endif()
+target_link_libraries(isthmus_ablation_core PUBLIC isthmus_cpp::isthmus_cpp)
+target_compile_definitions(isthmus_ablation_core PRIVATE IAC_HAS_ISTHMUS=1)
+get_target_property(IAC_ISTHMUS_INCLUDE_DIRS isthmus_cpp::isthmus_cpp INTERFACE_INCLUDE_DIRECTORIES)
+get_target_property(IAC_ISTHMUS_LIBRARY isthmus_cpp::isthmus_cpp IMPORTED_LOCATION)
+if(NOT IAC_ISTHMUS_LIBRARY)
+  get_target_property(IAC_ISTHMUS_LIBRARY isthmus_cpp::isthmus_cpp IMPORTED_LOCATION_NOCONFIG)
 endif()
 
 if(MSVC)
@@ -94,7 +89,7 @@ set(IAC_DSMC_OVERLAY_SRC "${CMAKE_BINARY_DIR}/dsmc-overlay/src")
 set(IAC_DSMC_OVERLAY_EXECUTABLE "${IAC_DSMC_OVERLAY_SRC}/spa_${DSMC_MACHINE}")
 option(IAC_DSMC_USE_OVERLAY "Use the private DSMC overlay executable for coupled tests" ON)
 set(IAC_DSMC_EXECUTABLE "" CACHE FILEPATH "Optional DSMC/SPARTA executable for coupled tests")
-if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND isthmus_cpp_FOUND)
+if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT)
   set(IAC_DSMC_EXECUTABLE "${CMAKE_BINARY_DIR}/bin/dsmc-iac" CACHE FILEPATH
       "Optional DSMC/SPARTA executable for coupled tests" FORCE)
 endif()
@@ -107,15 +102,7 @@ if(IAC_ISTHMUS_INCLUDE_DIRS)
   endforeach()
 endif()
 
-set(IAC_DSMC_OVERLAY_TIFF_ARGS)
-foreach(_iac_tiff_include IN LISTS TIFF_INCLUDE_DIRS)
-  list(APPEND IAC_DSMC_OVERLAY_TIFF_ARGS --tiff-include "${_iac_tiff_include}")
-endforeach()
-foreach(_iac_tiff_lib IN LISTS TIFF_LIBRARIES)
-  list(APPEND IAC_DSMC_OVERLAY_TIFF_ARGS --tiff-lib "${_iac_tiff_lib}")
-endforeach()
-
-if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND isthmus_cpp_FOUND AND Python3_Interpreter_FOUND AND IAC_MAKE_EXECUTABLE)
+if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND Python3_Interpreter_FOUND AND IAC_MAKE_EXECUTABLE)
   add_custom_target(
     dsmc
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/create-dsmc-overlay.py
@@ -126,7 +113,6 @@ if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND isthmus_cpp_FOUND AND Python3_Interpre
             --iac-lib $<TARGET_FILE:isthmus_ablation_core>
             --isthmus-lib ${IAC_ISTHMUS_LIBRARY}
             ${IAC_DSMC_OVERLAY_ISTHMUS_INCLUDE_ARGS}
-            ${IAC_DSMC_OVERLAY_TIFF_ARGS}
     COMMAND ${CMAKE_COMMAND} -E chdir ${IAC_DSMC_OVERLAY_SRC}
             ${IAC_MAKE_EXECUTABLE} ${DSMC_MACHINE}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bin
@@ -146,13 +132,10 @@ else()
   )
 endif()
 
-message(STATUS "ISTHMUS found: ${isthmus_cpp_FOUND}")
-if(isthmus_cpp_FOUND)
-  message(STATUS "ISTHMUS library: ${IAC_ISTHMUS_LIBRARY}")
-endif()
+message(STATUS "ISTHMUS library: ${IAC_ISTHMUS_LIBRARY}")
 message(STATUS "DSMC root: ${DSMC_ROOT}")
 message(STATUS "DSMC machine: ${DSMC_MACHINE}")
-if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND isthmus_cpp_FOUND)
+if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT)
   message(STATUS "DSMC/IAC target: cmake --build ${CMAKE_BINARY_DIR} --target dsmc")
   message(STATUS "DSMC/IAC executable: ${IAC_DSMC_EXECUTABLE}")
 elseif(IAC_DSMC_EXECUTABLE)

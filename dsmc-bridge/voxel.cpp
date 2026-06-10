@@ -97,22 +97,16 @@ void Voxel::command(int narg, char **arg) {
       cfg.geometry = iac::GeometryKind::Tiff;
       const char *file = value_after(narg - 3, arg + 3, "file");
       const char *dx = value_after(narg - 3, arg + 3, "dx");
-      const char *threshold = value_after(narg - 3, arg + 3, "threshold");
       const char *material = value_after(narg - 3, arg + 3, "material");
-      const char *invert = value_after(narg - 3, arg + 3, "invert");
       const char *ox = value_after(narg - 3, arg + 3, "ox");
       const char *oy = value_after(narg - 3, arg + 3, "oy");
       const char *oz = value_after(narg - 3, arg + 3, "oz");
-      if (!file || !dx || !threshold || !material) {
-        error->all(FLERR, "voxel create tiff requires file, dx, threshold, and material");
+      if (!file || !dx || !material) {
+        error->all(FLERR, "voxel create tiff requires file, dx, and material");
       }
       cfg.tiff.file = file;
       cfg.tiff.dx = std::atof(dx);
-      cfg.tiff.threshold = std::atof(threshold);
       cfg.tiff.material = material;
-      if (invert) {
-        cfg.tiff.invert = parse_bool(invert);
-      }
       if (ox) {
         cfg.tiff.origin[0] = std::atof(ox);
       }

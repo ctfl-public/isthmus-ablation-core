@@ -16,7 +16,7 @@ The shared core owns:
 - mass-loss sources;
 - ablation policies;
 - diagnostics and history;
-- optional ISTHMUS surface state and ownership mapping.
+- ISTHMUS surface state and ownership mapping.
 
 The current flowchart is available here:
 

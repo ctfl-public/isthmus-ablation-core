@@ -267,13 +267,7 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
           config.geometry = GeometryKind::Tiff;
           config.tiff.file = required(values, "file", line_number);
           config.tiff.dx = parse_double(required(values, "dx", line_number), line_number);
-          config.tiff.threshold =
-              parse_double(required(values, "threshold", line_number), line_number);
           config.tiff.material = required(values, "material", line_number);
-          const auto invert = values.find("invert");
-          if (invert != values.end()) {
-            config.tiff.invert = parse_bool(invert->second, line_number);
-          }
           const auto ox = values.find("ox");
           const auto oy = values.find("oy");
           const auto oz = values.find("oz");

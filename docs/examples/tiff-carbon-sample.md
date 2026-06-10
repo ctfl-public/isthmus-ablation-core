@@ -7,13 +7,14 @@ carbon sample into the voxel ledger. The committed fixture is:
 examples/tiff-carbon-sample/carbon-sample-top-crop.tif
 ```
 
-It is a deliberately small crop so the examples stay cheap. The crop imports as
-a `12 x 24 x 23` voxel lattice with `dx = 3.3757e-6 m` and 6504 active voxels.
-The source TIFF stores solid material as dark palette values, so the inputs use:
+It is a deliberately small crop so the examples stay cheap. The crop uses
+ISTHMUS's narrow TIFF convention, where image value `1` marks an active solid
+voxel. It imports as a `12 x 24 x 23` voxel lattice with `dx = 3.3757e-6 m`
+and 120 active voxels.
 
 ```text
 voxel create solid tiff file carbon-sample-top-crop.tif \
-  dx 3.3757e-6 threshold 1 invert yes material carbon
+  dx 3.3757e-6 material carbon
 ```
 
 ## Standalone Constant-Flux Recession

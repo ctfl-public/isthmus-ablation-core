@@ -21,7 +21,7 @@ mixture             air temp 5000.0 vstream 0.0 0.0 0.0
 collide             vss air air.vss
 
 voxel material carbon density 1800.0 molar-mass 0.0120107 formula C
-voxel create solid tiff file carbon-sample-top-crop.tif dx 3.3757e-6 threshold 1 invert yes material carbon
+voxel create solid tiff file carbon-sample-top-crop.tif dx 3.3757e-6 material carbon
 voxel ghost solid axis y boundary infinite layers 1
 voxel ghost solid axis z boundary infinite layers 1
 isthmus surface skin voxels solid buffer 1 weighting no map yes
