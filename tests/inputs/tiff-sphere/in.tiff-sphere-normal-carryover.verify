@@ -1,0 +1,10 @@
+# Regression wrapper for TIFF import through ISTHMUS utilities plus normal carryover.
+
+include ../../../examples/tiff-sphere/in.tiff-sphere-normal
+
+voxel_dump off
+surf_dump off
+
+verify mass-fraction exact "(((3.0*initial-mass/(4.0*3.141592653589793*rho))^(1.0/3.0) - q1*time/rho)/(3.0*initial-mass/(4.0*3.141592653589793*rho))^(1.0/3.0))^3" tolerance 15.0 percent norm final
+verify volume-fraction exact "(((3.0*initial-mass/(4.0*3.141592653589793*rho))^(1.0/3.0) - q1*time/rho)/(3.0*initial-mass/(4.0*3.141592653589793*rho))^(1.0/3.0))^3" tolerance 25.0 percent norm final
+verify dropped-mass-step exact "0.0" tolerance 0.01 absolute norm final

@@ -55,6 +55,7 @@ sphere-isthmus-normal-carryover-verification
 sphere-isthmus-kinetic-theory-verification
 sphere-isthmus-normal-carryover-convergence
 sphere-isthmus-surface-resolution-convergence
+tiff-sphere-normal-carryover-verification
 ```
 
 These are standalone/core tests. They run with the `ia-core` binary and should

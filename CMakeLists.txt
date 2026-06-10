@@ -185,6 +185,13 @@ if(isthmus_cpp_FOUND)
     NAME sphere-isthmus-surface-resolution-convergence
     COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-surface-resolution-convergence.verify
   )
+  add_test(
+    NAME tiff-sphere-normal-carryover-verification
+    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-sphere/in.tiff-sphere-normal-carryover.verify
+  )
+  set_tests_properties(tiff-sphere-normal-carryover-verification PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  )
 endif()
 
 if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)

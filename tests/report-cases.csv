@@ -8,3 +8,4 @@ index,name,input,requires,expected-fail
 7,sphere-isthmus-kinetic-theory-verification,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-kinetic-theory.verify,isthmus,no
 8,sphere-isthmus-normal-carryover-convergence,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover-convergence.verify,isthmus,no
 9,sphere-isthmus-surface-resolution-convergence,tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-surface-resolution-convergence.verify,isthmus,no
+10,tiff-sphere-normal-carryover-verification,tests/inputs/tiff-sphere/in.tiff-sphere-normal-carryover.verify,isthmus,no

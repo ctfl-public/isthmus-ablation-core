@@ -21,8 +21,7 @@ voxel_material carbon density 1800.0 molar-mass 0.0120107 formula C
 voxel_create solid slab nx 8 ny 4 nz 4 dx 1.0e-6 material carbon
 voxel_create solid sphere diameter 1.0e-3 dx 5.0e-5 material carbon
 voxel_create solid sphere diameter 1.0e-3 resolution 20 material carbon
-voxel_create solid tiff file examples/tiff-carbon-sample/carbon-sample-top-crop.tif \
-  dx 3.3757e-6 material carbon
+voxel_create solid tiff file examples/tiff-sphere/sphere-24.tif dx 5.0e-5 material carbon
 voxel_ghost solid axis y boundary infinite layers 1
 voxel_write_history solid output/dsmc-sphere-kinetic/history.csv
 ```
