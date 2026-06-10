@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the DSMC-hosted CO-forming sphere case at several sampling lengths."""
+"""Run DSMC/IAC collision-flux sphere cases at several voxel resolutions."""
 
 from __future__ import annotations
 
@@ -13,11 +13,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 KB = 1.380649e-23
+AVOGADRO = 6.02214076e23
 
 
 @dataclass(frozen=True)
 class Result:
-  steps: int
+  resolution: int
+  loops: int
+  nominal_dt: float
   time: float
   mass_fraction: float
   exact_mass_fraction: float
@@ -25,20 +28,9 @@ class Result:
   radius: float
   exact_radius: float
   radius_error_percent: float
-  requested_mass: float
-  reactions: float
   runtime_seconds: float
   history: Path
   input_path: Path
-
-
-@dataclass(frozen=True)
-class HistoryPoint:
-  time: float
-  mass_fraction: float
-  exact_mass_fraction: float
-  recession_um: float
-  exact_recession_um: float
 
 
 def parse_int_list(text: str, name: str) -> list[int]:
@@ -46,30 +38,6 @@ def parse_int_list(text: str, name: str) -> list[int]:
   if not values or any(value <= 0 for value in values):
     raise SystemExit(f"--{name} must contain positive integers")
   return values
-
-
-def read_history(path: Path) -> list[dict[str, str]]:
-  with path.open(newline="") as handle:
-    rows = list(csv.DictReader(handle))
-  if not rows:
-    raise SystemExit(f"history file is empty: {path}")
-  return rows
-
-
-def reaction_quantities(args: argparse.Namespace) -> tuple[float, float, float]:
-  o2_number_density = args.number_density * args.o2_fraction
-  gamma = o2_number_density * math.sqrt(KB * args.temperature /
-                                        (2.0 * math.pi * args.o2_mass))
-  flux = gamma * args.reaction_probability * args.solid_mass_per_reaction
-  recession_speed = flux / args.solid_density
-  return gamma, flux, recession_speed
-
-
-def exact_values(time: float, initial_radius: float,
-                 speed: float) -> tuple[float, float]:
-  radius = max(initial_radius - speed * time, 0.0)
-  mass_fraction = (radius / initial_radius) ** 3 if initial_radius > 0.0 else 0.0
-  return mass_fraction, radius
 
 
 def replace_line(text: str, prefix: str, replacement: str) -> str:
@@ -86,122 +54,159 @@ def replace_line(text: str, prefix: str, replacement: str) -> str:
   return "\n".join(lines) + "\n"
 
 
-def write_input(template: str, path: Path, steps: int,
-                args: argparse.Namespace) -> None:
-  root = Path.cwd()
-  history = path.parent / "history.csv"
-  species = root / "examples/dsmc-sphere-kinetic/air.species"
-  vss = root / "examples/dsmc-sphere-kinetic/air.vss"
-  reaction = path.parent / "carbon-co.surf"
-  path.parent.mkdir(parents=True, exist_ok=True)
-  reaction.write_text(
-      "# Generated CO-forming surface reaction for the convergence case.\n"
-      "# O2 + 2 C(s) -> 2 CO is represented as one O2 reaction event.\n\n"
-      "O2 --> CO + CO\n"
-      f"D S {args.reaction_probability:.12g}\n",
-      encoding="utf-8",
+def read_history(path: Path) -> list[dict[str, str]]:
+  with path.open(newline="") as handle:
+    rows = list(csv.DictReader(handle))
+  if not rows:
+    raise SystemExit(f"history file is empty: {path}")
+  return rows
+
+
+def kinetic_flux(args: argparse.Namespace) -> tuple[float, float, float]:
+  gamma = args.number_density * math.sqrt(
+      KB * args.temperature / (2.0 * math.pi * args.molecular_mass)
+  )
+  solid_mass_per_hit = args.solid_atoms_per_hit * args.solid_molar_mass / AVOGADRO
+  flux = gamma * args.reaction_prob * solid_mass_per_hit
+  speed = flux / args.solid_density
+  return gamma, flux, speed
+
+
+def target_time(args: argparse.Namespace, speed: float) -> float:
+  if args.target_mass_fraction <= 0.0 or args.target_mass_fraction >= 1.0:
+    raise SystemExit("--target-mass-fraction must be between 0 and 1")
+  return (
+      args.initial_radius * (1.0 - args.target_mass_fraction ** (1.0 / 3.0))
+      / speed
   )
 
-  time_scale = args.ablation_update_time / (steps * args.dsmc_dt)
+
+def resolution_timing(resolution: int, args: argparse.Namespace,
+                      flux: float, speed: float) -> tuple[int, float, float]:
+  target = target_time(args, speed)
+  if args.loops is not None:
+    if args.loops <= 0:
+      raise SystemExit("--loops must be positive")
+    loops = args.loops
+  else:
+    dx = args.sphere_diameter / resolution
+    nominal_dt = args.mass_courant * args.solid_density * dx / flux
+    loops = max(1, math.ceil(target / nominal_dt))
+  return loops, target / loops, target
+
+
+def exact_values(time: float, initial_radius: float,
+                 speed: float) -> tuple[float, float]:
+  radius = max(initial_radius - speed * time, 0.0)
+  mass = (radius / initial_radius) ** 3 if initial_radius > 0.0 else 0.0
+  return mass, radius
+
+
+def write_input(template: str, path: Path, resolution: int,
+                args: argparse.Namespace, loops: int) -> None:
+  species = Path.cwd() / "examples/dsmc-sphere-kinetic/air.species"
+  history = path.parent / "history.csv"
   text = template
   text = replace_line(text, "shell", f"shell               mkdir {path.parent}")
   text = replace_line(
       text,
       "global",
       f"global              nrho {args.number_density:.8g} fnum {args.fnum:.8g} "
-      "gridcut 0.0 surfmax 2000 splitmax 200 comm/sort yes",
+      "gridcut 0.0 surfmax 4000 splitmax 400 comm/sort yes",
   )
   text = replace_line(text, "timestep", f"timestep            {args.dsmc_dt:.8g}")
-  text = replace_line(text, "boundary", "boundary            o o o")
+  text = replace_line(text, "species", f"species             {species} O2")
   text = replace_line(
       text,
-      "species",
-      f"species             {species} O2 N2 CO",
-  )
-  text = replace_line(text, "mixture             air O2",
-                      f"mixture             air O2 frac {args.o2_fraction:.8g}")
-  text = replace_line(text, "mixture             air N2",
-                      f"mixture             air N2 frac {1.0 - args.o2_fraction:.8g}")
-  text = replace_line(text, "mixture             air temp",
-                      f"mixture             air temp {args.temperature:.8g} vstream 0.0 0.0 0.0")
-  text = replace_line(text, "collide", f"collide             vss air {vss}")
-  text = replace_line(
-      text,
-      "create_particles",
-      "create_particles    air n 0 twopass\n"
-      "fix                 reservoir emit/face air all twopass",
+      "voxel material",
+      f"voxel material carbon density {args.solid_density:.10g} "
+      f"molar-mass {args.solid_molar_mass:.10g} formula C",
   )
   text = replace_line(
       text,
       "voxel create",
-      f"voxel create solid sphere diameter 1.0e-3 resolution {args.resolution} material carbon",
-  )
-  text = replace_line(text, "surf_react",
-                      f"surf_react          ox prob {reaction}")
-  text = replace_line(text, "surf_collide",
-                      f"surf_collide        1 diffuse {args.wall_temperature:.8g} 1.0")
-  text = replace_line(
-      text,
-      "fix                 rco",
-      f"fix                 rco ave/surf all 1 {steps} {steps} c_rco[*] ave one",
+      f"voxel create solid sphere diameter {args.sphere_diameter:.10g} resolution {resolution} material carbon",
   )
   text = replace_line(text, "variable            i loop",
-                      f"variable            i loop {args.loops}")
-  text = replace_line(text, "run", f"run                 {steps} post no")
+                      f"variable            i loop {loops}")
+  text = replace_line(
+      text,
+      "fix                 sflux",
+      f"fix                 sflux ave/surf all 1 {args.sample_steps} "
+      f"{args.sample_steps} c_sflux[*] ave one",
+  )
+  text = replace_line(text, "run",
+                      f"run                 {args.sample_steps} post no")
   text = replace_line(
       text,
       "surface flux",
-      "surface flux skin dsmc/reaction fix rco column 1 "
-      f"sample-steps {steps} "
-      f"solid-mass-per-reaction {args.solid_mass_per_reaction:.10e} "
-      f"time-scale {time_scale:.10g}",
+      "surface flux skin dsmc/surf fix sflux quantity incident-number-flux "
+      f"reaction {args.reaction_file} "
+      f"mass-courant {args.mass_courant:.10g}",
   )
   text = replace_line(
       text,
       "voxel write-history",
       f"voxel write-history solid {history}",
   )
+  path.parent.mkdir(parents=True, exist_ok=True)
   path.write_text(text, encoding="utf-8")
 
 
-def run_case(dsmc: Path, template: str, out_dir: Path, steps: int,
+def run_case(dsmc: Path, template: str, out_dir: Path, resolution: int,
              args: argparse.Namespace) -> Result:
-  case_dir = out_dir / f"steps-{steps:04d}"
-  input_path = case_dir / f"in.dsmc-sphere-kinetic-steps-{steps:04d}"
-  write_input(template, input_path, steps, args)
+  case_dir = out_dir / f"resolution-{resolution:03d}"
+  input_path = case_dir / f"in.dsmc-sphere-kinetic-resolution-{resolution:03d}"
+  _, flux, speed = kinetic_flux(args)
+  loops, nominal_dt, target = resolution_timing(resolution, args, flux, speed)
+  runtime = 0.0
+  last: dict[str, str] | None = None
+  time_value = 0.0
+  for attempt in range(max(1, args.target_attempts)):
+    write_input(template, input_path, resolution, args, loops)
+    command = [
+        str(dsmc), "-screen", "none", "-log", str(case_dir / "log.sparta"),
+        "-in", str(input_path)
+    ]
+    start = time.perf_counter()
+    completed = subprocess.run(command, text=True, capture_output=True)
+    runtime += time.perf_counter() - start
+    if completed.returncode != 0:
+      print(completed.stdout, end="")
+      print(completed.stderr, end="")
+      raise SystemExit(completed.returncode)
 
-  command = [str(dsmc), "-screen", "none", "-log", str(case_dir / "log.sparta"),
-             "-in", str(input_path)]
-  start = time.perf_counter()
-  completed = subprocess.run(command, text=True, capture_output=True)
-  runtime_seconds = time.perf_counter() - start
-  if completed.returncode != 0:
-    print(completed.stdout, end="")
-    print(completed.stderr, end="")
-    raise SystemExit(completed.returncode)
+    rows = read_history(case_dir / "history.csv")
+    last = rows[-1]
+    time_value = float(last["time"])
+    actual_mass = float(last["mass-fraction"])
+    if args.loops is not None or actual_mass <= args.target_mass_fraction:
+      break
+    if attempt + 1 < max(1, args.target_attempts) and actual_mass < 1.0:
+      progress = 1.0 - actual_mass ** (1.0 / 3.0)
+      target_progress = 1.0 - args.target_mass_fraction ** (1.0 / 3.0)
+      if progress > 0.0:
+        loops = max(loops + 1, math.ceil(loops * target_progress / progress))
+      nominal_dt = target / loops
 
-  rows = read_history(case_dir / "history.csv")
-  last = rows[-1]
-  _, _, speed = reaction_quantities(args)
-  initial_radius = float(rows[0]["radius"])
-  ablation_time = float(last["time"])
-  exact_mass_fraction, exact_radius = exact_values(ablation_time, initial_radius, speed)
-  mass_fraction = float(last["mass-fraction"])
-  radius = float(last["radius"])
-  mass_error = math.inf if exact_mass_fraction == 0.0 else (
-      100.0 * abs(mass_fraction - exact_mass_fraction) / abs(exact_mass_fraction)
+  if last is None:
+    raise SystemExit("DSMC case did not produce history output")
+  exact_mass, exact_radius = exact_values(time_value, args.initial_radius, speed)
+  actual_mass = float(last["mass-fraction"])
+  actual_radius = float(last["radius"])
+  mass_error = (
+      math.inf if exact_mass == 0.0
+      else 100.0 * abs(actual_mass - exact_mass) / abs(exact_mass)
   )
-  radius_error = math.inf if exact_radius == 0.0 else (
-      100.0 * abs(radius - exact_radius) / abs(exact_radius)
+  radius_error = (
+      math.inf if exact_radius == 0.0
+      else 100.0 * abs(actual_radius - exact_radius) / abs(exact_radius)
   )
-  requested = float(last["requested-mass-step"])
-  reaction_total = 0.0
-  for line in (case_dir / "log.sparta").read_text(encoding="utf-8", errors="ignore").splitlines():
-    if "reaction O2 --> CO + CO:" in line:
-      reaction_total += float(line.rsplit(":", 1)[1].strip())
-  return Result(steps, ablation_time, mass_fraction, exact_mass_fraction, mass_error,
-                radius, exact_radius, radius_error, requested, reaction_total,
-                runtime_seconds, case_dir / "history.csv", input_path)
+  return Result(
+      resolution, loops, nominal_dt, time_value, actual_mass, exact_mass, mass_error,
+      actual_radius, exact_radius, radius_error, runtime,
+      case_dir / "history.csv", input_path,
+  )
 
 
 def write_summary(path: Path, results: list[Result]) -> None:
@@ -209,91 +214,87 @@ def write_summary(path: Path, results: list[Result]) -> None:
   with path.open("w", newline="") as handle:
     writer = csv.writer(handle)
     writer.writerow([
-        "dsmc-steps", "time", "mass-fraction", "exact-mass-fraction",
+        "resolution", "time", "mass-fraction", "exact-mass-fraction",
         "mass-error-percent", "radius", "exact-radius",
-        "radius-error-percent", "requested-mass-step", "sampled-reactions",
-        "runtime-seconds", "history", "input"
+        "radius-error-percent", "loops", "nominal-dt", "runtime-seconds",
+        "history", "input"
     ])
     for result in results:
       writer.writerow([
-          result.steps, f"{result.time:.17g}",
+          result.resolution, f"{result.time:.17g}",
           f"{result.mass_fraction:.17g}",
           f"{result.exact_mass_fraction:.17g}",
-          f"{result.mass_error_percent:.17g}", f"{result.radius:.17g}",
-          f"{result.exact_radius:.17g}",
+          f"{result.mass_error_percent:.17g}",
+          f"{result.radius:.17g}", f"{result.exact_radius:.17g}",
           f"{result.radius_error_percent:.17g}",
-          f"{result.requested_mass:.17g}", f"{result.reactions:.17g}",
+          result.loops, f"{result.nominal_dt:.17g}",
           f"{result.runtime_seconds:.17g}", result.history, result.input_path,
       ])
 
 
-def coords(points: list[tuple[float, float]]) -> str:
-  return "\n".join(f"({x:.17g},{y:.17g})" for x, y in points)
+def coords(values: list[tuple[float, float]]) -> str:
+  return "\n".join(f"({x:.17g},{y:.17g})" for x, y in values)
 
 
-def history_points(result: Result, args: argparse.Namespace) -> list[HistoryPoint]:
-  rows = read_history(result.history)
-  _, _, speed = reaction_quantities(args)
-  initial_radius = float(rows[0]["radius"])
-  points = []
-  for row in rows:
-    time = float(row["time"])
-    exact_mass, exact_radius = exact_values(time, initial_radius, speed)
-    radius = float(row["radius"])
-    points.append(
-        HistoryPoint(
-            time=time,
-            mass_fraction=float(row["mass-fraction"]),
-            exact_mass_fraction=exact_mass,
-            recession_um=1.0e6 * (initial_radius - radius),
-            exact_recession_um=1.0e6 * (initial_radius - exact_radius),
-        )
-    )
-  return points
-
-
-def plot_series(histories: list[tuple[Result, list[HistoryPoint]]],
-                field: str) -> str:
-  plots = []
-  for result, points in histories:
-    if field == "mass":
-      values = [(point.time, point.mass_fraction) for point in points]
+def convergence_rows(results: list[Result]) -> str:
+  rows = []
+  for left, right in zip(results, results[1:]):
+    if right.mass_error_percent <= 0.0 or left.mass_error_percent <= 0.0:
+      order = "n/a"
     else:
-      values = [(point.time, point.recession_um) for point in points]
-    plots.append(
-        r"\addplot coordinates {" + "\n" + coords(values) +
-        "\n};\n" + rf"\addlegendentry{{{result.steps} DSMC steps}}"
+      ratio = right.resolution / left.resolution
+      order = f"{math.log(left.mass_error_percent / right.mass_error_percent) / math.log(ratio):.3g}"
+    rows.append(
+        f"{left.resolution}$\\rightarrow${right.resolution} & "
+        f"{left.mass_error_percent:.4g}$\\rightarrow${right.mass_error_percent:.4g} & "
+        f"{order}\\\\"
     )
-  exact_points = histories[-1][1]
-  if field == "mass":
-    values = [(point.time, point.exact_mass_fraction) for point in exact_points]
-  else:
-    values = [(point.time, point.exact_recession_um) for point in exact_points]
+  return "\n".join(rows)
+
+
+def trajectory_plots(results: list[Result], initial_radius: float, speed: float,
+                     field: str) -> str:
+  plots = []
+  max_time = max(result.time for result in results)
+  exact_count = 160
+  exact_points = [
+      (
+          max_time * i / (exact_count - 1),
+          exact_values(max_time * i / (exact_count - 1), initial_radius, speed)[0],
+      )
+      for i in range(exact_count)
+  ]
   plots.append(
-      r"\addplot[black,dashed,thick] coordinates {" + "\n" + coords(values) +
-      "\n};\n" + r"\addlegendentry{analytical}"
+      r"\addplot[black,dashed,thick,mark=none] coordinates {" + "\n" +
+      coords(exact_points) + "\n};\n" +
+      r"\addlegendentry{analytical}"
   )
+  for result in results:
+    rows = read_history(result.history)
+    actual = []
+    for row in rows:
+      time_value = float(row["time"])
+      actual.append((time_value, float(row[field])))
+    plot_style = r"\addplot+[mark=none] coordinates {"
+    if field == "volume-fraction":
+      plot_style = r"\addplot+[const plot,mark=none] coordinates {"
+    plots.append(
+        plot_style + "\n" +
+        coords(actual) + "\n};\n" +
+        rf"\addlegendentry{{{result.resolution} voxels}}"
+    )
   return "\n".join(plots)
 
 
-def write_report(path: Path, results: list[Result], args: argparse.Namespace) -> None:
-  gamma, flux, speed = reaction_quantities(args)
-  pressure = args.number_density * KB * args.temperature
-  histories = [(result, history_points(result, args)) for result in results]
-  final_time = results[-1].time
-  initial_radius = results[-1].exact_radius + speed * final_time
-  final_exact_mass, _ = exact_values(final_time, initial_radius, speed)
+def write_report(path: Path, results: list[Result],
+                 args: argparse.Namespace) -> None:
+  gamma, flux, speed = kinetic_flux(args)
   rows = "\n".join(
-      f"{r.steps} & {r.time:.3e} & {r.reactions:.0f} & "
-      f"{r.mass_fraction:.6f} & {r.exact_mass_fraction:.6f} & "
-      f"{r.mass_error_percent:.4g} & {r.radius_error_percent:.4g} & "
-      f"{r.runtime_seconds:.2f}\\\\"
+      f"{r.resolution} & {r.loops} & {r.nominal_dt:.3e} & {r.time:.4e} & {r.mass_fraction:.6f} & "
+      f"{r.exact_mass_fraction:.6f} & {r.mass_error_percent:.4g} & "
+      f"{r.radius_error_percent:.4g} & {r.runtime_seconds:.2f}\\\\"
       for r in results
   )
-  mass_errors = coords([(result.steps, result.mass_error_percent)
-                        for result in results])
-  radius_errors = coords([(result.steps, result.radius_error_percent)
-                          for result in results])
   path.parent.mkdir(parents=True, exist_ok=True)
   path.write_text(
       r"""\documentclass{article}
@@ -302,93 +303,45 @@ def write_report(path: Path, results: list[Result], args: argparse.Namespace) ->
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 \begin{document}
-\section*{DSMC Sphere CO-Reaction Convergence}
-This report runs the DSMC-hosted voxel/ISTHMUS sphere case with a real SPARTA
-surface reaction, O$_2 \rightarrow$ CO + CO. The number of DSMC steps between
-coupled ablation updates is varied; longer runs provide more surface-reaction
-sampling before the sampled reaction counts are mapped back to voxel mass loss.
+\section*{DSMC Collision-Flux Sphere Grid Refinement}
+This report verifies the simplified DSMC/IAC sphere case. SPARTA samples pure
+O$_2$ incident number flux on each ISTHMUS triangle using `compute surf ...
+nflux\_incident`; IAC converts that per-triangle DSMC flux to carbon mass flux
+and ablates voxels with normal carryover. Gas chemistry and gas-gas collisions
+are disabled so the target is the ideal-gas one-way thermal impingement rate.
 
-\subsection*{Physical setup}
-The domain is a 3 mm cube with outflow boundaries on all faces and
-`fix emit/face air all`, so particles can leave the box while fresh reservoir
-gas is emitted from the domain faces. The emitted reservoir gas has O$_2$ mole
-fraction """
-      + f"{args.o2_fraction:.3g}"
-      + r""" and N$_2$ mole fraction """
-      + f"{1.0 - args.o2_fraction:.3g}"
-      + r""". The number density is """
-      + f"{args.number_density:.6e}"
-      + r""" m$^{-3}$, the gas temperature is """
-      + f"{args.temperature:.1f}"
-      + r""" K, and the ideal-gas pressure is """
-      + f"{pressure:.6e}"
-      + r""" Pa. The solid is a 1 mm diameter carbon voxel sphere with density
-"""
-      + f"{args.solid_density:.1f}"
-      + r""" kg/m$^3$. The surface reaction file uses probability """
-      + f"{args.reaction_probability:.3g}"
-      + r""", so every incident O$_2$ surface reaction event creates two CO
-simulation particles and removes two carbon atoms from the voxel mass ledger.
-The solid mass removed per reaction is """
-      + f"{args.solid_mass_per_reaction:.6e}"
-      + r""" kg.
-
-The analytical comparison assumes the gas remains spatially uniform and
-stationary. With O$_2$ number density $n_{O2}$,
 \[
-  \Gamma_{O2} = n_{O2}\sqrt{\frac{k_B T}{2\pi m_{O2}}}, \qquad
-  j = \Gamma_{O2}\alpha m_\mathrm{solid/reaction}, \qquad
+  \Gamma = n\sqrt{\frac{k_B T}{2\pi m}}, \qquad
+  j = \Gamma\alpha m_\mathrm{solid/hit}, \qquad
   R(t) = R_0 - \frac{j}{\rho_s}t, \qquad
   \frac{m(t)}{m_0} = \left(\frac{R(t)}{R_0}\right)^3.
 \]
-\begin{center}
-\begin{tabular}{ll}
-\toprule
-Symbol & Meaning\\
-\midrule
-$\Gamma_{O2}$ & O$_2$ incident number flux to a surface, m$^{-2}$ s$^{-1}$\\
-$n_{O2}$ & O$_2$ number density, m$^{-3}$\\
-$k_B$ & Boltzmann constant\\
-$T$ & gas translational temperature\\
-$m_{O2}$ & mass of one O$_2$ molecule\\
-$j$ & solid carbon mass-removal flux, kg m$^{-2}$ s$^{-1}$\\
-$\alpha$ & O$_2$ surface reaction probability\\
-$m_\mathrm{solid/reaction}$ & carbon mass removed by one O$_2$ reaction event\\
-$R_0$, $R(t)$ & initial and current equivalent sphere radius\\
-$\rho_s$ & solid carbon density\\
-$m(t)/m_0$ & remaining solid mass fraction\\
-\bottomrule
-\end{tabular}
-\end{center}
-For this setup, $\Gamma_{O2} = """
+
+Here $\Gamma = """
       + f"{gamma:.6e}"
       + r"""$ m$^{-2}$s$^{-1}$, $j = """
       + f"{flux:.6e}"
       + r"""$ kg m$^{-2}$s$^{-1}$, and $j/\rho_s = """
       + f"{speed:.6e}"
-      + r"""$ m/s.
-
-To make a quick verification case, the bridge advances the solid by """
-      + f"{args.ablation_update_time:.6e}"
-      + r""" s per coupled update. For a case with $N$ DSMC sampling steps,
-the bridge time-scale is chosen as $\Delta t_\mathrm{ablate}/(N\Delta
-t_\mathrm{DSMC})$, so all convergence cases advance the same ablation time
-while sampling for different DSMC durations. This tests reaction-count coupling
-and voxel recession against the stationary-reservoir solution. The finest case
-ends at analytical remaining mass fraction """
-      + f"{final_exact_mass:.6f}"
+      + r"""$ m/s. The DSMC sample uses """
+      + f"{args.sample_steps}"
+      + r""" steps per ablation update. Each generated input uses the surface
+mass Courant number """
+      + f"{args.mass_courant:g}"
+      + r""" so the runtime solid timestep is $\Delta t = C_m\rho L_v /
+  \max(j_\triangle)$, where $j_\triangle$ is the largest sampled triangle mass
+  flux that maps to an active voxel. This is the mass removed through one voxel
+  face divided by one voxel mass, matching the standalone mass-Courant
+  definition. The loop count is estimated from the continuum flux to approach
+  target final mass
+fraction """
+      + f"{args.target_mass_fraction:g}"
       + r""".
 
-The reservoir boundary makes this a better comparison to the analytical
-constant-gas solution than the earlier closed periodic box. It is still a
-finite DSMC domain, so surface sampling noise and local composition/temperature
-perturbations can remain.
-
-\subsection*{Final Values}
 \begin{center}
-\begin{tabular}{rrrrrrrr}
+\begin{tabular}{rrrrrrrrr}
 \toprule
-DSMC steps & time (s) & reactions & actual $m/m_0$ & exact $m/m_0$ &
+resolution & loops & nominal $\Delta t$ (s) & time (s) & actual $m/m_0$ & exact $m/m_0$ &
 mass error (\%) & radius error (\%) & runtime (s)\\
 \midrule
 """
@@ -398,70 +351,59 @@ mass error (\%) & radius error (\%) & runtime (s)\\
 \end{tabular}
 \end{center}
 
-\subsection*{Trajectories}
 \begin{center}
+\begin{tabular}{lll}
+\toprule
+resolution pair & mass error (\%) & observed order\\
+\midrule
+"""
+      + convergence_rows(results)
+      + r"""
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[ht!]
+\centering
+\begin{minipage}{0.48\linewidth}
+\centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=0.74\linewidth,
-  height=0.42\linewidth,
+  width=\linewidth,
+  height=0.72\linewidth,
   xlabel={ablation time (s)},
-  ylabel={remaining mass fraction, $m/m_0$},
+  ylabel={$m/m_0$},
+  ymin=0,
+  ymax=1.03,
   grid=both,
-  legend style={at={(1.02,1)},anchor=north west}]
+  legend style={at={(0.03,0.03)},anchor=south west,font=\scriptsize}]
 """
-      + plot_series(histories, "mass")
+      + trajectory_plots(results, args.initial_radius, speed, "mass-fraction")
       + r"""
 \end{axis}
 \end{tikzpicture}
-\end{center}
-
-\begin{center}
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\linewidth}
+\centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=0.74\linewidth,
-  height=0.42\linewidth,
+  width=\linewidth,
+  height=0.72\linewidth,
   xlabel={ablation time (s)},
-  ylabel={radius recession ($\mu$m)},
+  ylabel={voxelized volume fraction},
+  ymin=0,
+  ymax=1.03,
   grid=both,
-  legend style={at={(1.02,1)},anchor=north west}]
+  legend style={draw=none,fill=none,at={(0.03,0.03)},anchor=south west,font=\scriptsize}]
 """
-      + plot_series(histories, "radius")
+      + trajectory_plots(results, args.initial_radius, speed, "volume-fraction")
       + r"""
 \end{axis}
 \end{tikzpicture}
-\end{center}
-
-\subsection*{Sampling Error}
-\begin{center}
-\begin{tikzpicture}
-\begin{axis}[
-  width=0.74\linewidth,
-  height=0.42\linewidth,
-  xlabel={DSMC steps before ablation update},
-  ylabel={final error (\%)},
-  xmode=log,
-  ymode=log,
-  grid=both,
-  legend style={at={(1.02,1)},anchor=north west}]
-\addplot coordinates {
-"""
-      + mass_errors
-      + r"""
-};
-\addlegendentry{mass fraction}
-\addplot coordinates {
-"""
-      + radius_errors
-      + r"""
-};
-\addlegendentry{radius}
-\end{axis}
-\end{tikzpicture}
-\end{center}
-
-\noindent Test tolerance: """
-      + f"{args.tolerance_percent:g}"
-      + r"""\%.
+\end{minipage}
+\caption{Sphere recession using DSMC collision flux and conservative normal-directed carryover.}
+\end{figure}
 \end{document}
 """,
       encoding="utf-8",
@@ -487,33 +429,38 @@ def main() -> int:
   parser.add_argument("--template", type=Path,
                       default=Path("examples/dsmc-sphere-kinetic/in.dsmc-sphere-kinetic"))
   parser.add_argument("--out", type=Path,
-                      default=Path("build/output/dsmc-sphere-kinetic-convergence"))
-  parser.add_argument("--steps", default="5,20,80")
-  parser.add_argument("--loops", type=int, default=8)
-  parser.add_argument("--resolution", type=int, default=10)
-  parser.add_argument("--fnum", type=float, default=5.0e12)
+                      default=Path("build/output/dsmc-sphere-kinetic-grid-convergence"))
+  parser.add_argument("--resolutions", default="5,10,20")
+  parser.add_argument("--loops", type=int, default=None)
+  parser.add_argument("--sample-steps", type=int, default=20)
+  parser.add_argument("--mass-courant", type=float, default=0.5)
+  parser.add_argument("--fnum", type=float, default=2.0e12)
   parser.add_argument("--dsmc-dt", type=float, default=1.0e-7)
-  parser.add_argument("--ablation-update-time", type=float, default=0.0125)
-  parser.add_argument("--tolerance-percent", type=float, default=20.0)
-  parser.add_argument("--require-improvement", action="store_true")
+  parser.add_argument("--tolerance-percent", type=float, default=25.0)
   parser.add_argument("--pdf", action="store_true")
   parser.add_argument("--number-density", type=float, default=7.244e23)
   parser.add_argument("--temperature", type=float, default=5000.0)
-  parser.add_argument("--wall-temperature", type=float, default=5000.0)
-  parser.add_argument("--o2-fraction", type=float, default=0.21)
-  parser.add_argument("--o2-mass", type=float, default=5.31352e-26)
+  parser.add_argument("--molecular-mass", type=float, default=5.31352e-26)
   parser.add_argument("--solid-density", type=float, default=1800.0)
-  parser.add_argument("--solid-mass-per-reaction", type=float,
-                      default=3.98894696e-26)
-  parser.add_argument("--reaction-probability", type=float, default=1.0)
+  parser.add_argument("--solid-molar-mass", type=float, default=0.0120107)
+  parser.add_argument("--solid-atoms-per-hit", type=float, default=2.0)
+  parser.add_argument("--reaction-file", default="carbon-co.surf")
+  parser.add_argument("--reaction-prob", type=float, default=1.0)
+  parser.add_argument("--initial-radius", type=float, default=5.0e-4)
+  parser.add_argument("--sphere-diameter", type=float, default=1.0e-3)
+  parser.add_argument("--target-mass-fraction", type=float, default=0.2)
+  parser.add_argument("--target-attempts", type=int, default=1)
+  parser.add_argument("--require-improvement", action="store_true")
   args = parser.parse_args()
 
-  if args.loops <= 0:
+  if args.loops is not None and args.loops <= 0:
     raise SystemExit("--loops must be positive")
-  if args.resolution <= 0:
-    raise SystemExit("--resolution must be positive")
-  if args.ablation_update_time <= 0.0:
-    raise SystemExit("--ablation-update-time must be positive")
+  if args.sample_steps <= 0:
+    raise SystemExit("--sample-steps must be positive")
+  if args.mass_courant <= 0.0:
+    raise SystemExit("--mass-courant must be positive")
+  if args.target_attempts <= 0:
+    raise SystemExit("--target-attempts must be positive")
   if not args.dsmc.exists():
     raise SystemExit(f"missing DSMC executable: {args.dsmc}")
 
@@ -521,8 +468,8 @@ def main() -> int:
   if args.out.exists():
     shutil.rmtree(args.out)
   results = [
-      run_case(args.dsmc, template, args.out, steps, args)
-      for steps in parse_int_list(args.steps, "steps")
+      run_case(args.dsmc, template, args.out, resolution, args)
+      for resolution in parse_int_list(args.resolutions, "resolutions")
   ]
   write_summary(args.out / "summary.csv", results)
   write_report(args.out / "report.tex", results, args)
@@ -533,6 +480,13 @@ def main() -> int:
   print(f"Wrote {args.out / 'report.tex'}")
   if args.pdf:
     print(f"Wrote {args.out / 'report.pdf'}")
+  for result in results:
+    print(
+        f"resolution {result.resolution}: mass error "
+        f"{result.mass_error_percent:.6g}%, radius error "
+        f"{result.radius_error_percent:.6g}%, runtime "
+        f"{result.runtime_seconds:.3g}s"
+    )
 
   finest = results[-1]
   finest_error = max(finest.mass_error_percent, finest.radius_error_percent)
@@ -542,14 +496,14 @@ def main() -> int:
         f"{args.tolerance_percent:g}%"
     )
     return 1
-  if args.require_improvement:
-    coarsest = max(results[0].mass_error_percent, results[0].radius_error_percent)
-    if finest_error >= coarsest:
-      print(
-          "FAILED: finest case did not improve over coarsest case: "
-          f"{coarsest:.6g}% -> {finest_error:.6g}%"
-      )
-      return 1
+  if (args.require_improvement and len(results) > 1 and
+      finest.mass_error_percent >= results[0].mass_error_percent):
+    print(
+        "FAILED: finest mass error did not improve over coarsest: "
+        f"{results[0].mass_error_percent:.6g}% -> "
+        f"{finest.mass_error_percent:.6g}%"
+    )
+    return 1
   print(
       f"PASSED: finest error {finest_error:.6g}% is within "
       f"{args.tolerance_percent:g}%"

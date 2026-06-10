@@ -14,16 +14,19 @@ surface flux <surface-id> source <source-id> select voxels voxels <model>
 surface flux <surface-id> kinetic/theory pressure <p> temperature <T> \
   mole-fraction <x> molecular-mass <kg> reaction-prob <alpha> \
   solid-mass-per-hit <kg> select <selector>
+surface flux <surface-id> dsmc/surf fix <fix-id> quantity incident-number-flux \
+  reaction <path> \
+  [ablation-dt <dt> | mass-courant <C>]
 surface flux <surface-id> dsmc/surf fix <fix-id> column <N> \
-  reaction-prob <alpha> solid-mass-per-hit <kg> \
+  reaction <path> \
   [ablation-dt <dt> | mass-courant <C>]
 surface flux <surface-id> dsmc/reaction fix <fix-id> column <N> \
-  sample-steps <Nstep> solid-mass-per-reaction <kg> \
-  [ablation-dt <dt>] [time-scale <S>]
+  sample-steps <Nstep> reaction <path> \
+  [ablation-dt <dt> | mass-courant <C>] [time-scale <S>]
 surface measure-flux <surface-id> dsmc/reaction fix <fix-id> column <N> \
   sample-steps <Nstep> expected kinetic/theory number-density <n> \
   mole-fraction <x> temperature <T> molecular-mass <kg> \
-  [reaction-prob <alpha>] [solid-mass-per-reaction <kg>]
+  [reaction <path>]
 
 surface dump <dump-id> <surface-id> vtp <N> <path>
 surface dump off
@@ -41,14 +44,13 @@ surface flux skin source q1 select voxels voxels solid
 surface flux skin kinetic/theory pressure 50.0 temperature 5000.0 \
   mole-fraction 0.21 molecular-mass 5.313e-26 reaction-prob 1.0 \
   solid-mass-per-hit 1.3011869411625376e-23 select all
-surface flux skin dsmc/surf fix sflux column 1 reaction-prob 1.0 \
-  solid-mass-per-hit 1.99447348e-26 mass-courant 0.25
+surface flux skin dsmc/surf fix sflux quantity incident-number-flux reaction carbon-co.surf \
+  mass-courant 0.25
 surface flux skin dsmc/reaction fix rco column 1 sample-steps 20 \
-  solid-mass-per-reaction 3.98894696e-26 time-scale 1500
+  reaction carbon-co.surf time-scale 1500
 surface measure-flux skin dsmc/reaction fix rco column 1 sample-steps 1 \
   expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 \
-  temperature 5000.0 molecular-mass 5.31352e-26 reaction-prob 1.0 \
-  solid-mass-per-reaction 3.98894696e-26
+  temperature 5000.0 molecular-mass 5.31352e-26 reaction carbon-co.surf
 
 surface dump skin skin vtp 10 output/sphere/surface_*.vtp
 surface dump off
@@ -83,12 +85,33 @@ spatially uniform, stationary hot gas domain while this command applies the
 corresponding continuum kinetic-theory flux to the current ISTHMUS triangles.
 
 With `dsmc/surf`, the command reads per-surface data from a DSMC `fix ave/surf`
-instance. The selected column is interpreted as an incident number flux. The
-bridge converts it to solid mass flux with:
+instance. The preferred pattern is to average only the incident number flux:
 
 ```text
-flux = number-flux * reaction-prob * solid-mass-per-hit
+compute sflux surf all gas nflux_incident
+fix sflux ave/surf all 1 100 100 c_sflux[*] ave one
 ```
+
+Then select it by name with `quantity incident-number-flux`. The bridge
+converts the selected number flux to solid mass flux with:
+
+```text
+flux = number-flux * reaction-probability * solid-mass-per-hit
+```
+
+When `reaction <path>` is used, IAC reads the same SPARTA `surf_react prob`
+file used by DSMC. For a file such as:
+
+```text
+O2 --> CO + CO
+D S 1.0
+```
+
+and a material defined as `formula C molar-mass 0.0120107`, IAC infers a
+reaction probability of `1.0` and a solid mass per hit equal to two carbon
+atoms. The raw `solid-mass-per-hit` and `reaction-prob` arguments are retained
+only as an override for cases whose solid consumption cannot be inferred from
+the gas-side reaction formula.
 
 This is the first true DSMC-coupled source path. DSMC owns the gas domain,
 surface collisions, surface averaging, loops, and remapping commands; this
@@ -109,7 +132,9 @@ mass = reaction-count * sample-steps * fnum * solid-mass-per-reaction
 and then divides by triangle area and the ablation timestep before passing the
 equivalent mass flux to the voxel ledger. This is the preferred path for
 chemically reacting DSMC ablation because SPARTA owns the surface reaction
-probability, species conversion, and reaction tallies.
+probability, species conversion, and reaction tallies. Prefer `reaction <path>`
+so the solid mass per reaction is inferred from the same reaction file; use
+`solid-mass-per-reaction` only as an explicit override.
 
 `surface measure-flux` reads the same kind of DSMC reaction count data but does
 not apply mass loss. It sums the sampled reactions over the installed surface,
@@ -131,9 +156,10 @@ expected-reaction-flux =
 
 The command also stores `reaction-count-per-step` and
 `expected-reaction-count-per-step`, which are often the clearest DSMC sampling
-diagnostics. If `solid-mass-per-reaction` is supplied, it additionally stores
-`reaction-mass-flux` and `expected-reaction-mass-flux` in kg/m2/s by
-multiplying the number flux by the supplied solid mass consumed per reaction.
+diagnostics. If `reaction` or `solid-mass-per-reaction` is supplied, it
+additionally stores `reaction-mass-flux` and `expected-reaction-mass-flux` in
+kg/m2/s by multiplying the number flux by the inferred or supplied solid mass
+consumed per reaction.
 
 This command is the first DSMC-hosted regression hook for the coupled path: it
 tests geometry generation, surface installation, DSMC surface chemistry
@@ -150,12 +176,20 @@ When comparing multiple DSMC sampling lengths at the same ablation time, choose
 `time-scale = ablation-update-time / (sample-steps * timestep)`.
 
 The optional `mass-courant` argument chooses the ablation timestep from the
-sampled DSMC mass flux. The bridge maps the triangle mass fluxes through the
-ISTHMUS triangle-to-voxel ownership fractions, finds the active voxel with the
-smallest `remaining-mass / mapped-mass-rate`, and sets the timestep to `C`
-times that limiting time. For example, `mass-courant 1.0` advances to the next
-voxel-deletion event predicted by the current flux map, while
-`mass-courant 0.25` advances one quarter of the way to that event.
+largest current local voxel-face flux. For DSMC surface fluxes, the limiting
+flux is the largest positive triangle mass flux that maps to an active,
+non-fixed voxel:
+
+```text
+dt = C * density * voxel-size / max(triangle-flux)
+```
+
+This is the same nondimensional definition as standalone `timestep
+mass/courant`: it is the mass that the local flux would remove through one
+voxel face during the timestep divided by one voxel mass. Thus
+`mass-courant 0.1666666667` is the conservative value `1/6`; even if all six
+faces of a voxel saw that same limiting flux, the update cannot remove more
+than one voxel mass before carryover/deletion handles the remainder.
 `ablation-dt` and `mass-courant` are mutually exclusive.
 
 The mass is stored on the triangle until a later command consumes it:

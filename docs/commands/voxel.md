@@ -5,7 +5,7 @@ The `voxel` command family creates and configures voxel-state objects.
 ## Syntax
 
 ```text
-voxel material <name> density <rho>
+voxel material <name> density <rho> [molar-mass <kg/mol>] [formula <formula>]
 voxel create <model> slab nx <nx> ny <ny> nz <nz> dx <dx> material <name>
 voxel create <model> sphere diameter <D> dx <dx> material <name>
 voxel create <model> sphere diameter <D> resolution <N> material <name>
@@ -17,7 +17,7 @@ voxel write-history <model> <path>
 ## Examples
 
 ```text
-voxel material carbon density 1800.0
+voxel material carbon density 1800.0 molar-mass 0.0120107 formula C
 voxel create solid slab nx 8 ny 4 nz 4 dx 1.0e-6 material carbon
 voxel create solid sphere diameter 1.0e-3 dx 5.0e-5 material carbon
 voxel create solid sphere diameter 1.0e-3 resolution 20 material carbon
@@ -29,7 +29,10 @@ voxel write-history solid output/dsmc-sphere-kinetic/history.csv
 
 ## Description
 
-`voxel material` defines a material and its density.
+`voxel material` defines a material and its density. `molar-mass` and `formula`
+are optional for purely mechanical voxel ablation, but are used by DSMC-coupled
+surface-flux commands that infer solid mass consumption from a SPARTA
+surface-reaction file.
 
 `voxel create` creates a named voxel model. Each voxel receives a stable ID,
 integer lattice indices, a centroid, an initial mass based on density and

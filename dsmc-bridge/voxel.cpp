@@ -40,11 +40,23 @@ void Voxel::command(int narg, char **arg) {
   auto &cfg = IACBridge::config();
 
   if (std::strcmp(arg[0], "material") == 0) {
-    if (narg != 4 || std::strcmp(arg[2], "density") != 0) {
-      error->all(FLERR, "Illegal voxel material command");
+    if (narg < 4) {
+      error->all(FLERR, "voxel material requires density");
+    }
+    const char *density = value_after(narg - 2, arg + 2, "density");
+    if (!density) {
+      error->all(FLERR, "voxel material requires density");
     }
     cfg.material.name = arg[1];
-    cfg.material.density = std::atof(arg[3]);
+    cfg.material.density = std::atof(density);
+    const char *molar_mass = value_after(narg - 2, arg + 2, "molar-mass");
+    const char *formula = value_after(narg - 2, arg + 2, "formula");
+    if (molar_mass) {
+      cfg.material.molar_mass = std::atof(molar_mass);
+    }
+    if (formula) {
+      cfg.material.formula = formula;
+    }
     IACBridge::reset_model();
     return;
   }

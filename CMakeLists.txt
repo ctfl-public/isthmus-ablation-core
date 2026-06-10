@@ -211,6 +211,15 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
   )
 
   add_test(
+    NAME dsmc-slab-time-stop-verification
+    COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
+            -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-slab-time-stop/in.dsmc-slab-time-stop.verify
+  )
+  set_tests_properties(dsmc-slab-time-stop-verification PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  )
+
+  add_test(
     NAME dsmc-sphere-isthmus-normal-carryover-verification
     COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
             -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-sphere-isthmus-ablation/in.dsmc-sphere-isthmus-normal-carryover.verify
@@ -261,42 +270,18 @@ if(Python3_Interpreter_FOUND AND PDFLATEX_EXECUTABLE)
       dsmc-convergence-report
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-dsmc-kinetic-convergence.py
               --dsmc ${IAC_DSMC_EXECUTABLE}
-              --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-convergence
-              --steps 5,20,80
-              --loops 6
-              --resolution 10
-              --ablation-update-time 0.001
-              --fnum 2.0e12
-              --tolerance-percent 5.0
+              --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-grid-convergence
+              --resolutions 10,20
+              --target-mass-fraction 0.2
+              --target-attempts 2
+              --sample-steps 200
+              --mass-courant 0.1666666667
+              --fnum 2.0e11
+              --tolerance-percent 30.0
+              --require-improvement
               --pdf
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-      COMMENT "Building DSMC sphere kinetic convergence report"
-    )
-
-    add_custom_target(
-      dsmc-half-mass-report
-      COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-dsmc-kinetic-convergence.py
-              --dsmc ${IAC_DSMC_EXECUTABLE}
-              --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-half-mass
-              --steps 5,20,80
-              --loops 8
-              --resolution 5
-              --ablation-update-time 0.0125
-              --fnum 5.0e12
-              --tolerance-percent 110.0
-              --pdf
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-      COMMENT "Building DSMC sphere half-mass convergence report"
-    )
-
-    add_custom_target(
-      dsmc-visual-case
-      COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log output/log.sparta
-              -in in.dsmc-sphere-visual
-      COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/convert-dsmc-visual.py
-              ${CMAKE_SOURCE_DIR}/examples/dsmc-sphere-visual
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/dsmc-sphere-visual
-      COMMENT "Running DSMC sphere visualization case and converting outputs to VTK"
+      COMMENT "Building DSMC sphere kinetic grid-convergence report"
     )
   endif()
 endif()

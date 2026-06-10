@@ -9,10 +9,14 @@
 #include "update.h"
 
 #include <cmath>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <fstream>
+#include <map>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -20,6 +24,13 @@
 using namespace SPARTA_NS;
 
 namespace {
+
+constexpr double AVOGADRO = 6.02214076e23;
+
+struct ReactionFileInfo {
+  double probability = 1.0;
+  double solid_mass = 0.0;
+};
 
 const char *value_after(int narg, char **arg, const char *key) {
   for (int i = 0; i + 1 < narg; ++i) {
@@ -90,6 +101,130 @@ double fix_surface_value(Fix *ave, int local_index, int column) {
                                       : ave->array_surf[local_index][column - 1];
 }
 
+int parse_dsmc_surf_quantity(const char *quantity, Error *error) {
+  if (!quantity) {
+    return 0;
+  }
+  if (std::strcmp(quantity, "incident-number-flux") == 0 ||
+      std::strcmp(quantity, "nflux-incident") == 0 ||
+      std::strcmp(quantity, "nflux_incident") == 0) {
+    return 1;
+  }
+  error->all(FLERR, "surface flux dsmc/surf quantity must be incident-number-flux");
+  return 0;
+}
+
+std::string trim(const std::string &text) {
+  const std::size_t first = text.find_first_not_of(" \t\r\n");
+  if (first == std::string::npos) {
+    return "";
+  }
+  const std::size_t last = text.find_last_not_of(" \t\r\n");
+  return text.substr(first, last - first + 1);
+}
+
+std::string next_data_line(std::ifstream &input) {
+  std::string line;
+  while (std::getline(input, line)) {
+    line = trim(line);
+    if (!line.empty() && line[0] != '#') {
+      return line;
+    }
+  }
+  return "";
+}
+
+std::map<std::string, double> parse_formula(const std::string &formula) {
+  std::map<std::string, double> counts;
+  for (std::size_t i = 0; i < formula.size();) {
+    if (!std::isupper(static_cast<unsigned char>(formula[i]))) {
+      throw std::runtime_error("reaction file contains an unsupported species formula '" + formula + "'");
+    }
+    std::string element(1, formula[i++]);
+    while (i < formula.size() && std::islower(static_cast<unsigned char>(formula[i]))) {
+      element.push_back(formula[i++]);
+    }
+    std::string digits;
+    while (i < formula.size() && std::isdigit(static_cast<unsigned char>(formula[i]))) {
+      digits.push_back(formula[i++]);
+    }
+    counts[element] += digits.empty() ? 1.0 : std::atof(digits.c_str());
+  }
+  return counts;
+}
+
+void add_formula_counts(std::map<std::string, double> &total,
+                        const std::string &formula, double sign) {
+  const auto counts = parse_formula(formula);
+  for (const auto &entry : counts) {
+    total[entry.first] += sign * entry.second;
+  }
+}
+
+ReactionFileInfo parse_reaction_file(const char *path, const iac::Material &material) {
+  if (material.formula.empty() || material.molar_mass <= 0.0) {
+    throw std::runtime_error(
+        "reaction-derived solid mass requires voxel material formula and molar-mass");
+  }
+
+  std::ifstream input(path);
+  if (!input) {
+    throw std::runtime_error(std::string("Cannot open reaction file ") + path);
+  }
+  const std::string formula_line = next_data_line(input);
+  const std::string coeff_line = next_data_line(input);
+  if (formula_line.empty() || coeff_line.empty()) {
+    throw std::runtime_error("reaction file must contain a SPARTA reaction formula and coefficient line");
+  }
+
+  std::map<std::string, double> gas_delta;
+  std::istringstream formula_stream(formula_line);
+  std::string token;
+  bool products = false;
+  while (formula_stream >> token) {
+    if (token == "+") {
+      continue;
+    }
+    if (token == "-->") {
+      products = true;
+      continue;
+    }
+    if (token == "NULL") {
+      continue;
+    }
+    add_formula_counts(gas_delta, token, products ? 1.0 : -1.0);
+  }
+  if (!products) {
+    throw std::runtime_error("reaction file formula is missing -->");
+  }
+
+  const auto solid_counts = parse_formula(material.formula);
+  if (solid_counts.size() != 1) {
+    throw std::runtime_error("reaction-derived solid mass currently requires a one-element solid formula");
+  }
+  const auto solid = *solid_counts.begin();
+  const auto needed = gas_delta.find(solid.first);
+  if (needed == gas_delta.end() || needed->second <= 0.0) {
+    throw std::runtime_error(
+        "reaction file does not require positive consumption of the voxel material element");
+  }
+  const double solid_formula_units = needed->second / solid.second;
+
+  std::istringstream coeff_stream(coeff_line);
+  std::string type;
+  std::string style;
+  double probability = 0.0;
+  coeff_stream >> type >> style >> probability;
+  if (type.empty() || style.empty() || probability <= 0.0 || probability > 1.0) {
+    throw std::runtime_error("reaction file probability must be in (0,1]");
+  }
+
+  ReactionFileInfo info;
+  info.probability = probability;
+  info.solid_mass = solid_formula_units * material.molar_mass / AVOGADRO;
+  return info;
+}
+
 } // namespace
 
 Surface::Surface(SPARTA *sparta) : Pointers(sparta) {}
@@ -113,8 +248,12 @@ void Surface::command(int narg, char **arg) {
       const char *column_value = value_after(npairs, pairs, "column");
       const char *sample_steps_value = value_after(npairs, pairs, "sample-steps");
       const char *solid_mass = value_after(npairs, pairs, "solid-mass-per-reaction");
-      if (!fix_id || !column_value || !sample_steps_value || !solid_mass) {
-        error->all(FLERR, "surface flux dsmc/reaction requires fix, column, sample-steps, and solid-mass-per-reaction");
+      const char *reaction_file = value_after(npairs, pairs, "reaction");
+      if (!fix_id || !column_value || !sample_steps_value || (!solid_mass && !reaction_file)) {
+        error->all(FLERR, "surface flux dsmc/reaction requires fix, column, sample-steps, and reaction or solid-mass-per-reaction");
+      }
+      if (solid_mass && reaction_file) {
+        error->all(FLERR, "surface flux dsmc/reaction cannot use both reaction and solid-mass-per-reaction");
       }
 
       const int ifix = modify->find_fix(fix_id);
@@ -144,7 +283,15 @@ void Surface::command(int narg, char **arg) {
       const int sample_steps = std::atoi(sample_steps_value);
       const char *ablation_dt_value = value_after(npairs, pairs, "ablation-dt");
       const char *time_scale_value = value_after(npairs, pairs, "time-scale");
-      const double solid_mass_per_reaction = std::atof(solid_mass);
+      double solid_mass_per_reaction = solid_mass ? std::atof(solid_mass) : 0.0;
+      if (reaction_file) {
+        try {
+          solid_mass_per_reaction =
+              parse_reaction_file(reaction_file, IACBridge::config().material).solid_mass;
+        } catch (const std::exception &ex) {
+          error->all(FLERR, ex.what());
+        }
+      }
       if (sample_steps <= 0 || solid_mass_per_reaction <= 0.0) {
         error->all(FLERR, "surface flux dsmc/reaction has invalid sample-steps or solid-mass-per-reaction");
       }
@@ -198,9 +345,17 @@ void Surface::command(int narg, char **arg) {
       const int npairs = narg - 3;
       const char *fix_id = value_after(npairs, pairs, "fix");
       const char *column_value = value_after(npairs, pairs, "column");
+      const char *quantity_value = value_after(npairs, pairs, "quantity");
       const char *solid_mass = value_after(npairs, pairs, "solid-mass-per-hit");
-      if (!fix_id || !column_value || !solid_mass) {
-        error->all(FLERR, "surface flux dsmc/surf requires fix, column, and solid-mass-per-hit");
+      const char *reaction_file = value_after(npairs, pairs, "reaction");
+      if (!fix_id || (!column_value && !quantity_value) || (!solid_mass && !reaction_file)) {
+        error->all(FLERR, "surface flux dsmc/surf requires fix, column or quantity, and reaction or solid-mass-per-hit");
+      }
+      if (column_value && quantity_value) {
+        error->all(FLERR, "surface flux dsmc/surf cannot use both column and quantity");
+      }
+      if (solid_mass && reaction_file) {
+        error->all(FLERR, "surface flux dsmc/surf cannot use both reaction and solid-mass-per-hit");
       }
 
       const int ifix = modify->find_fix(fix_id);
@@ -212,7 +367,8 @@ void Surface::command(int narg, char **arg) {
         error->all(FLERR, "surface flux dsmc/surf fix must provide per-surf data");
       }
 
-      const int column = std::atoi(column_value);
+      const int column = column_value ? std::atoi(column_value)
+                                      : parse_dsmc_surf_quantity(quantity_value, error);
       const int ncols = ave->size_per_surf_cols == 0 ? 1 : ave->size_per_surf_cols;
       if (column <= 0 || column > ncols) {
         error->all(FLERR, "surface flux dsmc/surf column is out of range");
@@ -230,8 +386,17 @@ void Surface::command(int narg, char **arg) {
       const char *reaction_prob_value = value_after(npairs, pairs, "reaction-prob");
       const char *ablation_dt_value = value_after(npairs, pairs, "ablation-dt");
       const char *mass_courant_value = value_after(npairs, pairs, "mass-courant");
-      const double reaction_prob = reaction_prob_value ? std::atof(reaction_prob_value) : 1.0;
-      const double solid_mass_per_hit = std::atof(solid_mass);
+      double reaction_prob = reaction_prob_value ? std::atof(reaction_prob_value) : 1.0;
+      double solid_mass_per_hit = solid_mass ? std::atof(solid_mass) : 0.0;
+      if (reaction_file) {
+        try {
+          const auto reaction = parse_reaction_file(reaction_file, IACBridge::config().material);
+          solid_mass_per_hit = reaction.solid_mass;
+          reaction_prob = reaction.probability;
+        } catch (const std::exception &ex) {
+          error->all(FLERR, ex.what());
+        }
+      }
       if (reaction_prob < 0.0 || reaction_prob > 1.0 || solid_mass_per_hit <= 0.0) {
         error->all(FLERR, "surface flux dsmc/surf has invalid reaction-prob or solid-mass-per-hit");
       }
@@ -345,6 +510,7 @@ void Surface::command(int narg, char **arg) {
     const char *molecular_mass_value = value_after(npairs, pairs, "molecular-mass");
     const char *reaction_prob_value = value_after(npairs, pairs, "reaction-prob");
     const char *solid_mass_value = value_after(npairs, pairs, "solid-mass-per-reaction");
+    const char *reaction_file = value_after(npairs, pairs, "reaction");
     if (!expected || std::strcmp(expected, "kinetic/theory") != 0 ||
         !number_density_value || !mole_fraction_value || !temperature_value ||
         !molecular_mass_value) {
@@ -355,8 +521,20 @@ void Surface::command(int narg, char **arg) {
     const double mole_fraction = std::atof(mole_fraction_value);
     const double temperature = std::atof(temperature_value);
     const double molecular_mass = std::atof(molecular_mass_value);
-    const double reaction_prob = reaction_prob_value ? std::atof(reaction_prob_value) : 1.0;
-    const double solid_mass_per_reaction = solid_mass_value ? std::atof(solid_mass_value) : 0.0;
+    double reaction_prob = reaction_prob_value ? std::atof(reaction_prob_value) : 1.0;
+    double solid_mass_per_reaction = solid_mass_value ? std::atof(solid_mass_value) : 0.0;
+    if (reaction_file) {
+      if (solid_mass_value || reaction_prob_value) {
+        error->all(FLERR, "surface measure-flux cannot use reaction with reaction-prob or solid-mass-per-reaction");
+      }
+      try {
+        const auto reaction = parse_reaction_file(reaction_file, IACBridge::config().material);
+        reaction_prob = reaction.probability;
+        solid_mass_per_reaction = reaction.solid_mass;
+      } catch (const std::exception &ex) {
+        error->all(FLERR, ex.what());
+      }
+    }
     if (number_density <= 0.0 || mole_fraction < 0.0 || temperature <= 0.0 ||
         molecular_mass <= 0.0 || reaction_prob < 0.0 || reaction_prob > 1.0 ||
         (solid_mass_value && solid_mass_per_reaction <= 0.0)) {
@@ -400,7 +578,7 @@ void Surface::command(int narg, char **arg) {
       model.set_diagnostic("reaction-flux-error-percent",
                            100.0 * std::abs(measured_flux - expected_flux) /
                                std::abs(expected_flux));
-      if (solid_mass_value) {
+      if (solid_mass_value || reaction_file) {
         model.set_diagnostic("reaction-mass-flux", measured_flux * solid_mass_per_reaction);
         model.set_diagnostic("expected-reaction-mass-flux",
                              expected_flux * solid_mass_per_reaction);

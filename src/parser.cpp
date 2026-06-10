@@ -220,6 +220,14 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
         const auto values = parse_pairs(tokens, 3, line_number);
         config.material.density =
             parse_double(required(values, "density", line_number), line_number);
+        const auto molar_mass = values.find("molar-mass");
+        if (molar_mass != values.end()) {
+          config.material.molar_mass = parse_double(molar_mass->second, line_number);
+        }
+        const auto formula = values.find("formula");
+        if (formula != values.end()) {
+          config.material.formula = formula->second;
+        }
       } else if (subcommand == "create") {
         require_size(tokens, 5, line_number);
         config.voxel_name = tokens[2];

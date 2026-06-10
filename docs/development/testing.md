@@ -91,8 +91,8 @@ cmake --build --preset dsmc --target dsmc-convergence-report
 It writes:
 
 ```text
-build-dsmc/output/dsmc-sphere-kinetic-convergence/summary.csv
-build-dsmc/output/dsmc-sphere-kinetic-convergence/report.pdf
+build-dsmc/output/dsmc-sphere-kinetic-grid-convergence/summary.csv
+build-dsmc/output/dsmc-sphere-kinetic-grid-convergence/report.pdf
 ```
 
 The standalone test report currently includes:

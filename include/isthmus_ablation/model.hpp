@@ -31,6 +31,7 @@ public:
   const Config &config() const { return config_; }
   const std::vector<HistoryRow> &history() const { return history_; }
   double timestep() const { return dt_; }
+  double time() const { return current_time_; }
   int step_count() const { return current_step_; }
   std::vector<PublicSurfaceTriangle> surface_triangles(const std::string &name) const;
 

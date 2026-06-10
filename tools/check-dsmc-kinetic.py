@@ -9,6 +9,7 @@ import math
 from pathlib import Path
 
 KB = 1.380649e-23
+AVOGADRO = 6.02214076e23
 
 
 def read_last_row(path: Path) -> dict[str, str]:
@@ -26,7 +27,9 @@ def main() -> int:
     parser.add_argument("--temperature", type=float, required=True)
     parser.add_argument("--molecular-mass", type=float, required=True)
     parser.add_argument("--solid-density", type=float, required=True)
-    parser.add_argument("--solid-mass-per-hit", type=float, required=True)
+    parser.add_argument("--solid-mass-per-hit", type=float, default=None)
+    parser.add_argument("--solid-molar-mass", type=float, default=0.0120107)
+    parser.add_argument("--solid-atoms-per-hit", type=float, default=2.0)
     parser.add_argument("--reaction-prob", type=float, default=1.0)
     parser.add_argument("--initial-radius", type=float, required=True)
     parser.add_argument("--tolerance-percent", type=float, default=None)
@@ -38,7 +41,10 @@ def main() -> int:
 
     gamma = args.number_density * math.sqrt(KB * args.temperature /
                                             (2.0 * math.pi * args.molecular_mass))
-    flux = gamma * args.reaction_prob * args.solid_mass_per_hit
+    solid_mass_per_hit = args.solid_mass_per_hit
+    if solid_mass_per_hit is None:
+        solid_mass_per_hit = args.solid_atoms_per_hit * args.solid_molar_mass / AVOGADRO
+    flux = gamma * args.reaction_prob * solid_mass_per_hit
     speed = flux / args.solid_density
     radius = max(args.initial_radius - speed * time, 0.0)
     exact = (radius / args.initial_radius) ** 3

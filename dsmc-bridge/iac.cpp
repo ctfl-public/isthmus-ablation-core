@@ -2,6 +2,8 @@
 
 #include "error.h"
 #include "iacbridge.h"
+#include "input.h"
+#include "variable.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -10,6 +12,24 @@
 #include <string>
 
 using namespace SPARTA_NS;
+
+namespace {
+
+void set_internal_variable(Input *input, Error *error, const char *name, double value) {
+  Variable *variable = input->variable;
+  int ivar = variable->find(const_cast<char *>(name));
+  if (ivar < 0) {
+    variable->internal_create(const_cast<char *>(name), value);
+    return;
+  }
+  if (!variable->internal_style(ivar)) {
+    std::string message = "IAC variable '" + std::string(name) + "' must be internal style";
+    error->all(FLERR, message.c_str());
+  }
+  variable->internal_set(ivar, value);
+}
+
+} // namespace
 
 Iac::Iac(SPARTA *sparta) : Pointers(sparta) {}
 
@@ -113,6 +133,61 @@ void Iac::command(int narg, char **arg) {
       columns.push_back(arg[i]);
     }
     IACBridge::reset_stats_output();
+    return;
+  }
+
+  if (std::strcmp(arg[0], "continue") == 0) {
+    if (narg != 5 || std::strcmp(arg[1], "time") != 0 ||
+        std::strcmp(arg[3], "variable") != 0) {
+      error->all(FLERR, "Expected iac continue time <target> variable <name>");
+    }
+    const double target = std::atof(arg[2]);
+    if (target <= 0.0) {
+      error->all(FLERR, "iac continue time target must be positive");
+    }
+    try {
+      const double keep_running = IACBridge::model(sparta).time() < target ? 1.0 : 0.0;
+      set_internal_variable(input, error, arg[4], keep_running);
+    } catch (const std::exception &ex) {
+      error->all(FLERR, ex.what());
+    }
+    return;
+  }
+
+  if (std::strcmp(arg[0], "set") == 0) {
+    if (narg < 3) {
+      error->all(FLERR, "Expected iac set <variable> <time|step|dt|diagnostic>");
+    }
+    try {
+      double value = 0.0;
+      auto &model = IACBridge::model(sparta);
+      if (std::strcmp(arg[2], "time") == 0) {
+        if (narg != 3) {
+          error->all(FLERR, "Expected iac set <variable> time");
+        }
+        value = model.time();
+      } else if (std::strcmp(arg[2], "step") == 0) {
+        if (narg != 3) {
+          error->all(FLERR, "Expected iac set <variable> step");
+        }
+        value = static_cast<double>(model.step_count());
+      } else if (std::strcmp(arg[2], "dt") == 0) {
+        if (narg != 3) {
+          error->all(FLERR, "Expected iac set <variable> dt");
+        }
+        value = model.timestep();
+      } else if (std::strcmp(arg[2], "diagnostic") == 0) {
+        if (narg != 4) {
+          error->all(FLERR, "Expected iac set <variable> diagnostic <name>");
+        }
+        value = model.diagnostic(arg[3]);
+      } else {
+        error->all(FLERR, "iac set quantity must be time, step, dt, or diagnostic");
+      }
+      set_internal_variable(input, error, arg[1], value);
+    } catch (const std::exception &ex) {
+      error->all(FLERR, ex.what());
+    }
     return;
   }
 

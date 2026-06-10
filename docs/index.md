@@ -66,6 +66,8 @@ ctest --preset standalone
 - Write a CSV history file.
 - Write VTU voxel files for visual inspection.
 - Compute single-species ideal-gas kinetic-theory flux on ISTHMUS triangles.
+- Read DSMC `nflux_incident` surface tallies and convert them to voxel mass
+  loss through ISTHMUS triangle ownership.
 - Build a private DSMC executable that calls the core through thin
   command-style bridge files without modifying the DSMC checkout.
 - Include shared input files with `include`.

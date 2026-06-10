@@ -19,6 +19,8 @@ struct RuntimeError : std::runtime_error {
 struct Material {
   std::string name;
   double density = 0.0;
+  double molar_mass = 0.0;
+  std::string formula;
 };
 
 struct SlabGeometry {

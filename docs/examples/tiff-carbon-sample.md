@@ -70,7 +70,7 @@ surf_react          ox prob carbon-co.surf
 compute             rco react/surf all ox
 fix                 rco ave/surf all 1 20 20 c_rco[*] ave one
 surface flux skin dsmc/reaction fix rco column 1 sample-steps 20 \
-  solid-mass-per-reaction 3.98894696e-26 time-scale 500
+  reaction carbon-co.surf time-scale 500
 voxel ablate solid surface skin policy carryover/normal delete yes
 ```
 

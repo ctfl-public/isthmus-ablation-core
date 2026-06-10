@@ -303,45 +303,37 @@ void Model::set_timestep_from_triangle_fluxes(const std::string &surface_name,
     throw RuntimeError("surface flux vector size does not match surface triangle count");
   }
 
-  std::vector<double> voxel_requests(voxels_.size(), 0.0);
+  double max_face_flux = 0.0;
   for (std::size_t i = 0; i < surface.triangles.size(); ++i) {
     const double mass_flux = mass_fluxes[i];
     if (mass_flux <= 0.0) {
       continue;
     }
     const auto &triangle = surface.triangles[i];
-    double fraction_sum = 0.0;
-    for (double fraction : triangle.fractions) {
-      fraction_sum += fraction;
-    }
-    if (fraction_sum <= 0.0) {
+    if (triangle.area <= 0.0 || triangle.voxel_ids.empty()) {
       continue;
     }
-    const double triangle_mass_rate = mass_flux * triangle.area;
-    for (std::size_t j = 0; j < triangle.voxel_ids.size(); ++j) {
+    for (std::size_t j = 0; j < triangle.voxel_ids.size() && j < triangle.fractions.size(); ++j) {
       const std::size_t voxel_id = triangle.voxel_ids[j];
-      if (voxel_id >= voxel_requests.size()) {
+      const double fraction = triangle.fractions[j];
+      if (voxel_id >= voxels_.size() || fraction <= 0.0) {
         continue;
       }
-      voxel_requests[voxel_id] += triangle_mass_rate * triangle.fractions[j] / fraction_sum;
+      const auto &voxel = voxels_[voxel_id];
+      if (voxel.active && !voxel.fixed && voxel.remaining_mass > 0.0) {
+        max_face_flux = std::max(max_face_flux, mass_flux);
+      }
     }
   }
-
-  double limiting_time = std::numeric_limits<double>::infinity();
-  for (std::size_t i = 0; i < voxel_requests.size(); ++i) {
-    const auto &voxel = voxels_[i];
-    if (!voxel.active || voxel.fixed || voxel.remaining_mass <= 0.0) {
-      continue;
-    }
-    if (voxel_requests[i] <= 0.0) {
-      continue;
-    }
-    limiting_time = std::min(limiting_time, voxel.remaining_mass / voxel_requests[i]);
-  }
-  if (!std::isfinite(limiting_time) || limiting_time <= 0.0) {
+  if (max_face_flux <= 0.0) {
     throw RuntimeError("surface flux mass/courant found no positive mapped flux");
   }
-  set_timestep(courant * limiting_time);
+
+  const double dt = courant * config_.material.density * voxel_dx() / max_face_flux;
+  set_diagnostic("surface-mass-courant", courant);
+  set_diagnostic("surface-max-face-flux", max_face_flux);
+  set_diagnostic("surface-mass-courant-dt", dt);
+  set_timestep(dt);
 }
 
 void Model::ablate(const AblationCommand &ablate) {
