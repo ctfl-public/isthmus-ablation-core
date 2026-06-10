@@ -81,10 +81,10 @@ instantaneous kinetic-theory check: it verifies the initial O2 reaction count
 and equivalent carbon mass flux before the perfectly consuming surface depletes
 the nearby O2 population. The kinetic grid-convergence test then runs the
 coupled collision-flux recession loop on a small `4,8,12` voxel-resolution
-ladder. It compares final mass fraction, voxelized volume fraction, and radius
-to the analytical kinetic-theory sphere recession near 20% remaining mass, and
-requires the finest mass error to improve over the coarsest case. This test is
-only present in DSMC-enabled builds.
+ladder with `C_m = 1/3`. It compares final mass fraction, voxelized volume
+fraction, and radius to the analytical kinetic-theory sphere recession near
+20% remaining mass, and requires the finest mass error to improve over the
+coarsest case. This test is only present in DSMC-enabled builds.
 
 To build the DSMC convergence report:
 

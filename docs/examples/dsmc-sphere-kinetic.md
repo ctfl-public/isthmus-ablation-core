@@ -135,7 +135,7 @@ python3 tools/run-dsmc-kinetic-convergence.py \
   --resolutions 4,8,12 \
   --target-mass-fraction 0.2 \
   --sample-steps 10 \
-  --mass-courant 0.1666666667 \
+  --mass-courant 0.3333333333 \
   --domain-half-width 6.5e-4 \
   --grid-cells 6 \
   --fnum 2.0e11 \
@@ -159,9 +159,10 @@ build-dsmc/output/dsmc-sphere-kinetic-grid-convergence/report.pdf
 ```
 
 The report is optimized as a quick regression-style coupled check. It uses a
-small periodic box around the sphere and a modest `4,8,12` voxel-resolution
-ladder so the run remains short while still showing grid refinement toward the
-continuum sphere solution.
+small periodic box around the sphere, a modest `4,8,12` voxel-resolution ladder,
+and `C_m = 1/3` so the run remains short while still showing grid refinement
+toward the continuum sphere solution. The hand-run example above keeps the more
+conservative `C_m = 1/6` setting.
 
 ## Chemistry Note
 

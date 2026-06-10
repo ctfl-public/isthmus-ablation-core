@@ -190,7 +190,7 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
       --resolutions 4,8,12
       --target-mass-fraction 0.2
       --sample-steps 10
-      --mass-courant 0.1666666667
+      --mass-courant 0.3333333333
       --fnum 2.0e11
       --domain-half-width 6.5e-4
       --grid-cells 6
