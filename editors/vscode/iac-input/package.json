@@ -1,0 +1,40 @@
+{
+  "name": "iac-input",
+  "displayName": "IAC Input",
+  "description": "Syntax highlighting for isthmus-ablation-core and SPARTA-style input files.",
+  "version": "0.1.0",
+  "publisher": "iac",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "iac-input",
+        "aliases": [
+          "IAC Input",
+          "iac-input"
+        ],
+        "extensions": [
+          ".iac",
+          ".sparta"
+        ],
+        "filenamePatterns": [
+          "in.*"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "iac-input",
+        "scopeName": "source.iac-input",
+        "path": "./syntaxes/iac-input.tmLanguage.json"
+      }
+    ]
+  }
+}
+

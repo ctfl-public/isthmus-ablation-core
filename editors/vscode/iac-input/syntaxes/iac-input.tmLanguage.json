@@ -1,0 +1,86 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "IAC Input",
+  "scopeName": "source.iac-input",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#variables"
+    },
+    {
+      "include": "#commands"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#numbers"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.iac-input",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.iac-input",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "include": "#variables"
+            }
+          ]
+        }
+      ]
+    },
+    "variables": {
+      "patterns": [
+        {
+          "name": "variable.other.iac-input",
+          "match": "\\$\\{[A-Za-z_][A-Za-z0-9_:-]*\\}"
+        }
+      ]
+    },
+    "commands": {
+      "patterns": [
+        {
+          "name": "keyword.control.iac-input",
+          "match": "^\\s*(grid_write_vtu|iac_continue|iac_limit|iac_run|iac_set|iac_spa_stats|iac_stats|iac_stats_style|iac_timestep|iac_verify|isthmus_surface|source|surf_dump|surf_flux|surf_install|surf_measure_flux|voxel_ablate|voxel_create|voxel_dump|voxel_ghost|voxel_material|voxel_write_history|voxel_write_vtu)\\b"
+        },
+        {
+          "name": "support.function.sparta.iac-input",
+          "match": "^\\s*(adapt_grid|balance_grid|boundary|clear|compute|create_box|create_grid|create_particles|dimension|dump|dump_modify|fix|global|if|include|jump|label|mixture|next|read_surf|remove_surf|run|seed|shell|species|stats|stats_modify|stats_style|surf_collide|surf_modify|surf_react|timestep|uncompute|unfix|variable|write_surf)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "constant.language.iac-input",
+          "match": "\\b(absolute|active|all|axis|boundary|buffer|carryover/normal|constant|crop|delete|density|diagnostic|diameter|duration|equal|exact|face|false|file|fixed|formula|ghosted|ghosts|history|infinite|internal|local|map|mass/courant|material|molar-mass|norm|percent|policy|real|resolution|scalar|select|slab|source|sphere|surface|then|tiff|time|tolerance|true|units|variable|voxels|vtu|vtp|weighting)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.iac-input",
+          "match": "\\b[+-]?(?:[0-9]+\\.?[0-9]*|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?\\b"
+        }
+      ]
+    }
+  }
+}
+
