@@ -57,7 +57,7 @@
       "patterns": [
         {
           "name": "keyword.control.iac-input",
-          "match": "^\\s*(grid_write_vtu|iac_continue|iac_limit|iac_run|iac_set|iac_spa_stats|iac_stats|iac_stats_style|iac_timestep|iac_verify|isthmus_surface|source|surf_dump|surf_flux|surf_install|surf_measure_flux|voxel_ablate|voxel_create|voxel_dump|voxel_ghost|voxel_material|voxel_write_history|voxel_write_vtu)\\b"
+          "match": "^\\s*(grid_dump|grid_write_vtu|iac_continue|iac_limit|iac_run|iac_set|iac_spa_stats|iac_stats|iac_stats_style|iac_timestep|iac_verify|isthmus_surface|source|surf_dump|surf_flux|surf_install|surf_measure_flux|voxel_ablate|voxel_create|voxel_dump|voxel_ghost|voxel_material|voxel_write_history|voxel_write_vtu)\\b"
         },
         {
           "name": "support.function.sparta.iac-input",
@@ -83,4 +83,3 @@
     }
   }
 }
-

@@ -26,7 +26,8 @@ void install_surface(SPARTA *sparta, const char *surface_id, int partflag, int t
 void reset_stats_output();
 void record_grid_vtu_dump(const std::string &fix_id, const std::string &path,
                           const std::string &index_mode,
-                          const std::vector<std::string> &fields);
+                          const std::vector<std::string> &fields, int every = 0);
+void write_scheduled_grid_vtu_dumps(SPARTA *sparta);
 void print_stats_after_step(SPARTA *sparta);
 void print_sparta_stats(SPARTA *sparta);
 

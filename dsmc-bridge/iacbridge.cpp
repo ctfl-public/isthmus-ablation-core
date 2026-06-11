@@ -4,6 +4,7 @@
 #include "domain.h"
 #include "error.h"
 #include "grid.h"
+#include "iacgrid.h"
 #include "memory.h"
 #include "mixture.h"
 #include "output.h"
@@ -49,10 +50,17 @@ bool stats_header_printed = false;
 int last_compact_output = OUTPUT_NONE;
 
 struct GridVtuDumpInfo {
+  GridVtuDumpInfo(const std::string &fix_id_in, const std::string &path_in,
+                  const std::string &index_mode_in,
+                  const std::vector<std::string> &fields_in, int every_in)
+      : fix_id(fix_id_in), path(path_in), index_mode(index_mode_in),
+        fields(fields_in), every(every_in) {}
+
   std::string fix_id;
   std::string path;
   std::string index_mode;
   std::vector<std::string> fields;
+  int every;
 };
 
 std::vector<GridVtuDumpInfo> grid_vtu_dumps;
@@ -282,14 +290,30 @@ void write_to_dsmc_outputs(SPARTA *sparta, const std::string &text) {
 
 void record_grid_vtu_dump(const std::string &fix_id, const std::string &path,
                           const std::string &index_mode,
-                          const std::vector<std::string> &fields) {
+                          const std::vector<std::string> &fields, int every) {
   for (auto &dump : grid_vtu_dumps) {
     if (dump.fix_id == fix_id && dump.path == path && dump.index_mode == index_mode) {
       dump.fields = fields;
+      if (every > 0) {
+        dump.every = every;
+      }
       return;
     }
   }
-  grid_vtu_dumps.push_back(GridVtuDumpInfo{fix_id, path, index_mode, fields});
+  grid_vtu_dumps.push_back(GridVtuDumpInfo{fix_id, path, index_mode, fields, every});
+}
+
+void write_scheduled_grid_vtu_dumps(SPARTA *sparta) {
+  if (!owns_model(sparta)) {
+    return;
+  }
+  const bigint step = model(sparta).step_count();
+  for (const auto &dump : grid_vtu_dumps) {
+    if (dump.every <= 0 || step % dump.every != 0) {
+      continue;
+    }
+    iac_write_grid_vtu(sparta, dump.fix_id, dump.path, dump.index_mode, dump.fields);
+  }
 }
 
 std::string prefixed_lines(const std::string &text, const std::string &prefix,
@@ -503,6 +527,7 @@ void print_stats_after_step(SPARTA *sparta) {
     return;
   }
   auto &m = model(sparta);
+  write_scheduled_grid_vtu_dumps(sparta);
   const int every = config().stats.every;
   if (every <= 0 || m.step_count() % every != 0) {
     return;

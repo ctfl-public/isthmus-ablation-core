@@ -16,7 +16,7 @@ Current IAC commands:
 - [`voxel_ablate`](voxel-ablate.md)
 - [`isthmus_surface`](isthmus-surface.md)
 - [`surf_flux`, `surf_dump`, `surf_install`, `surf_measure_flux`, and `surf_write_vtp`](surface.md)
-- [`grid_write_vtu`](grid-write-vtu.md)
+- [`grid_write_vtu` and `grid_dump`](grid-write-vtu.md)
 - [`iac_limit`, `iac_continue`, and `iac_set`](iac.md)
 - [`iac_stats` and `iac_stats_style`](stats.md)
 - [`voxel_dump`](voxel-dump.md)

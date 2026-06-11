@@ -43,7 +43,6 @@ dsmc-sphere-visual-*
 # Python caches
 __pycache__/
 *.py[cod]
-tools/run-dsmc-kinetic-convergence.py
 
 # Generated web docs
 site/

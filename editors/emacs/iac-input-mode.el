@@ -31,7 +31,8 @@
   :group 'iac-input)
 
 (defconst iac-input-iac-commands
-  '("grid_write_vtu"
+  '("grid_dump"
+    "grid_write_vtu"
     "iac_continue"
     "iac_limit"
     "iac_run"

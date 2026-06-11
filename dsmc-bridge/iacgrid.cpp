@@ -6,6 +6,7 @@
 #include "grid.h"
 #include "iacbridge.h"
 #include "modify.h"
+#include "sparta.h"
 #include "update.h"
 
 #include <mpi.h>
@@ -189,36 +190,26 @@ void write_vtu(const std::string &path, const std::vector<double> &rows,
 
 } // namespace
 
+namespace SPARTA_NS {
+
 GridWriteVtu::GridWriteVtu(SPARTA *sparta) : Pointers(sparta) {}
 
-void GridWriteVtu::command(int narg, char **arg) {
-  if (narg < 4) {
-    error->all(FLERR, "Expected grid_write_vtu <fix-id> <path> [index <mode>] fields <name...>");
-  }
-  const char *index_mode = "dsmc-step";
-  int fields = 2;
-  if (std::strcmp(arg[fields], "index") == 0) {
-    if (narg < 6) {
-      error->all(FLERR, "Expected grid_write_vtu index <mode> fields <name...>");
-    }
-    index_mode = arg[fields + 1];
-    fields += 2;
-  }
-  if (fields >= narg || std::strcmp(arg[fields], "fields") != 0) {
-    error->all(FLERR, "Expected grid_write_vtu <fix-id> <path> [index <mode>] fields <name...>");
-  }
-  const int nfields = narg - fields - 1;
-  if (nfields <= 0) {
-    error->all(FLERR, "grid_write_vtu requires at least one field name");
-  }
-  std::vector<std::string> field_names;
-  field_names.reserve(static_cast<std::size_t>(nfields));
-  for (int i = fields + 1; i < narg; ++i) {
-    field_names.push_back(xml_name(arg[i]));
-  }
-  IACBridge::record_grid_vtu_dump(arg[0], arg[1], index_mode, field_names);
-  Fix *fix = require_grid_fix(modify, error, arg[0], nfields);
+GridDumpCommand::GridDumpCommand(SPARTA *sparta) : Pointers(sparta) {}
 
+void iac_write_grid_vtu(SPARTA *sparta, const std::string &fix_id,
+                        const std::string &path, const std::string &index_mode,
+                        const std::vector<std::string> &field_names) {
+  Grid *grid = sparta->grid;
+  Modify *modify = sparta->modify;
+  Error *error = sparta->error;
+  Comm *comm = sparta->comm;
+  Update *update = sparta->update;
+  MPI_Comm world = sparta->world;
+
+  Fix *fix = require_grid_fix(modify, error, fix_id.c_str(),
+                              static_cast<int>(field_names.size()));
+
+  const int nfields = static_cast<int>(field_names.size());
   const int row_width = 7 + nfields;
   std::vector<double> local;
   local.reserve(static_cast<std::size_t>(grid->nlocal * row_width));
@@ -257,10 +248,77 @@ void GridWriteVtu::command(int narg, char **arg) {
 
   if (comm->me == 0) {
     try {
-      write_vtu(timestep_path(arg[1], output_index(sparta, index_mode, update, error)),
+      write_vtu(timestep_path(path.c_str(), output_index(sparta, index_mode.c_str(), update, error)),
                 rows, nfields, field_names);
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
     }
   }
 }
+
+void GridDumpCommand::command(int narg, char **arg) {
+  if (narg < 7) {
+    error->all(FLERR, "Expected grid_dump <id> <fix-id> vtu <N> <path> [index <mode>] fields <name...>");
+  }
+  if (std::strcmp(arg[2], "vtu") != 0) {
+    error->all(FLERR, "grid_dump currently supports only vtu output");
+  }
+  const int every = std::atoi(arg[3]);
+  if (every <= 0) {
+    error->all(FLERR, "grid_dump interval must be positive");
+  }
+  const char *index_mode = "dsmc-step";
+  int fields = 5;
+  if (std::strcmp(arg[fields], "index") == 0) {
+    if (narg < 9) {
+      error->all(FLERR, "Expected grid_dump index <mode> fields <name...>");
+    }
+    index_mode = arg[fields + 1];
+    fields += 2;
+  }
+  if (fields >= narg || std::strcmp(arg[fields], "fields") != 0) {
+    error->all(FLERR, "Expected grid_dump <id> <fix-id> vtu <N> <path> [index <mode>] fields <name...>");
+  }
+  const int nfields = narg - fields - 1;
+  if (nfields <= 0) {
+    error->all(FLERR, "grid_dump requires at least one field name");
+  }
+  std::vector<std::string> field_names;
+  field_names.reserve(static_cast<std::size_t>(nfields));
+  for (int i = fields + 1; i < narg; ++i) {
+    field_names.push_back(xml_name(arg[i]));
+  }
+  require_grid_fix(modify, error, arg[1], nfields);
+  IACBridge::record_grid_vtu_dump(arg[1], arg[4], index_mode, field_names, every);
+}
+
+void GridWriteVtu::command(int narg, char **arg) {
+  if (narg < 4) {
+    error->all(FLERR, "Expected grid_write_vtu <fix-id> <path> [index <mode>] fields <name...>");
+  }
+  const char *index_mode = "dsmc-step";
+  int fields = 2;
+  if (std::strcmp(arg[fields], "index") == 0) {
+    if (narg < 6) {
+      error->all(FLERR, "Expected grid_write_vtu index <mode> fields <name...>");
+    }
+    index_mode = arg[fields + 1];
+    fields += 2;
+  }
+  if (fields >= narg || std::strcmp(arg[fields], "fields") != 0) {
+    error->all(FLERR, "Expected grid_write_vtu <fix-id> <path> [index <mode>] fields <name...>");
+  }
+  const int nfields = narg - fields - 1;
+  if (nfields <= 0) {
+    error->all(FLERR, "grid_write_vtu requires at least one field name");
+  }
+  std::vector<std::string> field_names;
+  field_names.reserve(static_cast<std::size_t>(nfields));
+  for (int i = fields + 1; i < narg; ++i) {
+    field_names.push_back(xml_name(arg[i]));
+  }
+  IACBridge::record_grid_vtu_dump(arg[0], arg[1], index_mode, field_names);
+  iac_write_grid_vtu(sparta, arg[0], arg[1], index_mode, field_names);
+}
+
+} // namespace SPARTA_NS

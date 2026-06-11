@@ -230,14 +230,14 @@ if(isthmus_cpp_FOUND)
   )
   if(TARGET generated-fixtures)
     set(IAC_CARBON_CONSTANT_TEST_INPUT
-        "${CMAKE_BINARY_DIR}/tests/inputs/tiff-carbon-sample/in.tiff-carbon-sample-constant.verify")
+        "${CMAKE_BINARY_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.constant-flux.verify")
     configure_file(
-      ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-carbon-sample/in.tiff-carbon-sample-constant.verify.in
+      ${CMAKE_SOURCE_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.constant-flux.verify.in
       ${IAC_CARBON_CONSTANT_TEST_INPUT}
       @ONLY
     )
     add_test(
-      NAME tiff-carbon-sample-constant-verification
+      NAME pregen-tiff-carbon-recession-constant-flux-verification
       COMMAND $<TARGET_FILE:ia-core> -in ${IAC_CARBON_CONSTANT_TEST_INPUT}
     )
   endif()
@@ -351,18 +351,18 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
     set(SOURCE_DIR ${CMAKE_SOURCE_DIR})
     set(BINARY_DIR ${CMAKE_BINARY_DIR})
     set(IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT
-        "${CMAKE_BINARY_DIR}/tests/inputs/dsmc-tiff-carbon-co/in.dsmc-tiff-carbon-co.verify")
+        "${CMAKE_BINARY_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.dsmc-co.verify")
     configure_file(
-      ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-tiff-carbon-co/in.dsmc-tiff-carbon-co.verify.in
+      ${CMAKE_SOURCE_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.dsmc-co.verify.in
       ${IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT}
       @ONLY
     )
     add_test(
-      NAME dsmc-tiff-carbon-co-verification
+      NAME pregen-tiff-carbon-recession-dsmc-co-verification
       COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
               -in ${IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT}
     )
-    set_tests_properties(dsmc-tiff-carbon-co-verification PROPERTIES
+    set_tests_properties(pregen-tiff-carbon-recession-dsmc-co-verification PROPERTIES
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       TIMEOUT 90
     )

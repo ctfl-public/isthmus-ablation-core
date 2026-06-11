@@ -97,8 +97,8 @@ ideal-gas kinetic-theory mass-fraction solution.
 The rough carbon TIFF workflow checks can be run directly with:
 
 ```bash
-ctest --test-dir build -R tiff-carbon-sample-constant-verification --output-on-failure
-ctest --test-dir build-dsmc -R dsmc-tiff-carbon-co-verification --output-on-failure
+ctest --test-dir build -R pregen-tiff-carbon-recession-constant-flux-verification --output-on-failure
+ctest --test-dir build-dsmc -R pregen-tiff-carbon-recession-dsmc-co-verification --output-on-failure
 ```
 
 The first uses a prescribed top-surface mass flux. The second uses DSMC surface
