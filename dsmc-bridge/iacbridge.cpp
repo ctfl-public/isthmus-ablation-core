@@ -15,6 +15,8 @@
 #include <cstdio>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
+#include <unordered_map>
 
 namespace SPARTA_NS {
 namespace IACBridge {
@@ -25,6 +27,7 @@ enum { CELL_UNKNOWN, CELL_OUTSIDE, CELL_INSIDE, CELL_OVERLAP };
 
 std::unique_ptr<iac::Model> active_model;
 iac::Config active_config;
+std::unordered_map<std::string, std::vector<iac::Model::PublicSurfaceTriangle>> surface_cache;
 bigint last_coupling_step = 0;
 bool stats_header_printed = false;
 
@@ -46,6 +49,53 @@ void require_grid(SPARTA *sparta) {
   }
 }
 
+void broadcast_surface_cache(SPARTA *sparta, const std::string &surface_id) {
+  Comm *comm = sparta->comm;
+  int count = 0;
+  if (comm->me == 0) {
+    const auto found = surface_cache.find(surface_id);
+    if (found == surface_cache.end()) {
+      throw std::runtime_error("IAC surface cache is missing generated surface '" + surface_id + "'");
+    }
+    count = static_cast<int>(found->second.size());
+  }
+  MPI_Bcast(&count, 1, MPI_INT, 0, sparta->world);
+  if (count <= 0) {
+    throw std::runtime_error("IAC generated surface is empty");
+  }
+
+  std::vector<double> flat(static_cast<std::size_t>(count) * 14, 0.0);
+  if (comm->me == 0) {
+    const auto &triangles = surface_cache.at(surface_id);
+    for (int i = 0; i < count; ++i) {
+      const auto &tri = triangles[static_cast<std::size_t>(i)];
+      double *row = flat.data() + static_cast<std::size_t>(i) * 14;
+      std::copy(tri.a.begin(), tri.a.end(), row);
+      std::copy(tri.b.begin(), tri.b.end(), row + 3);
+      std::copy(tri.c.begin(), tri.c.end(), row + 6);
+      std::copy(tri.normal.begin(), tri.normal.end(), row + 9);
+      row[12] = tri.area;
+      row[13] = tri.last_requested_mass;
+    }
+  }
+  MPI_Bcast(flat.data(), static_cast<int>(flat.size()), MPI_DOUBLE, 0, sparta->world);
+
+  if (comm->me != 0) {
+    auto &triangles = surface_cache[surface_id];
+    triangles.resize(static_cast<std::size_t>(count));
+    for (int i = 0; i < count; ++i) {
+      auto &tri = triangles[static_cast<std::size_t>(i)];
+      const double *row = flat.data() + static_cast<std::size_t>(i) * 14;
+      std::copy(row, row + 3, tri.a.begin());
+      std::copy(row + 3, row + 6, tri.b.begin());
+      std::copy(row + 6, row + 9, tri.c.begin());
+      std::copy(row + 9, row + 12, tri.normal.begin());
+      tri.area = row[12];
+      tri.last_requested_mass = row[13];
+    }
+  }
+}
+
 } // namespace
 
 iac::Config &config() {
@@ -57,18 +107,20 @@ iac::Config &config() {
   return active_config;
 }
 
+bool owns_model(SPARTA *sparta) {
+  return sparta->comm->me == 0;
+}
+
 iac::Model &model(SPARTA *sparta) {
+  if (!owns_model(sparta)) {
+    throw std::runtime_error("IAC model state is owned by MPI rank 0");
+  }
   if (!active_model) {
     auto &cfg = config();
     if (sparta->update->dt > 0.0) {
       cfg.timestep.value = sparta->update->dt;
     }
-    iac::Config run_config = cfg;
-    if (sparta->comm->me != 0) {
-      run_config.dumps.clear();
-      run_config.surface_dumps.clear();
-    }
-    active_model.reset(new iac::Model(run_config));
+    active_model.reset(new iac::Model(cfg));
     active_model->reset_run_state();
     last_coupling_step = sparta->update->ntimestep;
   }
@@ -77,10 +129,15 @@ iac::Model &model(SPARTA *sparta) {
 
 void reset_model() {
   active_model.reset();
+  surface_cache.clear();
   reset_stats_output();
 }
 
 void set_coupling_interval_from_dsmc(SPARTA *sparta) {
+  if (!owns_model(sparta)) {
+    last_coupling_step = sparta->update->ntimestep;
+    return;
+  }
   auto &m = model(sparta);
   const bigint current = sparta->update->ntimestep;
   bigint elapsed_steps = current - last_coupling_step;
@@ -92,7 +149,9 @@ void set_coupling_interval_from_dsmc(SPARTA *sparta) {
 }
 
 void set_last_coupling_step(SPARTA *sparta) {
-  model(sparta);
+  if (owns_model(sparta)) {
+    model(sparta);
+  }
   last_coupling_step = sparta->update->ntimestep;
 }
 
@@ -113,6 +172,9 @@ void write_to_dsmc_outputs(SPARTA *sparta, const std::string &text) {
 }
 
 void print_stats_after_step(SPARTA *sparta) {
+  if (!owns_model(sparta)) {
+    return;
+  }
   auto &m = model(sparta);
   const int every = config().stats.every;
   if (every <= 0 || m.step_count() % every != 0) {
@@ -126,6 +188,25 @@ void print_stats_after_step(SPARTA *sparta) {
   }
   m.print_latest_stats(out);
   write_to_dsmc_outputs(sparta, out.str());
+}
+
+void generate_surface(SPARTA *sparta, const iac::IsthmusSurfaceCommand &surface) {
+  if (owns_model(sparta)) {
+    auto &m = model(sparta);
+    m.generate_surface(surface);
+    surface_cache[surface.name] = m.surface_triangles(surface.name);
+  }
+  broadcast_surface_cache(sparta, surface.name);
+}
+
+const std::vector<iac::Model::PublicSurfaceTriangle> &
+surface_triangles(SPARTA *sparta, const std::string &surface_id) {
+  (void)sparta;
+  const auto found = surface_cache.find(surface_id);
+  if (found == surface_cache.end()) {
+    throw std::runtime_error("IAC surface '" + surface_id + "' has not been generated");
+  }
+  return found->second;
 }
 
 void install_surface(SPARTA *sparta, const char *surface_id, int partflag, int type) {
@@ -142,7 +223,7 @@ void install_surface(SPARTA *sparta, const char *surface_id, int partflag, int t
     error->all(FLERR, "surface install requires removing existing surfaces first");
   }
 
-  const auto triangles = model(sparta).surface_triangles(surface_id);
+  const auto &triangles = surface_triangles(sparta, surface_id);
   if (triangles.empty()) {
     error->all(FLERR, "surface install found no triangles for requested surface");
   }

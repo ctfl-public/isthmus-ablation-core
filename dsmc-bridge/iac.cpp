@@ -6,6 +6,8 @@
 #include "input.h"
 #include "variable.h"
 
+#include <mpi.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -28,6 +30,11 @@ void set_internal_variable(Input *input, Error *error, const char *name, double 
     error->all(FLERR, message.c_str());
   }
   variable->internal_set(ivar, value);
+}
+
+double broadcast_root_value(SPARTA *sparta, double value) {
+  MPI_Bcast(&value, 1, MPI_DOUBLE, 0, sparta->world);
+  return value;
 }
 
 } // namespace
@@ -63,20 +70,22 @@ void Iac::command(int narg, char **arg) {
       }
     }
     try {
-      auto &model = IACBridge::model(sparta);
-      if (model.has_diagnostic(check.quantity)) {
-        model.verify_diagnostic(check);
-      } else {
-        const double error_value = model.verification_error(check);
-        if (!(error_value <= check.tolerance)) {
-          std::string message = "iac verify failed for '" + check.quantity +
-                                "': error " + std::to_string(error_value) +
-                                " exceeds tolerance " +
-                                std::to_string(check.tolerance);
-          if (check.tolerance_mode == "percent") {
-            message += " percent";
+      if (IACBridge::owns_model(sparta)) {
+        auto &model = IACBridge::model(sparta);
+        if (model.has_diagnostic(check.quantity)) {
+          model.verify_diagnostic(check);
+        } else {
+          const double error_value = model.verification_error(check);
+          if (!(error_value <= check.tolerance)) {
+            std::string message = "iac verify failed for '" + check.quantity +
+                                  "': error " + std::to_string(error_value) +
+                                  " exceeds tolerance " +
+                                  std::to_string(check.tolerance);
+            if (check.tolerance_mode == "percent") {
+              message += " percent";
+            }
+            error->all(FLERR, message.c_str());
           }
-          error->all(FLERR, message.c_str());
         }
       }
     } catch (const std::exception &ex) {
@@ -98,12 +107,16 @@ void Iac::command(int narg, char **arg) {
         cfg.timestep.kind = iac::TimestepKind::MassCourant;
         cfg.timestep.courant = std::atof(arg[2]);
         cfg.timestep.source = arg[4];
-        IACBridge::model(sparta).set_timestep_from_source_courant(cfg.timestep.courant,
-                                                                  cfg.timestep.source);
+        if (IACBridge::owns_model(sparta)) {
+          IACBridge::model(sparta).set_timestep_from_source_courant(cfg.timestep.courant,
+                                                                    cfg.timestep.source);
+        }
       } else {
         cfg.timestep.kind = iac::TimestepKind::Explicit;
         cfg.timestep.value = std::atof(arg[1]);
-        IACBridge::model(sparta).set_timestep(cfg.timestep.value);
+        if (IACBridge::owns_model(sparta)) {
+          IACBridge::model(sparta).set_timestep(cfg.timestep.value);
+        }
       }
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
@@ -147,7 +160,11 @@ void Iac::command(int narg, char **arg) {
       error->all(FLERR, "iac continue time target must be positive");
     }
     try {
-      const double keep_running = IACBridge::model(sparta).time() < target ? 1.0 : 0.0;
+      double keep_running = 0.0;
+      if (IACBridge::owns_model(sparta)) {
+        keep_running = IACBridge::model(sparta).time() < target ? 1.0 : 0.0;
+      }
+      keep_running = broadcast_root_value(sparta, keep_running);
       set_internal_variable(input, error, arg[4], keep_running);
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
@@ -164,10 +181,12 @@ void Iac::command(int narg, char **arg) {
       error->all(FLERR, "iac limit time target must be positive");
     }
     try {
-      auto &model = IACBridge::model(sparta);
-      const double remaining = target - model.time();
-      if (remaining > 0.0 && model.timestep() > remaining) {
-        model.set_timestep(remaining);
+      if (IACBridge::owns_model(sparta)) {
+        auto &model = IACBridge::model(sparta);
+        const double remaining = target - model.time();
+        if (remaining > 0.0 && model.timestep() > remaining) {
+          model.set_timestep(remaining);
+        }
       }
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
@@ -180,31 +199,39 @@ void Iac::command(int narg, char **arg) {
       error->all(FLERR, "Expected iac set <variable> <time|step|dt|diagnostic>");
     }
     try {
-      double value = 0.0;
-      auto &model = IACBridge::model(sparta);
       if (std::strcmp(arg[2], "time") == 0) {
         if (narg != 3) {
           error->all(FLERR, "Expected iac set <variable> time");
         }
-        value = model.time();
       } else if (std::strcmp(arg[2], "step") == 0) {
         if (narg != 3) {
           error->all(FLERR, "Expected iac set <variable> step");
         }
-        value = static_cast<double>(model.step_count());
       } else if (std::strcmp(arg[2], "dt") == 0) {
         if (narg != 3) {
           error->all(FLERR, "Expected iac set <variable> dt");
         }
-        value = model.timestep();
       } else if (std::strcmp(arg[2], "diagnostic") == 0) {
         if (narg != 4) {
           error->all(FLERR, "Expected iac set <variable> diagnostic <name>");
         }
-        value = model.diagnostic(arg[3]);
       } else {
         error->all(FLERR, "iac set quantity must be time, step, dt, or diagnostic");
       }
+      double value = 0.0;
+      if (IACBridge::owns_model(sparta)) {
+        auto &model = IACBridge::model(sparta);
+        if (std::strcmp(arg[2], "time") == 0) {
+          value = model.time();
+        } else if (std::strcmp(arg[2], "step") == 0) {
+          value = static_cast<double>(model.step_count());
+        } else if (std::strcmp(arg[2], "dt") == 0) {
+          value = model.timestep();
+        } else if (std::strcmp(arg[2], "diagnostic") == 0) {
+          value = model.diagnostic(arg[3]);
+        }
+      }
+      value = broadcast_root_value(sparta, value);
       set_internal_variable(input, error, arg[1], value);
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
@@ -217,8 +244,8 @@ void Iac::command(int narg, char **arg) {
       error->all(FLERR, "Illegal iac print command");
     }
     try {
-      const double value = IACBridge::model(sparta).diagnostic(arg[1]);
-      if (comm->me == 0) {
+      if (IACBridge::owns_model(sparta)) {
+        const double value = IACBridge::model(sparta).diagnostic(arg[1]);
         if (screen) {
           std::fprintf(screen, "IAC diagnostic %s = %.17g\n", arg[1], value);
         }

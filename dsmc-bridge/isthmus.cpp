@@ -110,7 +110,7 @@ void Isthmus::command(int narg, char **arg) {
   }
 
   try {
-    IACBridge::model(sparta).generate_surface(surface);
+    IACBridge::generate_surface(sparta, surface);
   } catch (const std::exception &ex) {
     error->all(FLERR, ex.what());
   }

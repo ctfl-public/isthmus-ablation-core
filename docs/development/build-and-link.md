@@ -134,8 +134,9 @@ build-dsmc/bin/dsmc-iac -> build-dsmc/dsmc-overlay/src/spa_<machine>
 
 The DSMC overlay is built with the `mpi` DSMC machine target by default. CMake
 also looks for an MPI launcher such as `mpiexec` or `mpirun`. When one is
-available, the DSMC CTest suite includes both serial DSMC tests and small MPI
-variants. Configure the rank count with:
+available, every DSMC input-file CTest is registered once in serial and once
+under MPI. Python-driven orchestration tests are kept serial-only unless they
+explicitly add MPI support. Configure the rank count with:
 
 ```bash
 cmake --preset dsmc -DIAC_DSMC_MPI_NP=4
@@ -155,6 +156,29 @@ test registration explicitly with:
 ```bash
 cmake --preset dsmc -DIAC_ENABLE_MPI_TESTS=OFF
 ```
+
+## DSMC MPI Runtime Model
+
+The current DSMC bridge uses a rank-0 IAC ownership model. MPI rank 0 owns the
+voxel model, material ledger, ISTHMUS calls, history, diagnostics, and IAC file
+outputs. Other DSMC ranks still parse the same input commands, but they do not
+instantiate their own voxel model.
+
+When an `isthmus` command generates a surface, rank 0 converts the current voxel
+state to an ISTHMUS surface and broadcasts the public triangle geometry to all
+DSMC ranks. `surface install` then partitions those triangles across DSMC ranks
+for normal SPARTA surface/grid/particle work. DSMC surface tallies are reduced
+across ranks before rank 0 maps the resulting triangle fluxes back into voxel
+mass.
+
+Commands that need scalar IAC state for DSMC input control, such as
+`iac continue` and `iac set`, compute the value on rank 0 and broadcast it so
+all ranks make the same input-script decisions.
+
+This is the first MPI level. It avoids duplicated voxel/ISTHMUS work and keeps
+the IAC state deterministic, but the voxel model itself is not distributed yet.
+Large voxel samples may eventually need distributed voxel ownership,
+distributed ISTHMUS calls, or restart-aware domain decomposition.
 
 ## How The Overlay Works
 

@@ -79,17 +79,20 @@ dsmc-sphere-flux-verification
 dsmc-sphere-kinetic-grid-convergence
 ```
 
-If CMake finds an MPI launcher and `IAC_ENABLE_MPI_TESTS` is left on, the DSMC
-build also adds small MPI variants:
+If CMake finds an MPI launcher and `IAC_ENABLE_MPI_TESTS` is left on, every
+DSMC input-file test also gets an MPI twin:
 
 ```text
 dsmc-mpi-slab-direct-ablation-verification
+dsmc-mpi-slab-time-stop-verification
+dsmc-mpi-sphere-isthmus-normal-carryover-verification
 dsmc-mpi-sphere-flux-verification
 ```
 
 These run with `IAC_DSMC_MPI_NP` ranks, defaulting to `2`. If no MPI launcher
 is found, CMake prints a warning and skips only the MPI tests; the serial DSMC
-tests still run.
+tests still run. The Python-driven `dsmc-sphere-kinetic-grid-convergence` test
+is intentionally serial-only for now.
 
 The DSMC tests are intentionally modest. The flux verification is a one-step
 instantaneous kinetic-theory check: it verifies the initial O2 reaction count

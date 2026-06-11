@@ -380,31 +380,35 @@ void Surface::command(int narg, char **arg) {
       }
 
       try {
-        if (ablation_dt_value) {
-          IACBridge::model(sparta).set_timestep(ablation_dt);
-        } else {
-          IACBridge::model(sparta).set_timestep(static_cast<double>(sample_steps) *
-                                                update->dt * time_scale);
-          IACBridge::set_last_coupling_step(sparta);
+        if (IACBridge::owns_model(sparta)) {
+          if (ablation_dt_value) {
+            IACBridge::model(sparta).set_timestep(ablation_dt);
+          } else {
+            IACBridge::model(sparta).set_timestep(static_cast<double>(sample_steps) *
+                                                  update->dt * time_scale);
+            IACBridge::set_last_coupling_step(sparta);
+          }
         }
-        const double dt = IACBridge::model(sparta).timestep();
-        const auto triangles = IACBridge::model(sparta).surface_triangles(flux.surface);
+        const auto &triangles = IACBridge::surface_triangles(sparta, flux.surface);
         if (triangles.size() != static_cast<std::size_t>(surf->nsurf)) {
           error->all(FLERR, "surface flux dsmc/reaction triangle count does not match SPARTA surface count");
         }
-        std::vector<double> mass_fluxes(static_cast<std::size_t>(surf->nsurf), 0.0);
         const auto reaction_counts =
             global_surface_fix_values(sparta, surf, ave, column, error,
                                       "surface flux dsmc/reaction");
-        for (std::size_t idx = 0; idx < mass_fluxes.size(); ++idx) {
-          const double area = triangles[idx].area;
-          if (area > 0.0) {
-            const double mass = reaction_counts[idx] * static_cast<double>(sample_steps) *
-                                update->fnum * solid_mass_per_reaction * time_scale;
-            mass_fluxes[idx] = mass / (area * dt);
+        if (IACBridge::owns_model(sparta)) {
+          const double dt = IACBridge::model(sparta).timestep();
+          std::vector<double> mass_fluxes(static_cast<std::size_t>(surf->nsurf), 0.0);
+          for (std::size_t idx = 0; idx < mass_fluxes.size(); ++idx) {
+            const double area = triangles[idx].area;
+            if (area > 0.0) {
+              const double mass = reaction_counts[idx] * static_cast<double>(sample_steps) *
+                                  update->fnum * solid_mass_per_reaction * time_scale;
+              mass_fluxes[idx] = mass / (area * dt);
+            }
           }
+          IACBridge::model(sparta).apply_triangle_fluxes(flux.surface, mass_fluxes);
         }
-        IACBridge::model(sparta).apply_triangle_fluxes(flux.surface, mass_fluxes);
       } catch (const std::exception &ex) {
         error->all(FLERR, ex.what());
       }
@@ -496,15 +500,17 @@ void Surface::command(int narg, char **arg) {
       }
 
       try {
-        if (mass_courant_value) {
-          IACBridge::model(sparta).set_timestep_from_triangle_fluxes(
-              flux.surface, mass_fluxes, mass_courant);
-        } else if (ablation_dt_value) {
-          IACBridge::model(sparta).set_timestep(ablation_dt);
-        } else {
-          IACBridge::set_coupling_interval_from_dsmc(sparta);
+        if (IACBridge::owns_model(sparta)) {
+          if (mass_courant_value) {
+            IACBridge::model(sparta).set_timestep_from_triangle_fluxes(
+                flux.surface, mass_fluxes, mass_courant);
+          } else if (ablation_dt_value) {
+            IACBridge::model(sparta).set_timestep(ablation_dt);
+          } else {
+            IACBridge::set_coupling_interval_from_dsmc(sparta);
+          }
+          IACBridge::model(sparta).apply_triangle_fluxes(flux.surface, mass_fluxes);
         }
-        IACBridge::model(sparta).apply_triangle_fluxes(flux.surface, mass_fluxes);
       } catch (const std::exception &ex) {
         error->all(FLERR, ex.what());
       }
@@ -545,7 +551,9 @@ void Surface::command(int narg, char **arg) {
     }
 
     try {
-      IACBridge::model(sparta).apply_flux(flux);
+      if (IACBridge::owns_model(sparta)) {
+        IACBridge::model(sparta).apply_flux(flux);
+      }
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
     }
@@ -613,8 +621,7 @@ void Surface::command(int narg, char **arg) {
     }
 
     try {
-      auto &model = IACBridge::model(sparta);
-      const auto triangles = model.surface_triangles(surface_id);
+      const auto &triangles = IACBridge::surface_triangles(sparta, surface_id);
       if (triangles.size() != static_cast<std::size_t>(surf->nsurf)) {
         error->all(FLERR, "surface measure-flux triangle count does not match SPARTA surface count");
       }
@@ -636,42 +643,42 @@ void Surface::command(int narg, char **arg) {
           mole_fraction * number_density *
           std::sqrt(1.380649e-23 * temperature / (2.0 * pi * molecular_mass)) *
           reaction_prob;
-      const auto &cfg = IACBridge::config();
-      const double area_exact = cfg.geometry == iac::GeometryKind::Sphere
-                                    ? 4.0 * pi * std::pow(0.5 * cfg.sphere.diameter, 2)
-                                    : surface_area;
-      model.set_diagnostic("surface-area", surface_area);
-      model.set_diagnostic("expected-surface-area", area_exact);
-      model.set_diagnostic("reaction-count-per-step", reaction_count_sum);
-      model.set_diagnostic("expected-reaction-count-per-step",
-                           expected_flux * surface_area * update->dt / update->fnum);
-      model.set_diagnostic("sample-steps", static_cast<double>(sample_steps));
-      model.set_diagnostic("reaction-flux", measured_flux);
-      model.set_diagnostic("expected-reaction-flux", expected_flux);
-      model.set_diagnostic("reaction-flux-ratio", measured_flux / expected_flux);
-      model.set_diagnostic("reaction-flux-error-percent",
-                           100.0 * std::abs(measured_flux - expected_flux) /
-                               std::abs(expected_flux));
-      if (solid_mass_value || reaction_file) {
-        model.set_diagnostic("reaction-mass-flux", measured_flux * solid_mass_per_reaction);
-        model.set_diagnostic("expected-reaction-mass-flux",
-                             expected_flux * solid_mass_per_reaction);
-      }
-      model.set_diagnostic("surface-area-error-percent",
-                           100.0 * std::abs(surface_area - area_exact) /
-                               std::abs(area_exact));
-      if (comm->me == 0) {
+      double flux_error_percent = 0.0;
+      if (IACBridge::owns_model(sparta)) {
+        auto &model = IACBridge::model(sparta);
+        const auto &cfg = IACBridge::config();
+        const double area_exact = cfg.geometry == iac::GeometryKind::Sphere
+                                      ? 4.0 * pi * std::pow(0.5 * cfg.sphere.diameter, 2)
+                                      : surface_area;
+        model.set_diagnostic("surface-area", surface_area);
+        model.set_diagnostic("expected-surface-area", area_exact);
+        model.set_diagnostic("reaction-count-per-step", reaction_count_sum);
+        model.set_diagnostic("expected-reaction-count-per-step",
+                             expected_flux * surface_area * update->dt / update->fnum);
+        model.set_diagnostic("sample-steps", static_cast<double>(sample_steps));
+        model.set_diagnostic("reaction-flux", measured_flux);
+        model.set_diagnostic("expected-reaction-flux", expected_flux);
+        model.set_diagnostic("reaction-flux-ratio", measured_flux / expected_flux);
+        flux_error_percent = 100.0 * std::abs(measured_flux - expected_flux) /
+                             std::abs(expected_flux);
+        model.set_diagnostic("reaction-flux-error-percent", flux_error_percent);
+        if (solid_mass_value || reaction_file) {
+          model.set_diagnostic("reaction-mass-flux", measured_flux * solid_mass_per_reaction);
+          model.set_diagnostic("expected-reaction-mass-flux",
+                               expected_flux * solid_mass_per_reaction);
+        }
+        model.set_diagnostic("surface-area-error-percent",
+                             100.0 * std::abs(surface_area - area_exact) /
+                                 std::abs(area_exact));
         if (screen) {
           std::fprintf(screen,
                        "IAC surface flux: measured %.8e expected %.8e error %.6g percent\n",
-                       measured_flux, expected_flux,
-                       model.diagnostic("reaction-flux-error-percent"));
+                       measured_flux, expected_flux, flux_error_percent);
         }
         if (logfile) {
           std::fprintf(logfile,
                        "IAC surface flux: measured %.8e expected %.8e error %.6g percent\n",
-                       measured_flux, expected_flux,
-                       model.diagnostic("reaction-flux-error-percent"));
+                       measured_flux, expected_flux, flux_error_percent);
         }
       }
     } catch (const std::exception &ex) {
@@ -766,7 +773,7 @@ void Surface::command(int narg, char **arg) {
         }
         reduce_surface_fields(sparta, surf, fields);
       }
-      if (comm->me == 0) {
+      if (IACBridge::owns_model(sparta)) {
         IACBridge::model(sparta).write_surface_vtp(arg[1], arg[2], fields);
       }
     } catch (const std::exception &ex) {

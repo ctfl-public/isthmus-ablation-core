@@ -221,40 +221,45 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
       --require-improvement
   )
 
-  add_test(
-    NAME dsmc-slab-direct-ablation-verification
-    COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
-            -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-slab-direct-ablation/in.dsmc-slab-direct-ablation.verify
-  )
-  set_tests_properties(dsmc-slab-direct-ablation-verification PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  )
+  function(iac_add_dsmc_input_test test_name input_file)
+    add_test(
+      NAME ${test_name}
+      COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
+              -in ${CMAKE_SOURCE_DIR}/${input_file}
+    )
+    set_tests_properties(${test_name} PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
 
-  add_test(
-    NAME dsmc-slab-time-stop-verification
-    COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
-            -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-slab-time-stop/in.dsmc-slab-time-stop.verify
-  )
-  set_tests_properties(dsmc-slab-time-stop-verification PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  )
+    if(IAC_ENABLE_MPI_TESTS AND IAC_MPIEXEC_EXECUTABLE)
+      string(REGEX REPLACE "^dsmc-" "" mpi_test_suffix "${test_name}")
+      add_test(
+        NAME dsmc-mpi-${mpi_test_suffix}
+        COMMAND ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
+                ${IAC_DSMC_EXECUTABLE} -screen none -log none
+                -in ${CMAKE_SOURCE_DIR}/${input_file}
+      )
+      set_tests_properties(dsmc-mpi-${mpi_test_suffix} PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      )
+    endif()
+  endfunction()
 
-  add_test(
-    NAME dsmc-sphere-isthmus-normal-carryover-verification
-    COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
-            -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-sphere-isthmus-ablation/in.dsmc-sphere-isthmus-normal-carryover.verify
+  iac_add_dsmc_input_test(
+    dsmc-slab-direct-ablation-verification
+    tests/inputs/dsmc-slab-direct-ablation/in.dsmc-slab-direct-ablation.verify
   )
-  set_tests_properties(dsmc-sphere-isthmus-normal-carryover-verification PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  iac_add_dsmc_input_test(
+    dsmc-slab-time-stop-verification
+    tests/inputs/dsmc-slab-time-stop/in.dsmc-slab-time-stop.verify
   )
-
-  add_test(
-    NAME dsmc-sphere-flux-verification
-    COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
-            -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-sphere-flux/in.dsmc-sphere-flux.verify
+  iac_add_dsmc_input_test(
+    dsmc-sphere-isthmus-normal-carryover-verification
+    tests/inputs/dsmc-sphere-isthmus-ablation/in.dsmc-sphere-isthmus-normal-carryover.verify
   )
-  set_tests_properties(dsmc-sphere-flux-verification PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  iac_add_dsmc_input_test(
+    dsmc-sphere-flux-verification
+    tests/inputs/dsmc-sphere-flux/in.dsmc-sphere-flux.verify
   )
 
   if(Python3_Interpreter_FOUND)
@@ -269,27 +274,6 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
     )
   endif()
 
-  if(IAC_ENABLE_MPI_TESTS AND IAC_MPIEXEC_EXECUTABLE)
-    add_test(
-      NAME dsmc-mpi-slab-direct-ablation-verification
-      COMMAND ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
-              ${IAC_DSMC_EXECUTABLE} -screen none -log none
-              -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-slab-direct-ablation/in.dsmc-slab-direct-ablation.verify
-    )
-    set_tests_properties(dsmc-mpi-slab-direct-ablation-verification PROPERTIES
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    )
-
-    add_test(
-      NAME dsmc-mpi-sphere-flux-verification
-      COMMAND ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
-              ${IAC_DSMC_EXECUTABLE} -screen none -log none
-              -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-sphere-flux/in.dsmc-sphere-flux.verify
-    )
-    set_tests_properties(dsmc-mpi-sphere-flux-verification PROPERTIES
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    )
-  endif()
 endif()
 
 add_custom_target(

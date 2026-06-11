@@ -195,9 +195,11 @@ void Voxel::command(int narg, char **arg) {
       ablate.delete_empty = parse_bool(delete_empty);
     }
     try {
-      IACBridge::model(sparta).ablate(ablate);
-      IACBridge::model(sparta).advance_steps(1);
-      IACBridge::print_stats_after_step(sparta);
+      if (IACBridge::owns_model(sparta)) {
+        IACBridge::model(sparta).ablate(ablate);
+        IACBridge::model(sparta).advance_steps(1);
+        IACBridge::print_stats_after_step(sparta);
+      }
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
     }
@@ -267,7 +269,7 @@ void Voxel::command(int narg, char **arg) {
       error->all(FLERR, "voxel write-history references unknown voxel model");
     }
     try {
-      if (comm->me == 0) {
+      if (IACBridge::owns_model(sparta)) {
         IACBridge::model(sparta).write_history(arg[2]);
       }
     } catch (const std::exception &ex) {
@@ -294,7 +296,7 @@ void Voxel::command(int narg, char **arg) {
       scalar = scalar_value;
     }
     try {
-      if (comm->me == 0) {
+      if (IACBridge::owns_model(sparta)) {
         IACBridge::model(sparta).write_voxels_vtu(arg[2], select, scalar);
       }
     } catch (const std::exception &ex) {
