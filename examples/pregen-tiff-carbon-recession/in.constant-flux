@@ -8,7 +8,7 @@ voxel_ghost         solid axis y boundary infinite layers 1
 voxel_ghost         solid axis z boundary infinite layers 1
 voxel_ghost         solid axis x side lo boundary infinite layers 1
 
-source              qtop constant 1.5 units kg/m2/s
+source              qtop constant 1.85 units kg/m2/s
 iac_timestep        mass/courant 0.5 source qtop
 variable            ablation_time equal 5.0e-2
 variable            keep internal 1
@@ -22,10 +22,10 @@ voxel_dump          ghost solid vtu 1 output/pregen-tiff-carbon-recession/consta
 surf_dump           skin skin vtp 1 output/pregen-tiff-carbon-recession/constant-surface_*.vtp
 
 label               ablate-loop
-iac_limit           time ${ablation_time}
-isthmus_surface     skin voxels solid buffer 1 weighting no map yes
-surf_flux           skin source qtop select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
-voxel_ablate        solid surface skin policy carryover/normal delete yes
-iac_run             1
-iac_continue        time ${ablation_time} variable keep
-if                  "${keep} > 0" then "jump SELF ablate-loop"
+  iac_limit         time ${ablation_time}
+  isthmus_surface   skin voxels solid buffer 1 weighting no map yes
+  surf_flux         skin source qtop select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
+  voxel_ablate      solid surface skin policy carryover/normal delete yes
+  iac_run           1
+  iac_continue      time ${ablation_time} variable keep
+  if                "${keep} > 0" then "jump SELF ablate-loop"

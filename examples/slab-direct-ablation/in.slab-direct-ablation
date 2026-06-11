@@ -17,8 +17,8 @@ voxel_dump          hist solid history 1 output/slab-direct-ablation/history.csv
 voxel_dump          vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mass-fraction
 
 label               ablate-loop
-iac_limit           time ${ablation_time}
-voxel_ablate        solid source q1 policy local face xlo delete yes
-iac_run             1
-iac_continue        time ${ablation_time} variable keep
-if                  "${keep} > 0" then "jump SELF ablate-loop"
+  iac_limit         time ${ablation_time}
+  voxel_ablate      solid source q1 policy local face xlo delete yes
+  iac_run           1
+  iac_continue      time ${ablation_time} variable keep
+  if                "${keep} > 0" then "jump SELF ablate-loop"

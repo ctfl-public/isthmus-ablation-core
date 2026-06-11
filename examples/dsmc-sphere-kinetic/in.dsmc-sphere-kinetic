@@ -40,21 +40,21 @@ variable            ablation_time equal 4.0e-2
 variable            keep internal 1
 label               coupled-loop
 
-fix                 sflux ave/surf all 1 100 100 c_sflux[*] ave one
-run                 100 post no
+  fix               sflux ave/surf all 1 100 100 c_sflux[*] ave one
+  run               100 post no
 
-surf_flux           skin dsmc/surf fix sflux mass-courant 0.1666666667
-iac_limit           time ${ablation_time}
-unfix               sflux
-voxel_ablate        solid surface skin policy carryover/normal delete yes
-iac_run             1
+  surf_flux         skin dsmc/surf fix sflux mass-courant 0.1666666667
+  iac_limit         time ${ablation_time}
+  unfix             sflux
+  voxel_ablate      solid surface skin policy carryover/normal delete yes
+  iac_run           1
 
-remove_surf         all
-isthmus_surface     skin voxels solid buffer 1 weighting no map yes
-surf_install        skin particle none type 1
-surf_modify         all collide 1
+  remove_surf       all
+  isthmus_surface   skin voxels solid buffer 1 weighting no map yes
+  surf_install      skin particle none type 1
+  surf_modify       all collide 1
 
-iac_continue        time ${ablation_time} variable keep
-if                  "${keep} > 0" then "jump SELF coupled-loop"
+  iac_continue      time ${ablation_time} variable keep
+  if                "${keep} > 0" then "jump SELF coupled-loop"
 
 voxel_write_history solid output/history.csv

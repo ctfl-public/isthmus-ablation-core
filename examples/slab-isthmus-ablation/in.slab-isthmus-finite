@@ -20,10 +20,10 @@ voxel_dump          vox solid vtu 1 output/slab-isthmus-finite/voxels_*.vtu sele
 surf_dump           skin skin vtp 1 output/slab-isthmus-finite/surface_*.vtp
 
 label               ablate-loop
-iac_limit           time ${ablation_time}
-isthmus_surface     skin voxels solid buffer 1 weighting no map yes
-surf_flux           skin source q1 select normal nx -1.0 ny 0.0 nz 0.0 min-cos 0.5
-voxel_ablate        solid surface skin policy local delete yes
-iac_run             1
-iac_continue        time ${ablation_time} variable keep
-if                  "${keep} > 0" then "jump SELF ablate-loop"
+  iac_limit         time ${ablation_time}
+  isthmus_surface   skin voxels solid buffer 1 weighting no map yes
+  surf_flux         skin source q1 select normal nx -1.0 ny 0.0 nz 0.0 min-cos 0.5
+  voxel_ablate      solid surface skin policy local delete yes
+  iac_run           1
+  iac_continue      time ${ablation_time} variable keep
+  if                "${keep} > 0" then "jump SELF ablate-loop"

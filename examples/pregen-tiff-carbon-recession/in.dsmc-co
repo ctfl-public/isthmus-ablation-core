@@ -57,29 +57,29 @@ variable            ablation_time equal 2.0e-7
 variable            keep internal 1
 label               coupled-loop
 
-variable            sample_loop loop 4
-label               dsmc-sample-loop
-run                 25 post no
-iac_spa_stats
-next                sample_loop
-jump                SELF dsmc-sample-loop
+  variable          sample_loop loop 4
+  label             dsmc-sample-loop
+    run             25 post no
+    iac_spa_stats
+    next            sample_loop
+    jump            SELF dsmc-sample-loop
 
-grid_write_vtu      gasave output/pregen-tiff-carbon-recession/fluid_*.vtu index iac-next fields temperature pressure mass-fraction-O2 mass-fraction-N2 mass-fraction-CO
+  grid_write_vtu    gasave output/pregen-tiff-carbon-recession/fluid_*.vtu index iac-next fields temperature pressure mass-fraction-O2 mass-fraction-N2 mass-fraction-CO
 
-surf_flux           skin dsmc/reaction fix rco column 1 sample-steps 100 reaction carbon-co.surf mass-courant 1.0 select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
-iac_limit           time ${ablation_time}
-voxel_ablate        solid surface skin policy carryover/normal delete yes
-iac_run             1
+  surf_flux         skin dsmc/reaction fix rco column 1 sample-steps 100 reaction carbon-co.surf mass-courant 1.0 select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
+  iac_limit         time ${ablation_time}
+  voxel_ablate      solid surface skin policy carryover/normal delete yes
+  iac_run           1
 
-iac_continue        time ${ablation_time} variable keep
-if                  "${keep} == 0" then "jump SELF done"
+  iac_continue      time ${ablation_time} variable keep
+  if                "${keep} == 0" then "jump SELF done"
 
-remove_surf         all
-isthmus_surface     skin voxels solid buffer 2 weighting no map yes
-surf_install        skin particle none type 1
-surf_modify         all collide 1 react ox
+  remove_surf       all
+  isthmus_surface   skin voxels solid buffer 2 weighting no map yes
+  surf_install      skin particle none type 1
+  surf_modify       all collide 1 react ox
 
-jump                SELF coupled-loop
+  jump              SELF coupled-loop
 
 label               done
 

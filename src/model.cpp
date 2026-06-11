@@ -184,6 +184,13 @@ double norm3(const std::array<double, 3> &a) {
   return std::sqrt(dot3(a, a));
 }
 
+std::array<double, 3> centroid3(const std::array<double, 3> &a,
+                                const std::array<double, 3> &b,
+                                const std::array<double, 3> &c) {
+  return {{(a[0] + b[0] + c[0]) / 3.0, (a[1] + b[1] + c[1]) / 3.0,
+           (a[2] + b[2] + c[2]) / 3.0}};
+}
+
 std::array<double, 3> normalized3(const std::array<double, 3> &a) {
   const double n = norm3(a);
   if (n <= 0.0) {
@@ -1068,10 +1075,32 @@ void Model::apply_surface_flux(const SurfaceFluxCommand &flux) {
   const double mass_flux =
       flux.style == "kinetic/theory" ? kinetic_theory_mass_flux(flux) : config_.source.value;
   const auto direction = normalized3(flux.direction);
+  const auto domain_lo = real_domain_lo();
+  const auto domain_hi = real_domain_hi();
+  int normal_axis = 0;
+  for (int axis = 1; axis < 3; ++axis) {
+    if (std::abs(direction[axis]) > std::abs(direction[normal_axis])) {
+      normal_axis = axis;
+    }
+  }
+  const double footprint_eps = 1.0e-10 * voxel_dx();
   for (auto &triangle : surface.triangles) {
     bool selected = flux.select == "all";
     if (flux.select == "normal") {
       selected = dot3(triangle.normal, direction) >= flux.min_cos;
+      if (selected && !config_.ghosts.empty()) {
+        const auto centroid = centroid3(triangle.a, triangle.b, triangle.c);
+        for (int axis = 0; axis < 3; ++axis) {
+          if (axis == normal_axis) {
+            continue;
+          }
+          if (centroid[axis] < domain_lo[axis] - footprint_eps ||
+              centroid[axis] > domain_hi[axis] + footprint_eps) {
+            selected = false;
+            break;
+          }
+        }
+      }
     } else if (flux.select == "voxels") {
       selected = !triangle.voxel_ids.empty();
     }
