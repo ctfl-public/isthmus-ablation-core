@@ -14,6 +14,8 @@ BRIDGE_FILES = {
     "iac.h",
     "iacbridge.cpp",
     "iacbridge.h",
+    "iacgrid.cpp",
+    "iacgrid.h",
     "isthmus.cpp",
     "isthmus.h",
     "source.cpp",

@@ -48,6 +48,7 @@ PAGES = [
     ("Sphere ISTHMUS Ablation", DOCS / "examples" / "sphere-isthmus.md"),
     ("TIFF Sphere Example", DOCS / "examples" / "tiff-sphere.md"),
     ("DSMC Sphere Kinetic Example", DOCS / "examples" / "dsmc-sphere-kinetic.md"),
+    ("Pregen TIFF Carbon Recession", DOCS / "examples" / "pregen-tiff-carbon-recession.md"),
     ("Directory Layout", DOCS / "development" / "directory-layout.md"),
     ("Code Architecture", DOCS / "development" / "code-architecture.md"),
     ("Build And Link", DOCS / "development" / "build-and-link.md"),

@@ -93,3 +93,14 @@ ctest --test-dir build-dsmc -R dsmc-sphere-kinetic-convergence --output-on-failu
 It runs three generated DSMC inputs at 4, 6, and 8 voxels across the sphere
 diameter and checks that the particle-sampled recession converges toward the
 ideal-gas kinetic-theory mass-fraction solution.
+
+The rough carbon TIFF workflow checks can be run directly with:
+
+```bash
+ctest --test-dir build -R tiff-carbon-sample-constant-verification --output-on-failure
+ctest --test-dir build-dsmc -R dsmc-tiff-carbon-co-verification --output-on-failure
+```
+
+The first uses a prescribed top-surface mass flux. The second uses DSMC surface
+chemistry (`O2 --> CO + CO`) to drive the same kind of voxel recession on the
+same generated rough TIFF fixture.

@@ -8,13 +8,13 @@ Triangle surface dumps are configured with [`surf_dump`](surface.md).
 
 ```text
 voxel_dump <id> <model> history <N> <path>
-voxel_dump <id> <model> vtu <N> <path> [select all|active] [scalar <field>]
+voxel_dump <id> <model> vtu <N> <path> [select all|active|ghosted|ghosts] [scalar <field>]
 voxel_dump off
 
 # Also available in the DSMC bridge:
 voxel_dump <id> <model> history <N> <path>
-voxel_dump <id> <model> vtu <N> <path> [select all|active] [scalar <field>]
-voxel_write_vtu <model> <path> [select all|active] [scalar <field>]
+voxel_dump <id> <model> vtu <N> <path> [select all|active|ghosted|ghosts] [scalar <field>]
+voxel_write_vtu <model> <path> [select all|active|ghosted|ghosts] [scalar <field>]
 ```
 
 ## Examples
@@ -50,6 +50,12 @@ The `select` option controls which voxels are written:
 
 - `select all` writes every voxel, including inactive/deleted voxels.
 - `select active` writes only active voxels.
+- `select ghosted` writes active real voxels plus the ghost-image voxels used
+  for ISTHMUS surface generation. Ghost images are marked with cell data
+  `ghost = 1` and do not contribute to mass totals.
+- `select ghosts` writes only ghost-image voxels. This is the preferred visual
+  mode when an example needs to show boundary ghosts separately from the real
+  solid.
 
 The default is `select active`, so depleted voxels disappear from VTU output
 when the ablation fix uses `delete yes`.
@@ -62,6 +68,7 @@ mass-fraction
 remaining-mass
 active
 fixed
+ghost
 id
 ix
 iy
@@ -102,10 +109,12 @@ iy
 iz
 active
 fixed
+ghost
 ```
 
 Use `active` for thresholding deleted voxels and `mass-fraction` or
-`remaining-mass` for coloring ablation progress in ParaView.
+`remaining-mass` for coloring ablation progress in ParaView. Use `ghost` to
+hide or recolor mirror voxels that were emitted for boundary inspection.
 
 ## Planned Extensions
 

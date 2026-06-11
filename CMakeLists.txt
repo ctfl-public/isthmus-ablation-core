@@ -76,6 +76,20 @@ find_package(MPI QUIET)
 find_program(PDFLATEX_EXECUTABLE pdflatex)
 find_program(IAC_MAKE_EXECUTABLE NAMES make gmake)
 
+if(Python3_Interpreter_FOUND)
+  set(IAC_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
+  set(IAC_CARBON_SAMPLE_TIFF "${IAC_GENERATED_DIR}/carbon-sample.tif")
+  add_custom_command(
+    OUTPUT ${IAC_CARBON_SAMPLE_TIFF}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${IAC_GENERATED_DIR}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/make-carbon-sample-tiff.py
+            --width 24 --height 24 --depth 10 --out ${IAC_CARBON_SAMPLE_TIFF}
+    DEPENDS ${CMAKE_SOURCE_DIR}/tools/make-carbon-sample-tiff.py
+    COMMENT "Generating deterministic carbon-sample TIFF fixture"
+  )
+  add_custom_target(generated-fixtures ALL DEPENDS ${IAC_CARBON_SAMPLE_TIFF})
+endif()
+
 set(DSMC_ROOT "" CACHE PATH "Optional root directory of a DSMC/SPARTA source checkout")
 if(NOT DSMC_ROOT AND DEFINED ENV{DSMC_ROOT})
   set(DSMC_ROOT "$ENV{DSMC_ROOT}" CACHE PATH "Optional root directory of a DSMC/SPARTA source checkout" FORCE)
@@ -112,6 +126,11 @@ if(IAC_ISTHMUS_INCLUDE_DIRS)
   endforeach()
 endif()
 
+set(IAC_DSMC_TARGET_DEPENDS ia-core dsmc-kinetic-convergence-check)
+if(TARGET generated-fixtures)
+  list(APPEND IAC_DSMC_TARGET_DEPENDS generated-fixtures)
+endif()
+
 if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND Python3_Interpreter_FOUND AND IAC_MAKE_EXECUTABLE)
   add_custom_target(
     dsmc
@@ -129,7 +148,7 @@ if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND Python3_Interpreter_FOUND AND IAC_MAKE
     COMMAND ${CMAKE_COMMAND} -E create_symlink
             ${IAC_DSMC_OVERLAY_EXECUTABLE}
             ${CMAKE_BINARY_DIR}/bin/dsmc-iac
-    DEPENDS ia-core dsmc-kinetic-convergence-check
+    DEPENDS ${IAC_DSMC_TARGET_DEPENDS}
     COMMAND_EXPAND_LISTS
     COMMENT "Building private DSMC/IAC executable in the IAC build tree"
   )
@@ -209,6 +228,19 @@ if(isthmus_cpp_FOUND)
   set_tests_properties(tiff-sphere-normal-carryover-verification PROPERTIES
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
+  if(TARGET generated-fixtures)
+    set(IAC_CARBON_CONSTANT_TEST_INPUT
+        "${CMAKE_BINARY_DIR}/tests/inputs/tiff-carbon-sample/in.tiff-carbon-sample-constant.verify")
+    configure_file(
+      ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-carbon-sample/in.tiff-carbon-sample-constant.verify.in
+      ${IAC_CARBON_CONSTANT_TEST_INPUT}
+      @ONLY
+    )
+    add_test(
+      NAME tiff-carbon-sample-constant-verification
+      COMMAND $<TARGET_FILE:ia-core> -in ${IAC_CARBON_CONSTANT_TEST_INPUT}
+    )
+  endif()
 endif()
 
 if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
@@ -314,6 +346,27 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     TIMEOUT 90
   )
+
+  if(TARGET generated-fixtures)
+    set(SOURCE_DIR ${CMAKE_SOURCE_DIR})
+    set(BINARY_DIR ${CMAKE_BINARY_DIR})
+    set(IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT
+        "${CMAKE_BINARY_DIR}/tests/inputs/dsmc-tiff-carbon-co/in.dsmc-tiff-carbon-co.verify")
+    configure_file(
+      ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-tiff-carbon-co/in.dsmc-tiff-carbon-co.verify.in
+      ${IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT}
+      @ONLY
+    )
+    add_test(
+      NAME dsmc-tiff-carbon-co-verification
+      COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
+              -in ${IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT}
+    )
+    set_tests_properties(dsmc-tiff-carbon-co-verification PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      TIMEOUT 90
+    )
+  endif()
 
 endif()
 

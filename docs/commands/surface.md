@@ -22,7 +22,8 @@ surf_flux <surface-id> dsmc/surf fix <fix-id> column <N> \
   [reaction-prob <p>] [ablation-dt <dt> | mass-courant <C>]
 surf_flux <surface-id> dsmc/reaction fix <fix-id> column <N> \
   sample-steps <Nstep> reaction <path> \
-  [ablation-dt <dt> | mass-courant <C>] [time-scale <S>]
+  [ablation-dt <dt> | mass-courant <C>] [time-scale <S>] \
+  [select all | select normal nx <x> ny <y> nz <z> [min-cos <c>]]
 surf_measure_flux <surface-id> dsmc/reaction fix <fix-id> column <N> \
   sample-steps <Nstep> expected kinetic/theory number-density <n> \
   mole-fraction <x> temperature <T> molecular-mass <kg> \
@@ -46,7 +47,10 @@ surf_flux skin kinetic/theory pressure 50.0 temperature 5000.0 \
   solid-mass-per-hit 1.3011869411625376e-23 select all
 surf_flux skin dsmc/surf fix sflux mass-courant 0.25
 surf_flux skin dsmc/reaction fix rco column 1 sample-steps 20 \
-  reaction carbon-co.surf time-scale 1500
+  reaction carbon-co.surf mass-courant 0.1666666667
+surf_flux skin dsmc/reaction fix rco column 1 sample-steps 100 \
+  reaction carbon-co.surf mass-courant 1.0 \
+  select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
 surf_measure_flux skin dsmc/reaction fix rco column 1 sample-steps 1 \
   expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 \
   temperature 5000.0 molecular-mass 5.31352e-26 reaction carbon-co.surf
@@ -129,18 +133,21 @@ the command and data path are kept compatible with later distributed storage.
 With `dsmc/reaction`, the command reads per-surface reaction counts from a DSMC
 `fix ave/surf`, usually one that averages `compute react/surf`. The selected
 column is interpreted as an averaged number of simulation-particle reactions per
-surface element per sampled timestep. The bridge converts it to real solid mass
-removed over the coupling window with:
+surface element per sampled timestep. The bridge converts it to a real solid
+mass rate over the sampled DSMC window:
 
 ```text
 mass = reaction-count * sample-steps * fnum * solid-mass-per-reaction
+mass-flux = mass / (triangle-area * sample-steps * DSMC-timestep)
 ```
 
-and then divides by triangle area and the ablation timestep before passing the
-equivalent mass flux to the voxel ledger. This is the preferred path for
+The solid timestep is then chosen by `ablation-dt`, `mass-courant`, or the
+sampled DSMC time when neither is specified. The requested triangle mass is
+`mass-flux * triangle-area * solid-timestep`. This is the preferred path for
 chemically reacting DSMC ablation because SPARTA owns the surface reaction
-probability, species conversion, and reaction tallies. Prefer `reaction <path>`
-so the solid mass per reaction is inferred from the same reaction file; use
+probability, species conversion, and reaction tallies, while IAC owns the solid
+timestep and voxel mass ledger. Prefer `reaction <path>` so the solid mass per
+reaction is inferred from the same reaction file; use
 `solid-mass-per-reaction` only as an explicit override.
 
 `surf_measure_flux` reads the same kind of DSMC reaction count data but does
@@ -179,20 +186,25 @@ ablation timestep; they do not themselves advance the solid clock. Use
 record the solid step, history, dumps, and stats. By default, the bridge uses
 the elapsed DSMC time since the previous coupling update as the ablation time.
 The optional `ablation-dt` argument overrides that physical ablation time. For
-`dsmc/reaction`, `time-scale`
-multiplies both the sampled reaction-count mass and the ablation time. This is
-useful for quasi-steady chemistry probes: the input can sample a short DSMC
-window and advance the solid over a longer reservoir-equivalent ablation time.
-When comparing multiple DSMC sampling lengths at the same ablation time, choose
-`time-scale = ablation-update-time / (sample-steps * timestep)`.
+`dsmc/reaction`, `time-scale` scales the sampled DSMC window before the reaction
+rate is formed. In normal coupled runs, prefer `mass-courant` so the current
+local surface flux chooses a stable solid timestep.
+
+For `dsmc/reaction`, an optional `select normal` clause restricts which
+reaction tallies are mapped back into voxel mass loss. SPARTA can still collide
+and react with the full installed surface; this selector only controls the
+solid ablation update. This is useful when a full watertight surface is needed
+for particles, but only one exposed face should recess in the cutout model.
 
 The optional `mass-courant` argument chooses the ablation timestep from the
-largest current local voxel-face flux. For DSMC surface fluxes, the limiting
-flux is the largest positive triangle mass flux that maps to an active,
-non-fixed voxel:
+largest current local voxel mass-removal rate. For surface fluxes, triangle
+mass rates are first mapped to active, non-fixed voxels through the ISTHMUS
+ownership fractions. The limiting rate is then converted to an equivalent
+voxel-face flux:
 
 ```text
-dt = C * density * voxel-size / max(triangle-flux)
+equivalent-face-flux = max(voxel-mass-rate) / voxel-size^2
+dt = C * voxel-mass / max(voxel-mass-rate)
 ```
 
 This is the same nondimensional definition as `iac_timestep
@@ -219,9 +231,11 @@ Selectors:
   voxel groups and material subsets.
 
 `surf_dump` writes VTP triangle files on scheduled run steps. The VTP cell
-data includes `area`, `requested-mass`, and `last-requested-mass`. The
-`last-requested-mass` field is useful for visual inspection because
-`requested-mass` is cleared after `voxel_ablate` consumes it.
+data includes `area`, `requested-mass`, `last-requested-mass`, `mass-flux`,
+`last-mass-flux`, and `selected`. The `last-*` fields are useful for visual
+inspection because `requested-mass` is cleared after `voxel_ablate` consumes
+it. `selected = 1` marks triangles that received flux during the most recent
+surface-flux command.
 
 Inside DSMC, scheduled `surf_dump` output is written when bridge commands
 advance the core step. Define the dump before the first surface generation so

@@ -21,7 +21,7 @@ The ghost case adds y/z infinite-wall ghost voxels before surface generation:
 ```text
 voxel_ghost solid axis y boundary infinite layers 1
 voxel_ghost solid axis z boundary infinite layers 1
-isthmus_surface skin voxels solid buffer 1 weighting no map yes crop real
+isthmus_surface skin voxels solid buffer 1 weighting no map yes
 ```
 
 Ghost voxels are surface-construction images only. They do not carry separate

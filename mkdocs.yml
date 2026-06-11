@@ -34,6 +34,7 @@ nav:
       - voxel ablate: commands/voxel-ablate.md
       - isthmus surface: commands/isthmus-surface.md
       - surface: commands/surface.md
+      - grid write vtu: commands/grid-write-vtu.md
       - iac: commands/iac.md
       - stats and stats_style: commands/stats.md
       - voxel dump: commands/voxel-dump.md
@@ -45,6 +46,7 @@ nav:
       - Sphere ISTHMUS Ablation: examples/sphere-isthmus.md
       - TIFF Sphere Example: examples/tiff-sphere.md
       - DSMC Sphere Kinetic Example: examples/dsmc-sphere-kinetic.md
+      - Pregen TIFF Carbon Recession: examples/pregen-tiff-carbon-recession.md
   - Development:
       - Directory Layout: development/directory-layout.md
       - Code Architecture: development/code-architecture.md

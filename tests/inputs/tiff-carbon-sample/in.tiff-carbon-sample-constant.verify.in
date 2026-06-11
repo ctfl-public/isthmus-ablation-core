@@ -1,0 +1,30 @@
+# Generated regression input for rough carbon TIFF constant-flux recession.
+
+units               si
+
+voxel_material      carbon density 1800.0 molar-mass 0.0120107 formula C
+voxel_create        solid tiff file @IAC_CARBON_SAMPLE_TIFF@ dx 2.5e-5 material carbon
+voxel_ghost         solid axis y boundary infinite layers 1
+voxel_ghost         solid axis z boundary infinite layers 1
+voxel_ghost         solid axis x side lo boundary infinite layers 1
+
+source              qtop constant 1.5 units kg/m2/s
+iac_timestep        mass/courant 0.5 source qtop
+variable            ablation_time equal 5.0e-2
+variable            keep internal 1
+
+iac_stats           1000000
+iac_stats_style     step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction requested-mass-step applied-mass-step
+
+label               ablate-loop
+iac_limit           time ${ablation_time}
+isthmus_surface     skin voxels solid buffer 1 weighting no map yes
+surf_flux           skin source qtop select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
+voxel_ablate        solid surface skin policy carryover/normal delete yes
+iac_run             1
+iac_continue        time ${ablation_time} variable keep
+if                  "${keep} > 0" then "jump SELF ablate-loop"
+
+iac_verify          mass-fraction exact "0.70" tolerance 5.0 percent norm final
+iac_verify          volume-fraction exact "0.75" tolerance 5.0 percent norm final
+iac_verify          dropped-mass-step exact "0.0" tolerance 1.0e-10 absolute norm final

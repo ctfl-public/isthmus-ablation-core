@@ -88,3 +88,17 @@ is written to:
 ```text
 build-dsmc/output/dsmc-sphere-kinetic-convergence/summary.csv
 ```
+
+## Rough Carbon TIFF Tests
+
+`tiff-carbon-sample-constant-verification` uses the generated rough carbon TIFF
+fixture, one-sided/both-sided ghost boundaries, ISTHMUS top-surface selection,
+and normal carryover. It checks that a prescribed constant top-surface mass flux
+recesses the sample to roughly the expected final mass and volume fractions.
+
+`dsmc-tiff-carbon-co-verification` uses the same generated carbon sample, but
+drives recession from DSMC/SPARTA surface chemistry. It installs the ISTHMUS
+surface into DSMC, reacts O2 into CO at the surface, reads `compute react/surf`
+through `fix ave/surf`, maps reaction-derived carbon loss back to voxels, and
+checks the final mass and volume fractions. The case is intentionally small and
+uses no gas-gas collision model so it remains a fast workflow regression.

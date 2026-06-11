@@ -414,8 +414,11 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
         const auto select = values.find("select");
         if (select != values.end()) {
           dump.select = select->second;
-          if (dump.select != "all" && dump.select != "active") {
-            throw InputError(line_error(line_number, "voxel dump select must be all or active"));
+          if (dump.select != "all" && dump.select != "active" &&
+              dump.select != "ghosted" && dump.select != "ghosts") {
+            throw InputError(
+                line_error(line_number,
+                           "voxel dump select must be all, active, ghosted, or ghosts"));
           }
         }
         const auto scalar = values.find("scalar");
@@ -423,7 +426,8 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
           dump.scalar = scalar->second;
           if (dump.scalar != "mass-fraction" && dump.scalar != "remaining-mass" &&
               dump.scalar != "active" && dump.scalar != "fixed" && dump.scalar != "id" &&
-              dump.scalar != "ix" && dump.scalar != "iy" && dump.scalar != "iz") {
+              dump.scalar != "ix" && dump.scalar != "iy" && dump.scalar != "iz" &&
+              dump.scalar != "ghost") {
             throw InputError(line_error(line_number, "unknown voxel dump scalar '" +
                                                      dump.scalar + "'"));
           }
@@ -464,12 +468,19 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
         const auto values = parse_pairs(tokens, 3, line_number);
         ghost.axis = required(values, "axis", line_number);
         ghost.boundary = required(values, "boundary", line_number);
+        const auto side = values.find("side");
+        if (side != values.end()) {
+          ghost.side = side->second;
+        }
         const auto layers = values.find("layers");
         if (layers != values.end()) {
           ghost.layers = parse_int(layers->second, line_number);
         }
         if (ghost.axis != "x" && ghost.axis != "y" && ghost.axis != "z") {
           throw InputError(line_error(line_number, "voxel ghost axis must be x, y, or z"));
+        }
+        if (ghost.side != "lo" && ghost.side != "hi" && ghost.side != "both") {
+          throw InputError(line_error(line_number, "voxel ghost side must be lo, hi, or both"));
         }
         if (ghost.boundary != "infinite") {
           throw InputError(line_error(line_number,

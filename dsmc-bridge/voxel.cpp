@@ -244,12 +244,16 @@ void Voxel::command(int narg, char **arg) {
     iac::VoxelGhostCommand ghost;
     ghost.voxels = arg[1];
     const char *axis = value_after(narg - 2, arg + 2, "axis");
+    const char *side = value_after(narg - 2, arg + 2, "side");
     const char *boundary = value_after(narg - 2, arg + 2, "boundary");
     const char *layers = value_after(narg - 2, arg + 2, "layers");
     if (!axis || !boundary) {
       error->all(FLERR, "voxel ghost requires axis and boundary");
     }
     ghost.axis = axis;
+    if (side) {
+      ghost.side = side;
+    }
     ghost.boundary = boundary;
     if (layers) {
       ghost.layers = std::atoi(layers);

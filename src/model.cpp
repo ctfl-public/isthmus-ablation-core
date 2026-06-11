@@ -302,7 +302,7 @@ void Model::set_timestep_from_triangle_fluxes(const std::string &surface_name,
     throw RuntimeError("surface flux vector size does not match surface triangle count");
   }
 
-  double max_face_flux = 0.0;
+  std::vector<double> voxel_mass_rates(voxels_.size(), 0.0);
   for (std::size_t i = 0; i < surface.triangles.size(); ++i) {
     const double mass_flux = mass_fluxes[i];
     if (mass_flux <= 0.0) {
@@ -312,6 +312,7 @@ void Model::set_timestep_from_triangle_fluxes(const std::string &surface_name,
     if (triangle.area <= 0.0 || triangle.voxel_ids.empty()) {
       continue;
     }
+    const double mass_rate = mass_flux * triangle.area;
     for (std::size_t j = 0; j < triangle.voxel_ids.size() && j < triangle.fractions.size(); ++j) {
       const std::size_t voxel_id = triangle.voxel_ids[j];
       const double fraction = triangle.fractions[j];
@@ -320,17 +321,24 @@ void Model::set_timestep_from_triangle_fluxes(const std::string &surface_name,
       }
       const auto &voxel = voxels_[voxel_id];
       if (voxel.active && !voxel.fixed && voxel.remaining_mass > 0.0) {
-        max_face_flux = std::max(max_face_flux, mass_flux);
+        voxel_mass_rates[voxel_id] += mass_rate * fraction;
       }
     }
   }
-  if (max_face_flux <= 0.0) {
+  double max_voxel_mass_rate = 0.0;
+  for (const double rate : voxel_mass_rates) {
+    max_voxel_mass_rate = std::max(max_voxel_mass_rate, rate);
+  }
+  if (max_voxel_mass_rate <= 0.0) {
     throw RuntimeError("surface flux mass/courant found no positive mapped flux");
   }
 
-  const double dt = courant * config_.material.density * voxel_dx() / max_face_flux;
+  const double dx = voxel_dx();
+  const double equivalent_face_flux = max_voxel_mass_rate / (dx * dx);
+  const double dt = courant * voxel_mass_ / max_voxel_mass_rate;
   set_diagnostic("surface-mass-courant", courant);
-  set_diagnostic("surface-max-face-flux", max_face_flux);
+  set_diagnostic("surface-max-face-flux", equivalent_face_flux);
+  set_diagnostic("surface-max-voxel-mass-rate", max_voxel_mass_rate);
   set_diagnostic("surface-mass-courant-dt", dt);
   set_timestep(dt);
 }
@@ -665,6 +673,9 @@ void Model::validate_ghosts() const {
     }
     if (ghost.axis != "x" && ghost.axis != "y" && ghost.axis != "z") {
       throw RuntimeError("voxel ghost axis must be x, y, or z");
+    }
+    if (ghost.side != "lo" && ghost.side != "hi" && ghost.side != "both") {
+      throw RuntimeError("voxel ghost side must be lo, hi, or both");
     }
     if (ghost.boundary != "infinite") {
       throw RuntimeError("only voxel ghost boundary infinite is supported");
@@ -1021,12 +1032,12 @@ std::vector<Model::SurfaceVoxelRecord> Model::surface_voxel_records() const {
       for (std::size_t image_id = 0; image_id < base_count; ++image_id) {
         const int value = images[image_id][axis];
         for (int layer = 1; layer <= ghost.layers; ++layer) {
-          if (value == 0) {
+          if ((ghost.side == "lo" || ghost.side == "both") && value == 0) {
             auto image = images[image_id];
             image[axis] = -layer;
             images.push_back(image);
           }
-          if (value + 1 == count) {
+          if ((ghost.side == "hi" || ghost.side == "both") && value + 1 == count) {
             auto image = images[image_id];
             image[axis] = count - 1 + layer;
             images.push_back(image);
@@ -1372,12 +1383,13 @@ void Model::write_history(const std::string &path) const {
 
 void Model::write_voxels_vtu(const std::string &path, const std::string &select,
                              const std::string &scalar) const {
-  if (select != "all" && select != "active") {
-    throw RuntimeError("voxel write-vtu select must be all or active");
+  if (select != "all" && select != "active" && select != "ghosted" &&
+      select != "ghosts") {
+    throw RuntimeError("voxel write-vtu select must be all, active, ghosted, or ghosts");
   }
   if (scalar != "mass-fraction" && scalar != "remaining-mass" && scalar != "active" &&
       scalar != "fixed" && scalar != "id" && scalar != "ix" && scalar != "iy" &&
-      scalar != "iz") {
+      scalar != "iz" && scalar != "ghost") {
     throw RuntimeError("unknown voxel write-vtu scalar '" + scalar + "'");
   }
   VoxelDump dump;
@@ -1414,13 +1426,31 @@ void Model::write_vtu(const VoxelDump &dump, int step) const {
     throw RuntimeError("could not write VTU file '" + path + "'");
   }
 
-  std::vector<const Voxel *> selected;
-  selected.reserve(voxels_.size());
-  for (const auto &voxel : voxels_) {
-    if (dump.select == "active" && !voxel.active) {
-      continue;
+  std::vector<SurfaceVoxelRecord> selected;
+  if (dump.select == "ghosted" || dump.select == "ghosts") {
+    selected = surface_voxel_records();
+    if (dump.select == "ghosts") {
+      selected.erase(std::remove_if(selected.begin(), selected.end(),
+                                    [](const SurfaceVoxelRecord &record) {
+                                      return record.real;
+                                    }),
+                     selected.end());
     }
-    selected.push_back(&voxel);
+  } else {
+    selected.reserve(voxels_.size());
+    for (const auto &voxel : voxels_) {
+      if (dump.select == "active" && !voxel.active) {
+        continue;
+      }
+      selected.push_back(SurfaceVoxelRecord{&voxel,
+                                            voxel.ix,
+                                            voxel.iy,
+                                            voxel.iz,
+                                            voxel.x,
+                                            voxel.y,
+                                            voxel.z,
+                                            true});
+    }
   }
 
   const double dx = voxel_dx();
@@ -1433,13 +1463,13 @@ void Model::write_vtu(const VoxelDump &dump, int step) const {
 
   out << "      <Points>\n";
   out << "        <DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">\n";
-  for (const auto *voxel : selected) {
-    const double x0 = voxel->x - 0.5 * dx;
-    const double y0 = voxel->y - 0.5 * dx;
-    const double z0 = voxel->z - 0.5 * dx;
-    const double x1 = voxel->x + 0.5 * dx;
-    const double y1 = voxel->y + 0.5 * dx;
-    const double z1 = voxel->z + 0.5 * dx;
+  for (const auto &record : selected) {
+    const double x0 = record.x - 0.5 * dx;
+    const double y0 = record.y - 0.5 * dx;
+    const double z0 = record.z - 0.5 * dx;
+    const double x1 = record.x + 0.5 * dx;
+    const double y1 = record.y + 0.5 * dx;
+    const double z1 = record.z + 0.5 * dx;
     out << "          " << x0 << ' ' << y0 << ' ' << z0 << ' ' << x1 << ' ' << y0 << ' '
         << z0 << ' ' << x1 << ' ' << y1 << ' ' << z0 << ' ' << x0 << ' ' << y1 << ' '
         << z0 << ' ' << x0 << ' ' << y0 << ' ' << z1 << ' ' << x1 << ' ' << y0 << ' '
@@ -1472,44 +1502,50 @@ void Model::write_vtu(const VoxelDump &dump, int step) const {
 
   out << "      <CellData Scalars=\"" << dump.scalar << "\">\n";
   out << "        <DataArray type=\"Float64\" Name=\"mass-fraction\" format=\"ascii\">\n";
-  for (const auto *voxel : selected) {
+  for (const auto &record : selected) {
+    const auto *voxel = record.voxel;
     out << "          " << (voxel_mass_ > 0.0 ? voxel->remaining_mass / voxel_mass_ : 0.0)
         << '\n';
   }
   out << "        </DataArray>\n";
   out << "        <DataArray type=\"Float64\" Name=\"remaining-mass\" format=\"ascii\">\n";
-  for (const auto *voxel : selected) {
-    out << "          " << voxel->remaining_mass << '\n';
+  for (const auto &record : selected) {
+    out << "          " << record.voxel->remaining_mass << '\n';
   }
   out << "        </DataArray>\n";
   out << "        <DataArray type=\"Int64\" Name=\"id\" format=\"ascii\">\n";
-  for (const auto *voxel : selected) {
-    out << "          " << voxel->id << '\n';
+  for (const auto &record : selected) {
+    out << "          " << record.voxel->id << '\n';
   }
   out << "        </DataArray>\n";
   out << "        <DataArray type=\"Int32\" Name=\"ix\" format=\"ascii\">\n";
-  for (const auto *voxel : selected) {
-    out << "          " << voxel->ix << '\n';
+  for (const auto &record : selected) {
+    out << "          " << record.ix << '\n';
   }
   out << "        </DataArray>\n";
   out << "        <DataArray type=\"Int32\" Name=\"iy\" format=\"ascii\">\n";
-  for (const auto *voxel : selected) {
-    out << "          " << voxel->iy << '\n';
+  for (const auto &record : selected) {
+    out << "          " << record.iy << '\n';
   }
   out << "        </DataArray>\n";
   out << "        <DataArray type=\"Int32\" Name=\"iz\" format=\"ascii\">\n";
-  for (const auto *voxel : selected) {
-    out << "          " << voxel->iz << '\n';
+  for (const auto &record : selected) {
+    out << "          " << record.iz << '\n';
   }
   out << "        </DataArray>\n";
   out << "        <DataArray type=\"Int32\" Name=\"active\" format=\"ascii\">\n";
-  for (const auto *voxel : selected) {
-    out << "          " << (voxel->active ? 1 : 0) << '\n';
+  for (const auto &record : selected) {
+    out << "          " << (record.voxel->active ? 1 : 0) << '\n';
   }
   out << "        </DataArray>\n";
   out << "        <DataArray type=\"Int32\" Name=\"fixed\" format=\"ascii\">\n";
-  for (const auto *voxel : selected) {
-    out << "          " << (voxel->fixed ? 1 : 0) << '\n';
+  for (const auto &record : selected) {
+    out << "          " << (record.voxel->fixed ? 1 : 0) << '\n';
+  }
+  out << "        </DataArray>\n";
+  out << "        <DataArray type=\"Int32\" Name=\"ghost\" format=\"ascii\">\n";
+  for (const auto &record : selected) {
+    out << "          " << (record.real ? 0 : 1) << '\n';
   }
   out << "        </DataArray>\n";
   out << "      </CellData>\n";
@@ -1581,6 +1617,27 @@ void Model::write_vtp(const SurfaceDump &dump, int step,
   out << "        <DataArray type=\"Float64\" Name=\"last-requested-mass\" format=\"ascii\">\n";
   for (const auto &triangle : triangles) {
     out << "          " << triangle.last_requested_mass << '\n';
+  }
+  out << "        </DataArray>\n";
+  out << "        <DataArray type=\"Float64\" Name=\"mass-flux\" format=\"ascii\">\n";
+  for (const auto &triangle : triangles) {
+    const double flux = triangle.area > 0.0 && dt_ > 0.0
+                            ? triangle.requested_mass / (triangle.area * dt_)
+                            : 0.0;
+    out << "          " << flux << '\n';
+  }
+  out << "        </DataArray>\n";
+  out << "        <DataArray type=\"Float64\" Name=\"last-mass-flux\" format=\"ascii\">\n";
+  for (const auto &triangle : triangles) {
+    const double flux = triangle.area > 0.0 && dt_ > 0.0
+                            ? triangle.last_requested_mass / (triangle.area * dt_)
+                            : 0.0;
+    out << "          " << flux << '\n';
+  }
+  out << "        </DataArray>\n";
+  out << "        <DataArray type=\"Int32\" Name=\"selected\" format=\"ascii\">\n";
+  for (const auto &triangle : triangles) {
+    out << "          " << (triangle.last_requested_mass > 0.0 ? 1 : 0) << '\n';
   }
   out << "        </DataArray>\n";
   for (const auto &field : fields) {

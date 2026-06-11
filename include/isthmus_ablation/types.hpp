@@ -111,6 +111,7 @@ struct SurfaceFluxCommand {
 struct VoxelGhostCommand {
   std::string voxels;
   std::string axis;
+  std::string side = "both";
   std::string boundary = "infinite";
   int layers = 1;
 };

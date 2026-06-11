@@ -53,10 +53,11 @@ lattice. `ox`, `oy`, and `oz` optionally shift the voxel-centroid origin.
 
 `voxel_ghost` configures ghost voxel images used during surface generation.
 The first supported boundary is `boundary infinite`, which extrapolates active
-boundary voxels beyond both ends of the requested axis. Ghost voxels do not
-carry independent mass; their surface ownership maps back to the corresponding
-real voxel. This is useful for making a finite slab patch behave like an
-infinite wall during ISTHMUS marching cubes.
+boundary voxels beyond the requested side of the requested axis. The optional
+`side` value is `both` by default and may be `lo` or `hi` for one-sided cut
+boundaries. Ghost voxels do not carry independent mass; their surface ownership
+maps back to the corresponding real voxel. This is useful for making a finite
+slab or scan patch behave like an infinite wall during ISTHMUS marching cubes.
 
 `voxel_write_history` writes the current in-memory history table immediately.
 Standalone inputs usually use `voxel_dump <id> <model> history ...`; the direct

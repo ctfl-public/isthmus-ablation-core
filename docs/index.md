@@ -57,6 +57,8 @@ ctest --preset standalone
 
 - Create a slab voxel model.
 - Import a small ISTHMUS-backed TIFF stack as voxels.
+- Generate a deterministic rough carbon TIFF sample for lightweight examples
+  and tests.
 - Assign material density.
 - Define a constant mass-loss source.
 - Use explicit or mass-Courant timesteps.
@@ -68,6 +70,8 @@ ctest --preset standalone
 - Compute single-species ideal-gas kinetic-theory flux on ISTHMUS triangles.
 - Read DSMC `nflux_incident` surface tallies and convert them to voxel mass
   loss through ISTHMUS triangle ownership.
+- Read DSMC surface-reaction tallies and convert CO-forming reactions into
+  carbon voxel mass loss.
 - Build a private DSMC executable that calls the core through thin
   command-style bridge files without modifying the DSMC checkout.
 - Include shared input files with `include`.

@@ -34,6 +34,7 @@ output/
 !examples/dsmc-sphere-visual/output/
 examples/dsmc-sphere-visual/output/*
 !examples/dsmc-sphere-visual/output/.gitkeep
+examples/pregen-tiff-carbon-recession/carbon-sample.tif
 reports/
 convergence-*.csv
 log.sparta

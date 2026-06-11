@@ -34,6 +34,12 @@ struct ReactionFileInfo {
   double solid_mass = 0.0;
 };
 
+struct NormalSelector {
+  bool enabled = false;
+  double direction[3] = {0.0, 0.0, 0.0};
+  double min_cos = 0.0;
+};
+
 const char *value_after(int narg, char **arg, const char *key) {
   for (int i = 0; i + 1 < narg; ++i) {
     if (std::strcmp(arg[i], key) == 0) {
@@ -41,6 +47,61 @@ const char *value_after(int narg, char **arg, const char *key) {
     }
   }
   return nullptr;
+}
+
+NormalSelector parse_optional_normal_selector(int narg, char **arg, Error *error,
+                                              const char *command) {
+  NormalSelector selector;
+  const char *select = value_after(narg, arg, "select");
+  if (!select) {
+    return selector;
+  }
+  if (std::strcmp(select, "all") == 0) {
+    return selector;
+  }
+  if (std::strcmp(select, "normal") != 0) {
+    error->all(FLERR, (std::string(command) + " select must be all or normal").c_str());
+  }
+  const char *nx = value_after(narg, arg, "nx");
+  const char *ny = value_after(narg, arg, "ny");
+  const char *nz = value_after(narg, arg, "nz");
+  if (!nx || !ny || !nz) {
+    error->all(FLERR, (std::string(command) + " select normal requires nx, ny, and nz").c_str());
+  }
+  selector.direction[0] = std::atof(nx);
+  selector.direction[1] = std::atof(ny);
+  selector.direction[2] = std::atof(nz);
+  const double norm = std::sqrt(selector.direction[0] * selector.direction[0] +
+                                selector.direction[1] * selector.direction[1] +
+                                selector.direction[2] * selector.direction[2]);
+  if (norm <= 0.0) {
+    error->all(FLERR, (std::string(command) + " select normal direction cannot be zero").c_str());
+  }
+  selector.direction[0] /= norm;
+  selector.direction[1] /= norm;
+  selector.direction[2] /= norm;
+  const char *min_cos = value_after(narg, arg, "min-cos");
+  selector.min_cos = min_cos ? std::atof(min_cos) : 0.0;
+  selector.enabled = true;
+  return selector;
+}
+
+bool selected_by_normal(const NormalSelector &selector,
+                        const iac::Model::PublicSurfaceTriangle &triangle) {
+  if (!selector.enabled) {
+    return true;
+  }
+  const double norm = std::sqrt(triangle.normal[0] * triangle.normal[0] +
+                                triangle.normal[1] * triangle.normal[1] +
+                                triangle.normal[2] * triangle.normal[2]);
+  if (norm <= 0.0) {
+    return false;
+  }
+  const double cos_angle = (triangle.normal[0] * selector.direction[0] +
+                            triangle.normal[1] * selector.direction[1] +
+                            triangle.normal[2] * selector.direction[2]) /
+                           norm;
+  return cos_angle >= selector.min_cos;
 }
 
 void parse_selector(iac::SurfaceFluxCommand &flux, int narg, char **arg, Error *error) {
@@ -328,6 +389,8 @@ void Surface::command(int narg, char **arg) {
       const char *sample_steps_value = value_after(npairs, pairs, "sample-steps");
       const char *solid_mass = value_after(npairs, pairs, "solid-mass-per-reaction");
       const char *reaction_file = value_after(npairs, pairs, "reaction");
+      const NormalSelector selector =
+          parse_optional_normal_selector(npairs, pairs, error, "surface flux dsmc/reaction");
       if (!fix_id || !column_value || !sample_steps_value || (!solid_mass && !reaction_file)) {
         error->all(FLERR, "surface flux dsmc/reaction requires fix, column, sample-steps, and reaction or solid-mass-per-reaction");
       }
@@ -357,6 +420,7 @@ void Surface::command(int narg, char **arg) {
       }
       const int sample_steps = std::atoi(sample_steps_value);
       const char *ablation_dt_value = value_after(npairs, pairs, "ablation-dt");
+      const char *mass_courant_value = value_after(npairs, pairs, "mass-courant");
       const char *time_scale_value = value_after(npairs, pairs, "time-scale");
       double solid_mass_per_reaction = solid_mass ? std::atof(solid_mass) : 0.0;
       if (reaction_file) {
@@ -378,17 +442,15 @@ void Surface::command(int narg, char **arg) {
       if (ablation_dt_value && ablation_dt <= 0.0) {
         error->all(FLERR, "surface flux dsmc/reaction ablation-dt must be positive");
       }
+      const double mass_courant = mass_courant_value ? std::atof(mass_courant_value) : 0.0;
+      if (mass_courant_value && mass_courant <= 0.0) {
+        error->all(FLERR, "surface flux dsmc/reaction mass-courant must be positive");
+      }
+      if (ablation_dt_value && mass_courant_value) {
+        error->all(FLERR, "surface flux dsmc/reaction cannot use both ablation-dt and mass-courant");
+      }
 
       try {
-        if (IACBridge::owns_model(sparta)) {
-          if (ablation_dt_value) {
-            IACBridge::model(sparta).set_timestep(ablation_dt);
-          } else {
-            IACBridge::model(sparta).set_timestep(static_cast<double>(sample_steps) *
-                                                  update->dt * time_scale);
-            IACBridge::set_last_coupling_step(sparta);
-          }
-        }
         const auto &triangles = IACBridge::surface_triangles(sparta, flux.surface);
         if (triangles.size() != static_cast<std::size_t>(surf->nsurf)) {
           error->all(FLERR, "surface flux dsmc/reaction triangle count does not match SPARTA surface count");
@@ -397,15 +459,36 @@ void Surface::command(int narg, char **arg) {
             global_surface_fix_values(sparta, surf, ave, column, error,
                                       "surface flux dsmc/reaction");
         if (IACBridge::owns_model(sparta)) {
-          const double dt = IACBridge::model(sparta).timestep();
           std::vector<double> mass_fluxes(static_cast<std::size_t>(surf->nsurf), 0.0);
+          bool has_positive_flux = false;
+          const double sample_dt = static_cast<double>(sample_steps) * update->dt * time_scale;
           for (std::size_t idx = 0; idx < mass_fluxes.size(); ++idx) {
             const double area = triangles[idx].area;
-            if (area > 0.0) {
+            if (area > 0.0 && selected_by_normal(selector, triangles[idx])) {
               const double mass = reaction_counts[idx] * static_cast<double>(sample_steps) *
                                   update->fnum * solid_mass_per_reaction * time_scale;
-              mass_fluxes[idx] = mass / (area * dt);
+              mass_fluxes[idx] = mass / (area * sample_dt);
+              if (mass_fluxes[idx] > 0.0) {
+                has_positive_flux = true;
+              }
             }
+          }
+          if (mass_courant_value) {
+            if (has_positive_flux) {
+              IACBridge::model(sparta).set_timestep_from_triangle_fluxes(
+                  flux.surface, mass_fluxes, mass_courant);
+            } else {
+              IACBridge::model(sparta).set_timestep(sample_dt);
+              IACBridge::model(sparta).set_diagnostic("surface-mass-courant", mass_courant);
+              IACBridge::model(sparta).set_diagnostic("surface-max-face-flux", 0.0);
+              IACBridge::model(sparta).set_diagnostic("surface-mass-courant-dt", sample_dt);
+            }
+          } else if (ablation_dt_value) {
+            IACBridge::model(sparta).set_timestep(ablation_dt);
+          } else {
+            IACBridge::model(sparta).set_timestep(static_cast<double>(sample_steps) *
+                                                  update->dt * time_scale);
+            IACBridge::set_last_coupling_step(sparta);
           }
           IACBridge::model(sparta).apply_triangle_fluxes(flux.surface, mass_fluxes);
         }

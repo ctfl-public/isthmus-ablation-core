@@ -213,6 +213,8 @@ dsmc-bridge/iac.cpp
 dsmc-bridge/iac.h
 dsmc-bridge/iacbridge.cpp
 dsmc-bridge/iacbridge.h
+dsmc-bridge/iacgrid.cpp
+dsmc-bridge/iacgrid.h
 dsmc-bridge/isthmus.cpp
 dsmc-bridge/isthmus.h
 dsmc-bridge/source.cpp

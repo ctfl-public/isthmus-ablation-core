@@ -1,0 +1,67 @@
+# Generated DSMC chemistry regression input for rough carbon TIFF recession.
+
+seed                24680
+dimension           3
+global              nrho 1.014e28 fnum 2.8e15 gridcut 0.0 surfmax 4000 splitmax 400 comm/sort yes
+timestep            1.0e-7
+
+boundary            o p p
+create_box          -5.0e-5 8.5e-4 -5.0e-5 6.5e-4 -5.0e-5 6.5e-4
+create_grid         5 4 4
+balance_grid        rcb cell
+
+species             @SOURCE_DIR@/examples/pregen-tiff-carbon-recession/air.species O2 N2 CO
+mixture             air O2 frac 1.0
+mixture             air N2 frac 0.0
+mixture             air CO frac 0.0
+mixture             air temp 8000.0 vstream -1000.0 0.0 0.0
+
+voxel_material      carbon density 1800.0 molar-mass 0.0120107 formula C
+voxel_create        solid tiff file @IAC_CARBON_SAMPLE_TIFF@ dx 2.5e-5 material carbon
+voxel_ghost         solid axis y boundary infinite layers 1
+voxel_ghost         solid axis z boundary infinite layers 1
+voxel_ghost         solid axis x side lo boundary infinite layers 1
+
+isthmus_surface     skin voxels solid buffer 2 weighting no map yes
+surf_install        skin particle none type 1
+
+surf_collide        1 diffuse 5000.0 1.0
+surf_react          ox prob @SOURCE_DIR@/examples/pregen-tiff-carbon-recession/carbon-co.surf
+surf_modify         all collide 1 react ox
+
+compute             rco react/surf all ox
+fix                 rco ave/surf all 1 100 100 c_rco[*] ave one
+
+create_particles    air n 0 twopass
+fix                 inlet emit/face air xhi twopass
+
+stats_style         step cpu np nscoll nscheck nsreact
+stats               100000
+
+variable            ablation_time equal 2.0e-7
+variable            keep internal 1
+label               coupled-loop
+
+run                 100 post no
+
+surf_flux           skin dsmc/reaction fix rco column 1 sample-steps 100 reaction @SOURCE_DIR@/examples/pregen-tiff-carbon-recession/carbon-co.surf mass-courant 1.0 select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
+iac_limit           time ${ablation_time}
+voxel_ablate        solid surface skin policy carryover/normal delete yes
+iac_run             1
+
+iac_continue        time ${ablation_time} variable keep
+if                  "${keep} == 0" then "jump SELF done"
+
+remove_surf         all
+isthmus_surface     skin voxels solid buffer 2 weighting no map yes
+surf_install        skin particle none type 1
+surf_modify         all collide 1 react ox
+
+jump                SELF coupled-loop
+
+label               done
+
+voxel_write_history solid @BINARY_DIR@/output/dsmc-tiff-carbon-co/history.csv
+
+iac_verify          mass-fraction exact "0.70" tolerance 5.0 percent norm final
+iac_verify          volume-fraction exact "0.75" tolerance 5.0 percent norm final
