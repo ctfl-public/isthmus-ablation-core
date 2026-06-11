@@ -67,6 +67,7 @@ add_executable(ia-core src/main.cpp)
 target_link_libraries(ia-core PRIVATE isthmus_ablation_core)
 
 find_package(Python3 COMPONENTS Interpreter)
+find_package(MPI QUIET)
 find_program(PDFLATEX_EXECUTABLE pdflatex)
 find_program(IAC_MAKE_EXECUTABLE NAMES make gmake)
 
@@ -85,6 +86,10 @@ if(NOT DSMC_ROOT)
 endif()
 
 set(DSMC_MACHINE "mpi" CACHE STRING "DSMC make target used by the IAC overlay build")
+set(IAC_DSMC_MPI_NP "2" CACHE STRING "MPI rank count used by DSMC/IAC MPI tests")
+set(IAC_MPIEXEC_EXECUTABLE "${MPIEXEC_EXECUTABLE}" CACHE FILEPATH "MPI launcher used for DSMC/IAC MPI tests")
+set(IAC_MPIEXEC_NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}" CACHE STRING "MPI launcher flag for rank count")
+option(IAC_ENABLE_MPI_TESTS "Enable DSMC/IAC MPI CTest entries when an MPI launcher is available" ON)
 set(IAC_DSMC_OVERLAY_SRC "${CMAKE_BINARY_DIR}/dsmc-overlay/src")
 set(IAC_DSMC_OVERLAY_EXECUTABLE "${IAC_DSMC_OVERLAY_SRC}/spa_${DSMC_MACHINE}")
 option(IAC_DSMC_USE_OVERLAY "Use the private DSMC overlay executable for coupled tests" ON)
@@ -135,6 +140,13 @@ endif()
 message(STATUS "ISTHMUS library: ${IAC_ISTHMUS_LIBRARY}")
 message(STATUS "DSMC root: ${DSMC_ROOT}")
 message(STATUS "DSMC machine: ${DSMC_MACHINE}")
+if(IAC_ENABLE_MPI_TESTS AND IAC_MPIEXEC_EXECUTABLE)
+  message(STATUS "DSMC/IAC MPI tests: enabled with ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}")
+elseif(IAC_ENABLE_MPI_TESTS)
+  message(WARNING "DSMC/IAC MPI tests: disabled because no MPI launcher was found")
+else()
+  message(STATUS "DSMC/IAC MPI tests: disabled by IAC_ENABLE_MPI_TESTS=OFF")
+endif()
 if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT)
   message(STATUS "DSMC/IAC target: cmake --build ${CMAKE_BINARY_DIR} --target dsmc")
   message(STATUS "DSMC/IAC executable: ${IAC_DSMC_EXECUTABLE}")
@@ -254,6 +266,28 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
     set_tests_properties(dsmc-sphere-kinetic-grid-convergence PROPERTIES
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       TIMEOUT 30
+    )
+  endif()
+
+  if(IAC_ENABLE_MPI_TESTS AND IAC_MPIEXEC_EXECUTABLE)
+    add_test(
+      NAME dsmc-mpi-slab-direct-ablation-verification
+      COMMAND ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
+              ${IAC_DSMC_EXECUTABLE} -screen none -log none
+              -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-slab-direct-ablation/in.dsmc-slab-direct-ablation.verify
+    )
+    set_tests_properties(dsmc-mpi-slab-direct-ablation-verification PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+
+    add_test(
+      NAME dsmc-mpi-sphere-flux-verification
+      COMMAND ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
+              ${IAC_DSMC_EXECUTABLE} -screen none -log none
+              -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-sphere-flux/in.dsmc-sphere-flux.verify
+    )
+    set_tests_properties(dsmc-mpi-sphere-flux-verification PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
   endif()
 endif()

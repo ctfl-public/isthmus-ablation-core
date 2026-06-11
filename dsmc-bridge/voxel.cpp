@@ -1,5 +1,6 @@
 #include "voxel.h"
 
+#include "comm.h"
 #include "error.h"
 #include "iacbridge.h"
 #include "update.h"
@@ -266,7 +267,9 @@ void Voxel::command(int narg, char **arg) {
       error->all(FLERR, "voxel write-history references unknown voxel model");
     }
     try {
-      IACBridge::model(sparta).write_history(arg[2]);
+      if (comm->me == 0) {
+        IACBridge::model(sparta).write_history(arg[2]);
+      }
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
     }
@@ -291,7 +294,9 @@ void Voxel::command(int narg, char **arg) {
       scalar = scalar_value;
     }
     try {
-      IACBridge::model(sparta).write_voxels_vtu(arg[2], select, scalar);
+      if (comm->me == 0) {
+        IACBridge::model(sparta).write_voxels_vtu(arg[2], select, scalar);
+      }
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
     }

@@ -1,5 +1,6 @@
 #include "iac.h"
 
+#include "comm.h"
 #include "error.h"
 #include "iacbridge.h"
 #include "input.h"
@@ -217,11 +218,13 @@ void Iac::command(int narg, char **arg) {
     }
     try {
       const double value = IACBridge::model(sparta).diagnostic(arg[1]);
-      if (screen) {
-        std::fprintf(screen, "IAC diagnostic %s = %.17g\n", arg[1], value);
-      }
-      if (logfile) {
-        std::fprintf(logfile, "IAC diagnostic %s = %.17g\n", arg[1], value);
+      if (comm->me == 0) {
+        if (screen) {
+          std::fprintf(screen, "IAC diagnostic %s = %.17g\n", arg[1], value);
+        }
+        if (logfile) {
+          std::fprintf(logfile, "IAC diagnostic %s = %.17g\n", arg[1], value);
+        }
       }
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());

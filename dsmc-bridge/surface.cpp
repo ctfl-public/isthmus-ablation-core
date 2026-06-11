@@ -8,6 +8,8 @@
 #include "surf.h"
 #include "update.h"
 
+#include <mpi.h>
+
 #include <cmath>
 #include <cctype>
 #include <cstdio>
@@ -89,9 +91,6 @@ Fix *require_surface_fix(SPARTA *sparta, Modify *modify, Comm *comm, Error *erro
   if (ave->size_per_surf_cols > 0 && !ave->array_surf) {
     error->all(FLERR, (std::string(command) + " fix array data is not available").c_str());
   }
-  if (comm->nprocs != 1) {
-    error->all(FLERR, (std::string(command) + " currently supports one MPI rank").c_str());
-  }
   (void)sparta;
   return ave;
 }
@@ -99,6 +98,39 @@ Fix *require_surface_fix(SPARTA *sparta, Modify *modify, Comm *comm, Error *erro
 double fix_surface_value(Fix *ave, int local_index, int column) {
   return ave->size_per_surf_cols == 0 ? ave->vector_surf[local_index]
                                       : ave->array_surf[local_index][column - 1];
+}
+
+std::vector<double> global_surface_fix_values(SPARTA *sparta, Surf *surf, Fix *ave, int column,
+                                              Error *error, const char *command) {
+  std::vector<double> local(static_cast<std::size_t>(surf->nsurf), 0.0);
+  for (int i = 0; i < surf->nown; ++i) {
+    const int triangle_id = surf->tris[i].id;
+    if (triangle_id <= 0 || triangle_id > static_cast<int>(local.size())) {
+      error->all(FLERR, (std::string(command) + " encountered invalid surface ID").c_str());
+    }
+    local[static_cast<std::size_t>(triangle_id - 1)] += fix_surface_value(ave, i, column);
+  }
+  if (sparta->comm->nprocs == 1) {
+    return local;
+  }
+  std::vector<double> global(local.size(), 0.0);
+  MPI_Allreduce(local.data(), global.data(), static_cast<int>(local.size()), MPI_DOUBLE,
+                MPI_SUM, sparta->world);
+  return global;
+}
+
+void reduce_surface_fields(SPARTA *sparta, Surf *surf,
+                           std::vector<iac::Model::SurfaceCellField> &fields) {
+  if (sparta->comm->nprocs == 1) {
+    return;
+  }
+  for (auto &field : fields) {
+    std::vector<double> global(field.values.size(), 0.0);
+    MPI_Allreduce(field.values.data(), global.data(), static_cast<int>(field.values.size()),
+                  MPI_DOUBLE, MPI_SUM, sparta->world);
+    field.values.swap(global);
+  }
+  (void)surf;
 }
 
 int parse_dsmc_surf_quantity(const char *quantity, Error *error) {
@@ -323,10 +355,6 @@ void Surface::command(int narg, char **arg) {
       if (ave->size_per_surf_cols > 0 && !ave->array_surf) {
         error->all(FLERR, "surface flux dsmc/reaction fix array data is not available");
       }
-      if (comm->nprocs != 1) {
-        error->all(FLERR, "surface flux dsmc/reaction currently supports one MPI rank");
-      }
-
       const int sample_steps = std::atoi(sample_steps_value);
       const char *ablation_dt_value = value_after(npairs, pairs, "ablation-dt");
       const char *time_scale_value = value_after(npairs, pairs, "time-scale");
@@ -365,17 +393,13 @@ void Surface::command(int narg, char **arg) {
           error->all(FLERR, "surface flux dsmc/reaction triangle count does not match SPARTA surface count");
         }
         std::vector<double> mass_fluxes(static_cast<std::size_t>(surf->nsurf), 0.0);
-        for (int i = 0; i < surf->nown; ++i) {
-          const int triangle_id = surf->tris[i].id;
-          if (triangle_id <= 0 || triangle_id > static_cast<int>(mass_fluxes.size())) {
-            error->all(FLERR, "surface flux dsmc/reaction encountered invalid surface ID");
-          }
-          const double reaction_count =
-              ave->size_per_surf_cols == 0 ? ave->vector_surf[i] : ave->array_surf[i][column - 1];
-          const std::size_t idx = static_cast<std::size_t>(triangle_id - 1);
+        const auto reaction_counts =
+            global_surface_fix_values(sparta, surf, ave, column, error,
+                                      "surface flux dsmc/reaction");
+        for (std::size_t idx = 0; idx < mass_fluxes.size(); ++idx) {
           const double area = triangles[idx].area;
           if (area > 0.0) {
-            const double mass = reaction_count * static_cast<double>(sample_steps) *
+            const double mass = reaction_counts[idx] * static_cast<double>(sample_steps) *
                                 update->fnum * solid_mass_per_reaction * time_scale;
             mass_fluxes[idx] = mass / (area * dt);
           }
@@ -429,10 +453,6 @@ void Surface::command(int narg, char **arg) {
       if (ave->size_per_surf_cols > 0 && !ave->array_surf) {
         error->all(FLERR, "surface flux dsmc/surf fix array data is not available");
       }
-      if (comm->nprocs != 1) {
-        error->all(FLERR, "surface flux dsmc/surf currently supports one MPI rank");
-      }
-
       const char *reaction_prob_value = value_after(npairs, pairs, "reaction-prob");
       const char *ablation_dt_value = value_after(npairs, pairs, "ablation-dt");
       const char *mass_courant_value = value_after(npairs, pairs, "mass-courant");
@@ -468,16 +488,11 @@ void Surface::command(int narg, char **arg) {
         error->all(FLERR, "surface flux dsmc/surf cannot use both ablation-dt and mass-courant");
       }
 
-      std::vector<double> mass_fluxes(static_cast<std::size_t>(surf->nsurf), 0.0);
-      for (int i = 0; i < surf->nown; ++i) {
-        const int triangle_id = surf->tris[i].id;
-        if (triangle_id <= 0 || triangle_id > static_cast<int>(mass_fluxes.size())) {
-          error->all(FLERR, "surface flux dsmc/surf encountered invalid surface ID");
-        }
-        const double number_flux =
-            ave->size_per_surf_cols == 0 ? ave->vector_surf[i] : ave->array_surf[i][column - 1];
-        mass_fluxes[static_cast<std::size_t>(triangle_id - 1)] =
-            number_flux * reaction_prob * solid_mass_per_hit;
+      auto mass_fluxes =
+          global_surface_fix_values(sparta, surf, ave, column, error,
+                                    "surface flux dsmc/surf");
+      for (double &mass_flux : mass_fluxes) {
+        mass_flux *= reaction_prob * solid_mass_per_hit;
       }
 
       try {
@@ -608,8 +623,11 @@ void Surface::command(int narg, char **arg) {
         surface_area += triangle.area;
       }
       double reaction_count_sum = 0.0;
-      for (int i = 0; i < surf->nown; ++i) {
-        reaction_count_sum += fix_surface_value(ave, i, column);
+      const auto reaction_counts =
+          global_surface_fix_values(sparta, surf, ave, column, error,
+                                    "surface measure-flux dsmc/reaction");
+      for (double value : reaction_counts) {
+        reaction_count_sum += value;
       }
       const double measured_flux = reaction_count_sum * update->fnum /
                                    (surface_area * update->dt);
@@ -642,17 +660,19 @@ void Surface::command(int narg, char **arg) {
       model.set_diagnostic("surface-area-error-percent",
                            100.0 * std::abs(surface_area - area_exact) /
                                std::abs(area_exact));
-      if (screen) {
-        std::fprintf(screen,
-                     "IAC surface flux: measured %.8e expected %.8e error %.6g percent\n",
-                     measured_flux, expected_flux,
-                     model.diagnostic("reaction-flux-error-percent"));
-      }
-      if (logfile) {
-        std::fprintf(logfile,
-                     "IAC surface flux: measured %.8e expected %.8e error %.6g percent\n",
-                     measured_flux, expected_flux,
-                     model.diagnostic("reaction-flux-error-percent"));
+      if (comm->me == 0) {
+        if (screen) {
+          std::fprintf(screen,
+                       "IAC surface flux: measured %.8e expected %.8e error %.6g percent\n",
+                       measured_flux, expected_flux,
+                       model.diagnostic("reaction-flux-error-percent"));
+        }
+        if (logfile) {
+          std::fprintf(logfile,
+                       "IAC surface flux: measured %.8e expected %.8e error %.6g percent\n",
+                       measured_flux, expected_flux,
+                       model.diagnostic("reaction-flux-error-percent"));
+        }
       }
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
@@ -714,9 +734,6 @@ void Surface::command(int narg, char **arg) {
         if (ave->size_per_surf_cols > 0 && !ave->array_surf) {
           error->all(FLERR, "surface write-vtp fix array data is not available");
         }
-        if (comm->nprocs != 1) {
-          error->all(FLERR, "surface write-vtp fix fields currently support one MPI rank");
-        }
         if (std::strcmp(arg[5], "fields") != 0) {
           error->all(FLERR, "surface write-vtp fix data requires fields <name...>");
         }
@@ -747,8 +764,11 @@ void Surface::command(int narg, char **arg) {
             }
           }
         }
+        reduce_surface_fields(sparta, surf, fields);
       }
-      IACBridge::model(sparta).write_surface_vtp(arg[1], arg[2], fields);
+      if (comm->me == 0) {
+        IACBridge::model(sparta).write_surface_vtp(arg[1], arg[2], fields);
+      }
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
     }

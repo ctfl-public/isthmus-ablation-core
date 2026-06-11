@@ -13,6 +13,7 @@ timestep            1.0e-7
 boundary            p p p
 create_box          -1.5e-3 1.5e-3 -1.5e-3 1.5e-3 -1.5e-3 1.5e-3
 create_grid         10 10 10
+balance_grid        rcb cell
 
 species             air.species O2
 mixture             gas O2 frac 1.0

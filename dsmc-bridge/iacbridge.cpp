@@ -10,6 +10,7 @@
 #include "surf.h"
 #include "update.h"
 
+#include <algorithm>
 #include <cstring>
 #include <cstdio>
 #include <memory>
@@ -62,7 +63,12 @@ iac::Model &model(SPARTA *sparta) {
     if (sparta->update->dt > 0.0) {
       cfg.timestep.value = sparta->update->dt;
     }
-    active_model.reset(new iac::Model(cfg));
+    iac::Config run_config = cfg;
+    if (sparta->comm->me != 0) {
+      run_config.dumps.clear();
+      run_config.surface_dumps.clear();
+    }
+    active_model.reset(new iac::Model(run_config));
     active_model->reset_run_state();
     last_coupling_step = sparta->update->ntimestep;
   }
@@ -95,6 +101,9 @@ void reset_stats_output() {
 }
 
 void write_to_dsmc_outputs(SPARTA *sparta, const std::string &text) {
+  if (sparta->comm->me != 0) {
+    return;
+  }
   if (sparta->screen) {
     std::fprintf(sparta->screen, "%s", text.c_str());
   }
@@ -141,12 +150,22 @@ void install_surface(SPARTA *sparta, const char *surface_id, int partflag, int t
     error->all(FLERR, "surface install currently supports 3d triangle surfaces only");
   }
 
-  Surf::Tri *tris =
-      static_cast<Surf::Tri *>(memory->smalloc(triangles.size() * sizeof(Surf::Tri),
-                                               "isthmus_ablation:tris"));
-  for (std::size_t i = 0; i < triangles.size(); ++i) {
+  const std::size_t total_triangles = triangles.size();
+  const std::size_t base = total_triangles / static_cast<std::size_t>(comm->nprocs);
+  const std::size_t extra = total_triangles % static_cast<std::size_t>(comm->nprocs);
+  const std::size_t first =
+      static_cast<std::size_t>(comm->me) * base +
+      std::min(static_cast<std::size_t>(comm->me), extra);
+  const std::size_t count = base + (static_cast<std::size_t>(comm->me) < extra ? 1 : 0);
+
+  Surf::Tri *tris = count > 0
+                        ? static_cast<Surf::Tri *>(memory->smalloc(
+                              count * sizeof(Surf::Tri), "isthmus_ablation:tris"))
+                        : nullptr;
+  for (std::size_t local = 0; local < count; ++local) {
+    const std::size_t i = first + local;
     const auto &src = triangles[i];
-    Surf::Tri &tri = tris[i];
+    Surf::Tri &tri = tris[local];
     tri.id = static_cast<surfint>(i + 1);
     tri.type = type;
     tri.mask = 1;
@@ -161,8 +180,10 @@ void install_surface(SPARTA *sparta, const char *surface_id, int partflag, int t
   const bigint nsurf_old = surf->nsurf;
   const int nsurf_old_mine = surf->distributed ? surf->nown : surf->nlocal;
   surf->exist = 1;
-  surf->add_surfs(0, static_cast<int>(triangles.size()), nullptr, tris, 0, nullptr, nullptr);
-  memory->sfree(tris);
+  surf->add_surfs(0, static_cast<int>(count), nullptr, tris, 0, nullptr, nullptr);
+  if (tris) {
+    memory->sfree(tris);
+  }
 
   surf->output_extent(nsurf_old_mine);
   surf->compute_tri_normal(nsurf_old_mine);

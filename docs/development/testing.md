@@ -73,10 +73,23 @@ That build runs the standalone/core tests plus:
 
 ```text
 dsmc-slab-direct-ablation-verification
+dsmc-slab-time-stop-verification
 dsmc-sphere-isthmus-normal-carryover-verification
 dsmc-sphere-flux-verification
 dsmc-sphere-kinetic-grid-convergence
 ```
+
+If CMake finds an MPI launcher and `IAC_ENABLE_MPI_TESTS` is left on, the DSMC
+build also adds small MPI variants:
+
+```text
+dsmc-mpi-slab-direct-ablation-verification
+dsmc-mpi-sphere-flux-verification
+```
+
+These run with `IAC_DSMC_MPI_NP` ranks, defaulting to `2`. If no MPI launcher
+is found, CMake prints a warning and skips only the MPI tests; the serial DSMC
+tests still run.
 
 The DSMC tests are intentionally modest. The flux verification is a one-step
 instantaneous kinetic-theory check: it verifies the initial O2 reaction count

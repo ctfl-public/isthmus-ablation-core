@@ -113,6 +113,7 @@ def write_input(template: str, path: Path, resolution: int,
       "create_grid",
       f"create_grid         {args.grid_cells} {args.grid_cells} {args.grid_cells}",
   )
+  text = replace_line(text, "balance_grid", "balance_grid        rcb cell")
   text = replace_line(text, "species", f"species             {species} O2")
   text = replace_line(
       text,

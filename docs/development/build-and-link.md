@@ -130,6 +130,32 @@ this repository creates a stable symlink:
 build-dsmc/bin/dsmc-iac -> build-dsmc/dsmc-overlay/src/spa_<machine>
 ```
 
+## MPI Test Discovery
+
+The DSMC overlay is built with the `mpi` DSMC machine target by default. CMake
+also looks for an MPI launcher such as `mpiexec` or `mpirun`. When one is
+available, the DSMC CTest suite includes both serial DSMC tests and small MPI
+variants. Configure the rank count with:
+
+```bash
+cmake --preset dsmc -DIAC_DSMC_MPI_NP=4
+```
+
+To point at a specific launcher:
+
+```bash
+cmake --preset dsmc \
+  -DIAC_MPIEXEC_EXECUTABLE=/path/to/mpiexec \
+  -DIAC_MPIEXEC_NUMPROC_FLAG=-n
+```
+
+If no launcher is found, CMake warns and skips only the MPI tests. Disable MPI
+test registration explicitly with:
+
+```bash
+cmake --preset dsmc -DIAC_ENABLE_MPI_TESTS=OFF
+```
+
 ## How The Overlay Works
 
 The `dsmc` target creates:
