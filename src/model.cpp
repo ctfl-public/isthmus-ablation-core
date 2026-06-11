@@ -37,46 +37,77 @@ std::string format_error(const std::string &quantity, double error, double toler
 
 const std::vector<std::string> &default_stats_columns() {
   static const std::vector<std::string> columns{
-      "step", "time", "active-voxels", "deleted-voxels", "remaining-mass",
-      "mass-fraction", "volume-fraction", "front", "radius"};
+      "step", "time", "nvox", "ndel", "mass", "mf", "vf", "front", "rad"};
   return columns;
 }
 
+std::string canonical_quantity(const std::string &quantity) {
+  static const std::unordered_map<std::string, std::string> aliases{
+      {"nvox", "nvox"},
+      {"ndel", "ndel"},
+      {"mass", "mass"},
+      {"mf", "mf"},
+      {"vf", "vf"},
+      {"rad", "rad"},
+      {"mass0", "mass0"},
+      {"rad0", "rad0"},
+      {"mvox", "mvox"},
+      {"nvox0", "nvox0"},
+      {"mreq", "mreq"},
+      {"mapp", "mapp"},
+      {"mdrop", "mdrop"},
+      {"area", "area"},
+      {"area-exact", "area-exact"},
+      {"area-errpct", "area-errpct"},
+      {"nreact", "nreact"},
+      {"nreact-exact", "nreact-exact"},
+      {"rflux", "rflux"},
+      {"rflux-exact", "rflux-exact"},
+      {"rflux-ratio", "rflux-ratio"},
+      {"rflux-errpct", "rflux-errpct"},
+      {"rmflux", "rmflux"},
+      {"rmflux-exact", "rmflux-exact"},
+  };
+  const auto found = aliases.find(quantity);
+  return found == aliases.end() ? quantity : found->second;
+}
+
 double history_value(const HistoryRow &row, const std::string &column) {
-  if (column == "step") {
+  const std::string quantity = canonical_quantity(column);
+  if (quantity == "step") {
     return static_cast<double>(row.step);
   }
-  if (column == "time") {
+  if (quantity == "time") {
     return row.time;
   }
-  if (column == "active-voxels") {
+  if (quantity == "nvox") {
     return static_cast<double>(row.active_voxels);
   }
-  if (column == "deleted-voxels") {
+  if (quantity == "ndel") {
     return static_cast<double>(row.deleted_voxels);
   }
-  if (column == "remaining-mass" || column == "mass") {
+  if (quantity == "mass") {
     return row.remaining_mass;
   }
-  if (column == "mass-fraction") {
+  if (quantity == "mf") {
     return row.mass_fraction;
   }
-  if (column == "volume-fraction" || column == "voxel-volume-fraction") {
+  if (quantity == "vf") {
     return row.volume_fraction;
   }
-  if (column == "front") {
+  if (quantity == "front") {
     return row.front;
   }
-  if (column == "radius") {
+  if (quantity == "rad") {
     return row.radius;
   }
-  if (column == "requested-mass-step") {
+  if (quantity == "mreq") {
     return row.requested_mass_step;
   }
-  if (column == "applied-mass-step") {
+  if (quantity == "mapp") {
     return row.applied_mass_step;
   }
-  if (column == "dropped-mass-step") {
+  if (quantity == "mdrop") {
     return row.dropped_mass_step;
   }
   throw RuntimeError("unknown stats_style column '" + column + "'");
@@ -87,10 +118,7 @@ int stats_column_width(const std::string &column) {
 }
 
 std::string normalize_quantity(std::string quantity) {
-  if (quantity == "mass") {
-    return "remaining-mass";
-  }
-  return quantity;
+  return canonical_quantity(quantity);
 }
 
 double verification_error(double actual, double exact, const VerificationCheck &check) {
@@ -345,7 +373,7 @@ void Model::set_timestep_from_triangle_fluxes(const std::string &surface_name,
   const double dt = courant * voxel_mass_ / max_voxel_mass_rate;
   set_diagnostic("surface-mass-courant", courant);
   set_diagnostic("surface-max-face-flux", equivalent_face_flux);
-  set_diagnostic("surface-max-voxel-mass-rate", max_voxel_mass_rate);
+  set_diagnostic("surface-max-mvox-rate", max_voxel_mass_rate);
   set_diagnostic("surface-mass-courant-dt", dt);
   set_timestep(dt);
 }
@@ -1397,9 +1425,7 @@ void Model::write_history(const std::string &path) const {
   if (!out) {
     throw RuntimeError("could not write history file '" + path + "'");
   }
-  out << "step,time,active-voxels,deleted-voxels,remaining-mass,"
-      << "mass-fraction,volume-fraction,front,radius,requested-mass-step,applied-mass-step,"
-      << "dropped-mass-step\n";
+  out << "step,time,nvox,ndel,mass,mf,vf,front,rad,mreq,mapp,mdrop\n";
   out << std::setprecision(17);
   for (const auto &row : history_) {
     out << row.step << ',' << row.time << ',' << row.active_voxels << ','
@@ -1416,7 +1442,8 @@ void Model::write_voxels_vtu(const std::string &path, const std::string &select,
       select != "ghosts") {
     throw RuntimeError("voxel write-vtu select must be all, active, ghosted, or ghosts");
   }
-  if (scalar != "mass-fraction" && scalar != "remaining-mass" && scalar != "active" &&
+  const std::string canonical_scalar = canonical_quantity(scalar);
+  if (canonical_scalar != "mf" && canonical_scalar != "mass" && scalar != "active" &&
       scalar != "fixed" && scalar != "id" && scalar != "ix" && scalar != "iy" &&
       scalar != "iz" && scalar != "ghost") {
     throw RuntimeError("unknown voxel write-vtu scalar '" + scalar + "'");
@@ -1428,7 +1455,7 @@ void Model::write_voxels_vtu(const std::string &path, const std::string &select,
   dump.every = 1;
   dump.path = path;
   dump.select = select;
-  dump.scalar = scalar;
+  dump.scalar = canonical_scalar;
   write_vtu(dump, current_step_);
 }
 
@@ -1530,14 +1557,14 @@ void Model::write_vtu(const VoxelDump &dump, int step) const {
   out << "      </Cells>\n";
 
   out << "      <CellData Scalars=\"" << dump.scalar << "\">\n";
-  out << "        <DataArray type=\"Float64\" Name=\"mass-fraction\" format=\"ascii\">\n";
+  out << "        <DataArray type=\"Float64\" Name=\"mf\" format=\"ascii\">\n";
   for (const auto &record : selected) {
     const auto *voxel = record.voxel;
     out << "          " << (voxel_mass_ > 0.0 ? voxel->remaining_mass / voxel_mass_ : 0.0)
         << '\n';
   }
   out << "        </DataArray>\n";
-  out << "        <DataArray type=\"Float64\" Name=\"remaining-mass\" format=\"ascii\">\n";
+  out << "        <DataArray type=\"Float64\" Name=\"mass\" format=\"ascii\">\n";
   for (const auto &record : selected) {
     out << "          " << record.voxel->remaining_mass << '\n';
   }
@@ -1638,17 +1665,17 @@ void Model::write_vtp(const SurfaceDump &dump, int step,
     out << "          " << triangle.area << '\n';
   }
   out << "        </DataArray>\n";
-  out << "        <DataArray type=\"Float64\" Name=\"requested-mass\" format=\"ascii\">\n";
+  out << "        <DataArray type=\"Float64\" Name=\"mreq\" format=\"ascii\">\n";
   for (const auto &triangle : triangles) {
     out << "          " << triangle.requested_mass << '\n';
   }
   out << "        </DataArray>\n";
-  out << "        <DataArray type=\"Float64\" Name=\"last-requested-mass\" format=\"ascii\">\n";
+  out << "        <DataArray type=\"Float64\" Name=\"mreq-last\" format=\"ascii\">\n";
   for (const auto &triangle : triangles) {
     out << "          " << triangle.last_requested_mass << '\n';
   }
   out << "        </DataArray>\n";
-  out << "        <DataArray type=\"Float64\" Name=\"mass-flux\" format=\"ascii\">\n";
+  out << "        <DataArray type=\"Float64\" Name=\"mflux\" format=\"ascii\">\n";
   for (const auto &triangle : triangles) {
     const double flux = triangle.area > 0.0 && dt_ > 0.0
                             ? triangle.requested_mass / (triangle.area * dt_)
@@ -1656,7 +1683,7 @@ void Model::write_vtp(const SurfaceDump &dump, int step,
     out << "          " << flux << '\n';
   }
   out << "        </DataArray>\n";
-  out << "        <DataArray type=\"Float64\" Name=\"last-mass-flux\" format=\"ascii\">\n";
+  out << "        <DataArray type=\"Float64\" Name=\"mflux-last\" format=\"ascii\">\n";
   for (const auto &triangle : triangles) {
     const double flux = triangle.area > 0.0 && dt_ > 0.0
                             ? triangle.last_requested_mass / (triangle.area * dt_)
@@ -1720,37 +1747,21 @@ void Model::write_verification_csv(const std::string &path) const {
           {"nz", static_cast<double>(grid_nz())},
           {"length", length},
           {"diameter", config_.sphere.diameter},
-          {"initial-radius", initial_radius},
-          {"initial_radius", initial_radius},
-          {"radius", row.radius},
+          {"rad0", initial_radius},
+          {"rad", row.radius},
           {"area", area},
-          {"initial-mass", initial_mass_},
-          {"initial_mass", initial_mass_},
-          {"voxel-mass", voxel_mass_},
-          {"voxel_mass", voxel_mass_},
-          {"initial-active-voxels", static_cast<double>(initial_active_voxels_)},
-          {"initial_active_voxels", static_cast<double>(initial_active_voxels_)},
-          {"active-voxels", static_cast<double>(row.active_voxels)},
-          {"active_voxels", static_cast<double>(row.active_voxels)},
-          {"deleted-voxels", static_cast<double>(row.deleted_voxels)},
-          {"deleted_voxels", static_cast<double>(row.deleted_voxels)},
-          {"remaining-mass", row.remaining_mass},
-          {"remaining_mass", row.remaining_mass},
+          {"mass0", initial_mass_},
+          {"mvox", voxel_mass_},
+          {"nvox0", static_cast<double>(initial_active_voxels_)},
+          {"nvox", static_cast<double>(row.active_voxels)},
+          {"ndel", static_cast<double>(row.deleted_voxels)},
           {"mass", row.remaining_mass},
-          {"mass-fraction", row.mass_fraction},
-          {"mass_fraction", row.mass_fraction},
-          {"volume-fraction", row.volume_fraction},
-          {"volume_fraction", row.volume_fraction},
-          {"voxel-volume-fraction", row.volume_fraction},
-          {"voxel_volume_fraction", row.volume_fraction},
+          {"mf", row.mass_fraction},
+          {"vf", row.volume_fraction},
           {"front", row.front},
-          {"radius", row.radius},
-          {"requested-mass-step", row.requested_mass_step},
-          {"requested_mass_step", row.requested_mass_step},
-          {"applied-mass-step", row.applied_mass_step},
-          {"applied_mass_step", row.applied_mass_step},
-          {"dropped-mass-step", row.dropped_mass_step},
-          {"dropped_mass_step", row.dropped_mass_step},
+          {"mreq", row.requested_mass_step},
+          {"mapp", row.applied_mass_step},
+          {"mdrop", row.dropped_mass_step},
           {config_.source.name, config_.source.value},
           {"source:" + config_.source.name, config_.source.value},
       };
@@ -1811,36 +1822,21 @@ double Model::verification_error(const VerificationCheck &check) const {
         {"nz", static_cast<double>(grid_nz())},
         {"length", length},
         {"diameter", config_.sphere.diameter},
-        {"initial-radius", initial_radius},
-        {"initial_radius", initial_radius},
-        {"radius", row.radius},
+        {"rad0", initial_radius},
+        {"rad", row.radius},
         {"area", area},
-        {"initial-mass", initial_mass_},
-        {"initial_mass", initial_mass_},
-        {"voxel-mass", voxel_mass_},
-        {"voxel_mass", voxel_mass_},
-        {"initial-active-voxels", static_cast<double>(initial_active_voxels_)},
-        {"initial_active_voxels", static_cast<double>(initial_active_voxels_)},
-        {"active-voxels", static_cast<double>(row.active_voxels)},
-        {"active_voxels", static_cast<double>(row.active_voxels)},
-        {"deleted-voxels", static_cast<double>(row.deleted_voxels)},
-        {"deleted_voxels", static_cast<double>(row.deleted_voxels)},
-        {"remaining-mass", row.remaining_mass},
-        {"remaining_mass", row.remaining_mass},
+        {"mass0", initial_mass_},
+        {"mvox", voxel_mass_},
+        {"nvox0", static_cast<double>(initial_active_voxels_)},
+        {"nvox", static_cast<double>(row.active_voxels)},
+        {"ndel", static_cast<double>(row.deleted_voxels)},
         {"mass", row.remaining_mass},
-        {"mass-fraction", row.mass_fraction},
-        {"mass_fraction", row.mass_fraction},
-        {"volume-fraction", row.volume_fraction},
-        {"volume_fraction", row.volume_fraction},
-        {"voxel-volume-fraction", row.volume_fraction},
-        {"voxel_volume_fraction", row.volume_fraction},
+        {"mf", row.mass_fraction},
+        {"vf", row.volume_fraction},
         {"front", row.front},
-        {"requested-mass-step", row.requested_mass_step},
-        {"requested_mass_step", row.requested_mass_step},
-        {"applied-mass-step", row.applied_mass_step},
-        {"applied_mass_step", row.applied_mass_step},
-        {"dropped-mass-step", row.dropped_mass_step},
-        {"dropped_mass_step", row.dropped_mass_step},
+        {"mreq", row.requested_mass_step},
+        {"mapp", row.applied_mass_step},
+        {"mdrop", row.dropped_mass_step},
         {config_.source.name, config_.source.value},
         {"source:" + config_.source.name, config_.source.value},
     };
@@ -1900,30 +1896,20 @@ double Model::diagnostic_verification_error(const VerificationCheck &check) cons
   variables["density"] = config_.material.density;
   if (config_.geometry == GeometryKind::Sphere) {
     variables["diameter"] = config_.sphere.diameter;
-    variables["initial-radius"] = 0.5 * config_.sphere.diameter;
-    variables["initial_radius"] = 0.5 * config_.sphere.diameter;
+    variables["rad0"] = 0.5 * config_.sphere.diameter;
   }
-  variables["initial-mass"] = initial_mass_;
-  variables["initial_mass"] = initial_mass_;
-  variables["voxel-mass"] = voxel_mass_;
-  variables["voxel_mass"] = voxel_mass_;
-  variables["initial-active-voxels"] = static_cast<double>(initial_active_voxels_);
-  variables["initial_active_voxels"] = static_cast<double>(initial_active_voxels_);
+  variables["mass0"] = initial_mass_;
+  variables["mvox"] = voxel_mass_;
+  variables["nvox0"] = static_cast<double>(initial_active_voxels_);
   if (!history_.empty()) {
     const auto &row = history_.back();
-    variables["active-voxels"] = static_cast<double>(row.active_voxels);
-    variables["active_voxels"] = static_cast<double>(row.active_voxels);
-    variables["deleted-voxels"] = static_cast<double>(row.deleted_voxels);
-    variables["deleted_voxels"] = static_cast<double>(row.deleted_voxels);
-    variables["remaining-mass"] = row.remaining_mass;
-    variables["remaining_mass"] = row.remaining_mass;
+    variables["nvox"] = static_cast<double>(row.active_voxels);
+    variables["ndel"] = static_cast<double>(row.deleted_voxels);
     variables["mass"] = row.remaining_mass;
-    variables["mass-fraction"] = row.mass_fraction;
-    variables["mass_fraction"] = row.mass_fraction;
-    variables["volume-fraction"] = row.volume_fraction;
-    variables["volume_fraction"] = row.volume_fraction;
+    variables["mf"] = row.mass_fraction;
+    variables["vf"] = row.volume_fraction;
     variables["front"] = row.front;
-    variables["radius"] = row.radius;
+    variables["rad"] = row.radius;
   }
   if (!config_.source.name.empty()) {
     variables[config_.source.name] = config_.source.value;
@@ -1993,8 +1979,8 @@ void Model::print_row(std::ostream &out, const HistoryRow &row) const {
     }
     const int width = stats_column_width(columns[i]);
     const double value = history_value(row, columns[i]);
-    if (columns[i] == "step" || columns[i] == "active-voxels" ||
-        columns[i] == "deleted-voxels") {
+    const std::string quantity = canonical_quantity(columns[i]);
+    if (quantity == "step" || quantity == "nvox" || quantity == "ndel") {
       out << std::setw(width) << static_cast<long long>(value);
     } else {
       out << std::setw(width) << std::defaultfloat << value;

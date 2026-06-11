@@ -128,10 +128,10 @@ variable ablation_time equal 4.0e-3
 variable keep internal 1
 
 iac_stats 1
-iac_stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction front
+iac_stats_style step time nvox ndel mass mf vf front
 
 voxel_dump hist solid history 1 output/slab-direct-ablation/history.csv
-voxel_dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mass-fraction
+voxel_dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mf
 
 label ablate-loop
 iac_limit time ${ablation_time}

@@ -11,10 +11,10 @@ variable            ablation_time equal 2.25e-1
 variable            keep internal 1
 
 iac_stats           1
-iac_stats_style     step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction radius
+iac_stats_style     step time nvox ndel mass mf vf rad
 
 voxel_dump          hist solid history 1 output/sphere-isthmus-local/history.csv
-voxel_dump          vox solid vtu 1 output/sphere-isthmus-local/voxels_*.vtu select active scalar mass-fraction
+voxel_dump          vox solid vtu 1 output/sphere-isthmus-local/voxels_*.vtu select active scalar mf
 surf_dump           skin skin vtp 1 output/sphere-isthmus-local/surface_*.vtp
 
 label               ablate-loop

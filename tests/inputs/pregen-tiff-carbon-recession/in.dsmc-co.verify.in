@@ -63,5 +63,5 @@ label               done
 
 voxel_write_history solid @BINARY_DIR@/output/pregen-tiff-carbon-recession-dsmc-co/history.csv
 
-iac_verify          mass-fraction exact "0.70" tolerance 5.0 percent norm final
-iac_verify          volume-fraction exact "0.75" tolerance 5.0 percent norm final
+iac_verify          mf exact "0.70" tolerance 5.0 percent norm final
+iac_verify          vf exact "0.75" tolerance 5.0 percent norm final

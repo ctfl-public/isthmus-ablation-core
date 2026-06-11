@@ -24,8 +24,10 @@ voxel_create        solid tiff file carbon-sample.tif dx 2.5e-5 material carbon
 voxel_ghost         solid axis y boundary infinite layers 1
 voxel_ghost         solid axis z boundary infinite layers 1
 voxel_ghost         solid axis x side lo boundary infinite layers 1
-voxel_dump          vox solid vtu 1 output/pregen-tiff-carbon-recession/dsmc-voxels_*.vtu select active scalar mass-fraction
-voxel_dump          ghost solid vtu 1 output/pregen-tiff-carbon-recession/dsmc-ghosts_*.vtu select ghosts scalar mass-fraction
+voxel_dump          vox solid vtu 1 output/pregen-tiff-carbon-recession/dsmc-voxels_*.vtu &
+                      select active scalar mf
+voxel_dump          ghost solid vtu 1 output/pregen-tiff-carbon-recession/dsmc-ghosts_*.vtu &
+                      select ghosts scalar mf
 surf_dump           skin skin vtp 1 output/pregen-tiff-carbon-recession/dsmc-surface_*.vtp
 
 isthmus_surface     skin voxels solid buffer 2 weighting no map yes
@@ -45,14 +47,16 @@ fix                 gasave ave/grid all 1 100 100 c_gas[*] c_frac[*] ave one
 
 create_particles    air n 0 twopass
 fix                 inlet emit/face air xhi twopass
-grid_write_vtu      gasave output/pregen-tiff-carbon-recession/fluid_*.vtu index iac-step fields temperature pressure mass-fraction-O2 mass-fraction-N2 mass-fraction-CO
-grid_dump           fluid gasave vtu 1 output/pregen-tiff-carbon-recession/fluid_*.vtu index iac-step fields temperature pressure mass-fraction-O2 mass-fraction-N2 mass-fraction-CO
+grid_write_vtu      gasave output/pregen-tiff-carbon-recession/fluid_*.vtu &
+                      index iac-step fields T p mf-O2 mf-N2 mf-CO
+grid_dump           fluid gasave vtu 1 output/pregen-tiff-carbon-recession/fluid_*.vtu &
+                      index iac-step fields T p mf-O2 mf-N2 mf-CO
 
 stats_style         step cpu np nscoll nscheck nsreact
 stats_modify        flush yes
 stats               100000
 iac_stats           1
-iac_stats_style     step time active-voxels deleted-voxels mass-fraction volume-fraction applied-mass-step dropped-mass-step
+iac_stats_style     step time nvox ndel mf vf mapp mdrop
 
 variable            ablation_time equal 2.0e-7
 variable            keep internal 1
@@ -60,7 +64,9 @@ label               coupled-loop
 
   run               100 post no every 25 "iac_spa_stats"
 
-  surf_flux         skin dsmc/reaction fix rco column 1 sample-steps 100 reaction carbon-co.surf mass-courant 1.0 select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
+  surf_flux         skin dsmc/reaction fix rco column 1 sample-steps 100 &
+                      reaction carbon-co.surf mass-courant 1.0 &
+                      select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
   iac_limit         time ${ablation_time}
   voxel_ablate      solid surface skin policy carryover/normal delete yes
   iac_run           1

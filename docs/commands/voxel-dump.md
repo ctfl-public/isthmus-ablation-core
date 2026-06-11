@@ -21,10 +21,10 @@ voxel_write_vtu <model> <path> [select all|active|ghosted|ghosts] [scalar <field
 
 ```text
 voxel_dump hist solid history 1 output/slab-direct-ablation/history.csv
-voxel_dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mass-fraction
+voxel_dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mf
 voxel_dump off
 
-voxel_write_vtu solid output/voxels-*.vtu select active scalar mass-fraction
+voxel_write_vtu solid output/voxels-*.vtu select active scalar mf
 ```
 
 ## Description
@@ -64,8 +64,8 @@ The `scalar` option sets the active VTK cell scalar. This is the field ParaView
 should choose first when the file opens. Supported values are:
 
 ```text
-mass-fraction
-remaining-mass
+mf
+mass
 active
 fixed
 ghost
@@ -75,7 +75,7 @@ iy
 iz
 ```
 
-The default is `scalar mass-fraction`.
+The default is `scalar mf`.
 
 Inside DSMC, scheduled `voxel_dump` output is written whenever a bridge command
 advances the core step, for example after `voxel_ablate`. This is useful for
@@ -91,9 +91,9 @@ step number is inserted before the file extension.
 ## History Columns
 
 ```text
-step,time,active-voxels,deleted-voxels,remaining-mass,mass-fraction,
-volume-fraction,front,radius,requested-mass-step,applied-mass-step,
-dropped-mass-step
+step,time,nvox,ndel,mass,mf,
+vf,front,rad,mreq,mapp,
+mdrop
 ```
 
 ## VTU Cell Data
@@ -101,8 +101,8 @@ dropped-mass-step
 The VTU dump writes hexahedral voxel cells with:
 
 ```text
-mass-fraction
-remaining-mass
+mf
+mass
 id
 ix
 iy
@@ -112,8 +112,8 @@ fixed
 ghost
 ```
 
-Use `active` for thresholding deleted voxels and `mass-fraction` or
-`remaining-mass` for coloring ablation progress in ParaView. Use `ghost` to
+Use `active` for thresholding deleted voxels and `mf` or
+`mass` for coloring ablation progress in ParaView. Use `ghost` to
 hide or recolor mirror voxels that were emitted for boundary inspection.
 
 ## Planned Extensions

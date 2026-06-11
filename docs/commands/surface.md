@@ -138,12 +138,12 @@ mass rate over the sampled DSMC window:
 
 ```text
 mass = reaction-count * sample-steps * fnum * solid-mass-per-reaction
-mass-flux = mass / (triangle-area * sample-steps * DSMC-timestep)
+mflux = mass / (triangle-area * sample-steps * DSMC-timestep)
 ```
 
 The solid timestep is then chosen by `ablation-dt`, `mass-courant`, or the
 sampled DSMC time when neither is specified. The requested triangle mass is
-`mass-flux * triangle-area * solid-timestep`. This is the preferred path for
+`mflux * triangle-area * solid-timestep`. This is the preferred path for
 chemically reacting DSMC ablation because SPARTA owns the surface reaction
 probability, species conversion, and reaction tallies, while IAC owns the solid
 timestep and voxel mass ledger. Prefer `reaction <path>` so the solid mass per
@@ -155,7 +155,7 @@ not apply mass loss. It sums the sampled reactions over the installed surface,
 converts them to a number flux with:
 
 ```text
-reaction-flux = sum(reaction-count) * fnum / (surface-area * DSMC-timestep)
+rflux = sum(reaction-count) * fnum / (area * DSMC-timestep)
 ```
 
 and stores scalar diagnostics that can be checked later with `iac_verify`.
@@ -163,15 +163,15 @@ The `expected kinetic/theory` arguments compute the ideal-gas one-way
 impingement flux for a reactive species:
 
 ```text
-expected-reaction-flux =
+rflux-exact =
   reaction-prob * mole-fraction * number-density
   * sqrt(kB*temperature/(2*pi*molecular-mass))
 ```
 
-The command also stores `reaction-count-per-step` and
-`expected-reaction-count-per-step`, which are often the clearest DSMC sampling
+The command also stores `nreact` and
+`nreact-exact`, which are often the clearest DSMC sampling
 diagnostics. If `reaction` or `solid-mass-per-reaction` is supplied, it
-additionally stores `reaction-mass-flux` and `expected-reaction-mass-flux` in
+additionally stores `rmflux` and `rmflux-exact` in
 kg/m2/s by multiplying the number flux by the inferred or supplied solid mass
 consumed per reaction.
 
@@ -203,8 +203,8 @@ ownership fractions. The limiting rate is then converted to an equivalent
 voxel-face flux:
 
 ```text
-equivalent-face-flux = max(voxel-mass-rate) / voxel-size^2
-dt = C * voxel-mass / max(voxel-mass-rate)
+equivalent-face-flux = max(mvox-rate) / voxel-size^2
+dt = C * mvox / max(mvox-rate)
 ```
 
 This is the same nondimensional definition as `iac_timestep
@@ -231,9 +231,9 @@ Selectors:
   voxel groups and material subsets.
 
 `surf_dump` writes VTP triangle files on scheduled run steps. The VTP cell
-data includes `area`, `requested-mass`, `last-requested-mass`, `mass-flux`,
-`last-mass-flux`, and `selected`. The `last-*` fields are useful for visual
-inspection because `requested-mass` is cleared after `voxel_ablate` consumes
+data includes `area`, `mreq`, `mreq-last`, `mflux`,
+`mflux-last`, and `selected`. The `last-*` fields are useful for visual
+inspection because `mreq` is cleared after `voxel_ablate` consumes
 it. `selected = 1` marks triangles that received flux during the most recent
 surface-flux command.
 

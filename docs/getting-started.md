@@ -147,7 +147,7 @@ output/slab-direct-ablation/voxels_000001.vtu
 ```
 
 Open VTU/VTP files directly in ParaView. The examples usually write active
-voxels only and select `mass-fraction` as the first visible cell scalar.
+voxels only and select `mf` as the first visible cell scalar.
 
 ## Rebuild The Manual
 

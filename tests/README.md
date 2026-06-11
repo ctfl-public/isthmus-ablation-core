@@ -70,8 +70,8 @@ flux into per-triangle carbon mass flux, maps it back to voxels, applies
 normal-directed carryover, deletes depleted voxels, regenerates the ISTHMUS
 surface, and repeats to a fixed physical ablation time.
 
-The checker compares the final mass fraction, voxelized volume fraction, and
-radius against the continuum sphere solution:
+The checker compares final `mf`, `vf`, and `rad` against the
+continuum sphere solution:
 
 ```text
 Gamma = n*sqrt(kB*T/(2*pi*m))
@@ -81,7 +81,7 @@ m/m0 = (R/R0)^3
 ```
 
 The pass/fail criterion is intentionally regression-test sized: the finest grid
-must satisfy the configured percent-error tolerances, and the mass-fraction
+must satisfy the configured percent-error tolerances, and the mf
 error must improve from the coarsest grid to the finest grid. The output summary
 is written to:
 

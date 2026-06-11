@@ -14,7 +14,7 @@ iac_spa_stats
 
 ```text
 iac_stats 1
-iac_stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction front
+iac_stats_style step time nvox ndel mass mf vf front
 ```
 
 ## Description
@@ -31,16 +31,16 @@ iac_stats table.
 ```text
 step
 time
-active-voxels
-deleted-voxels
-remaining-mass
-mass-fraction
-volume-fraction
-radius
+nvox
+ndel
+mass
+mf
+vf
+rad
 front
-requested-mass-step
-applied-mass-step
-dropped-mass-step
+mreq
+mapp
+mdrop
 ```
 
 ## DSMC/SPARTA Note
@@ -50,7 +50,7 @@ ablation table:
 
 ```text
 iac_stats 1
-iac_stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction radius
+iac_stats_style step time nvox ndel mass mf rad
 ```
 
 These commands do not change DSMC's native `stats` or `stats_style` settings.

@@ -97,7 +97,7 @@ For pure O2, the one-way thermal impingement flux is:
 Gamma = n * sqrt(kB*T/(2*pi*m-O2))
 j = Gamma * reaction-probability * solid-mass-per-hit
 R(t) = R0 - j*t/rho-solid
-mass-fraction = (R/R0)^3
+mf = (R/R0)^3
 ```
 
 The example writes:
@@ -108,7 +108,7 @@ examples/dsmc-sphere-kinetic/output/voxels_*.vtu
 examples/dsmc-sphere-kinetic/output/surface_*.vtp
 ```
 
-The VTU files show active voxels with `mass-fraction` as the selected cell
+The VTU files show active voxels with `mf` as the selected cell
 field, including the initial voxel state. The VTP files show regenerated
 ISTHMUS triangle surfaces after solid ablation steps.
 
@@ -122,7 +122,7 @@ python3 ../../tools/check-dsmc-kinetic.py output/history.csv \
   --solid-density 1800 \
   --solid-molar-mass 0.0120107 \
   --solid-atoms-per-hit 1 \
-  --initial-radius 5e-4
+  --rad0 5e-4
 ```
 
 ## Chemistry Note

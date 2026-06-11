@@ -31,16 +31,16 @@ surf_measure_flux skin dsmc/reaction fix rco column 1 sample-steps 1 \
   expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 \
   temperature 5000.0 molecular-mass 5.31352e-26 reaction carbon-co.surf
 
-iac_verify surface-area exact expected-surface-area tolerance 2.0 percent
-iac_verify reaction-count-per-step exact expected-reaction-count-per-step tolerance 5.0 percent
-iac_verify reaction-mass-flux exact expected-reaction-mass-flux tolerance 5.0 percent
-iac_set fluxerr diagnostic reaction-flux-error-percent
+iac_verify area exact area-exact tolerance 2.0 percent
+iac_verify nreact exact nreact-exact tolerance 5.0 percent
+iac_verify rmflux exact rmflux-exact tolerance 5.0 percent
+iac_set fluxerr diagnostic rflux-errpct
 print "reaction flux error = ${fluxerr} percent"
 
 source q1 constant 1.8 units kg/m2/s
 iac_timestep mass/courant 0.5 source q1
 iac_stats 1
-iac_stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction front
+iac_stats_style step time nvox ndel mass mf front
 
 variable keep internal 1
 label ablate-loop
@@ -120,17 +120,17 @@ tolerance modes as the standalone `iac_verify` command. The exact expression can
 refer to diagnostics registered by earlier bridge commands. For example,
 `surf_measure_flux` registers:
 
-- `surface-area`
-- `expected-surface-area`
-- `surface-area-error-percent`
-- `reaction-count-per-step`
-- `expected-reaction-count-per-step`
-- `reaction-flux`
-- `expected-reaction-flux`
-- `reaction-flux-ratio`
-- `reaction-flux-error-percent`
-- `reaction-mass-flux`, when `reaction` or `solid-mass-per-reaction` is provided
-- `expected-reaction-mass-flux`, when `reaction` or `solid-mass-per-reaction` is provided
+- `area`
+- `area-exact`
+- `area-errpct`
+- `nreact`
+- `nreact-exact`
+- `rflux`
+- `rflux-exact`
+- `rflux-ratio`
+- `rflux-errpct`
+- `rmflux`, when `reaction` or `solid-mass-per-reaction` is provided
+- `rmflux-exact`, when `reaction` or `solid-mass-per-reaction` is provided
 
 The DSMC flux verification in `tests/inputs/dsmc-sphere-flux` is deliberately
 an instantaneous one-step test. It checks the initial kinetic-theory O2
@@ -139,7 +139,7 @@ surface depletes the nearby O2 population. Longer depletion and coupled
 ablation cases belong in examples and report targets, not the default test
 suite.
 
-History-based quantities such as `mass-fraction`, `front`, and `radius` can be
+History-based quantities such as `mf`, `front`, and `rad` can be
 checked with `norm final`, `norm max`, or `norm rms` once the bridge has
 advanced at least one IAC step. Scalar diagnostics registered by bridge
 commands are checked directly.

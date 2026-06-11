@@ -153,6 +153,7 @@
 
 (defvar iac-input-font-lock-keywords
   `(("^[[:space:]]*#.*$" . font-lock-comment-face)
+    ("\\(&\\)\\s-*\\(?:#.*\\)?$" 1 font-lock-preprocessor-face)
     (,(concat "^\\s-*\\(" (regexp-opt iac-input-iac-commands t) "\\)\\_>")
      1 font-lock-keyword-face)
     (,(concat "^\\s-*\\(" (regexp-opt iac-input-sparta-commands t) "\\)\\_>")
@@ -176,7 +177,7 @@
            (not (string-prefix-p "#" line))
            (save-excursion
              (forward-line -1)
-             (string-suffix-p "\\"
+             (string-suffix-p "&"
                               (string-trim-right
                                (buffer-substring-no-properties
                                 (line-beginning-position)

@@ -31,13 +31,13 @@ def main() -> int:
     parser.add_argument("--solid-molar-mass", type=float, default=0.0120107)
     parser.add_argument("--solid-atoms-per-hit", type=float, default=2.0)
     parser.add_argument("--reaction-prob", type=float, default=1.0)
-    parser.add_argument("--initial-radius", type=float, required=True)
+    parser.add_argument("--rad0", type=float, required=True)
     parser.add_argument("--tolerance-percent", type=float, default=None)
     args = parser.parse_args()
 
     row = read_last_row(args.history)
     time = float(row["time"])
-    actual = float(row["mass-fraction"])
+    actual = float(row["mf"])
 
     gamma = args.number_density * math.sqrt(KB * args.temperature /
                                             (2.0 * math.pi * args.molecular_mass))
@@ -46,13 +46,13 @@ def main() -> int:
         solid_mass_per_hit = args.solid_atoms_per_hit * args.solid_molar_mass / AVOGADRO
     flux = gamma * args.reaction_prob * solid_mass_per_hit
     speed = flux / args.solid_density
-    radius = max(args.initial_radius - speed * time, 0.0)
-    exact = (radius / args.initial_radius) ** 3
+    radius = max(args.rad0 - speed * time, 0.0)
+    exact = (radius / args.rad0) ** 3
     error = math.inf if exact == 0.0 else 100.0 * abs(actual - exact) / abs(exact)
 
     print(f"time = {time:.17g}")
-    print(f"mass-fraction actual = {actual:.17g}")
-    print(f"mass-fraction exact = {exact:.17g}")
+    print(f"mf actual = {actual:.17g}")
+    print(f"mf exact = {exact:.17g}")
     print(f"error = {error:.6g} percent")
     print(f"continuum number flux = {gamma:.17g} 1/m2/s")
     print(f"continuum mass flux = {flux:.17g} kg/m2/s")

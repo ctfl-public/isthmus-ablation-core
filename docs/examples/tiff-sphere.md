@@ -75,8 +75,8 @@ imported as arbitrary TIFF geometry, the exact expression computes an
 equivalent initial radius from the imported initial mass:
 
 ```text
-R0 = (3*initial-mass/(4*pi*rho))^(1/3)
-mass-fraction = ((R0 - q1*time/rho) / R0)^3
+R0 = (3*mass0/(4*pi*rho))^(1/3)
+mf = ((R0 - q1*time/rho) / R0)^3
 ```
 
 This case verifies two things at once: the TIFF import path uses

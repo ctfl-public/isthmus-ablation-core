@@ -283,32 +283,60 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
   include_stack.push_back(canonical_path);
 
   std::string line;
+  std::string logical_line;
+  int logical_line_number = 0;
   int line_number = 0;
   bool pending_continue = false;
   double pending_continue_time = 0.0;
   while (std::getline(input, line)) {
     ++line_number;
+    std::string stripped = strip_comment(line);
+    stripped.erase(stripped.find_last_not_of(" \t\r\n") + 1);
+    bool continued = false;
+    if (!stripped.empty() && stripped.back() == '&') {
+      stripped.pop_back();
+      stripped.erase(stripped.find_last_not_of(" \t\r\n") + 1);
+      continued = true;
+    }
+    if (!stripped.empty()) {
+      if (logical_line.empty()) {
+        logical_line_number = line_number;
+      } else {
+        logical_line += ' ';
+      }
+      logical_line += stripped;
+    }
+    if (continued) {
+      continue;
+    }
+    if (logical_line.empty()) {
+      continue;
+    }
+
     std::vector<std::string> tokens;
     try {
-      tokens = tokenize(strip_comment(line));
+      tokens = tokenize(logical_line);
     } catch (const InputError &error) {
-      throw InputError(source_error(path, line_number, error.what()));
+      throw InputError(source_error(path, logical_line_number, error.what()));
     }
+    const int command_line_number = logical_line_number;
+    logical_line.clear();
     if (tokens.empty()) {
       continue;
     }
     if (!(tokens.size() >= 4 && tokens[0] == "variable" && tokens[2] == "equal")) {
-      substitute_tokens(tokens, variables, line_number);
+      substitute_tokens(tokens, variables, command_line_number);
     }
     const std::string original_command = tokens[0];
-    reject_legacy_command(original_command, line_number);
+    reject_legacy_command(original_command, command_line_number);
     normalize_canonical_command(tokens);
 
     const auto &command = tokens[0];
     if (command == "include") {
-      require_size(tokens, 2, line_number);
+      require_size(tokens, 2, command_line_number);
       if (tokens.size() != 2) {
-        throw InputError(source_error(path, line_number, "include takes exactly one file path"));
+        throw InputError(source_error(path, command_line_number,
+                                      "include takes exactly one file path"));
       }
       auto include_path = std::filesystem::path(tokens[1]);
       if (include_path.is_relative()) {
@@ -424,10 +452,9 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
         const auto scalar = values.find("scalar");
         if (scalar != values.end()) {
           dump.scalar = scalar->second;
-          if (dump.scalar != "mass-fraction" && dump.scalar != "remaining-mass" &&
-              dump.scalar != "active" && dump.scalar != "fixed" && dump.scalar != "id" &&
-              dump.scalar != "ix" && dump.scalar != "iy" && dump.scalar != "iz" &&
-              dump.scalar != "ghost") {
+          if (dump.scalar != "mf" && dump.scalar != "mass" && dump.scalar != "active" &&
+              dump.scalar != "fixed" && dump.scalar != "id" && dump.scalar != "ix" &&
+              dump.scalar != "iy" && dump.scalar != "iz" && dump.scalar != "ghost") {
             throw InputError(line_error(line_number, "unknown voxel dump scalar '" +
                                                      dump.scalar + "'"));
           }
@@ -865,6 +892,10 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
     } else {
       throw InputError(source_error(path, line_number, "unknown command '" + command + "'"));
     }
+  }
+  if (!logical_line.empty()) {
+    throw InputError(source_error(path, logical_line_number,
+                                  "unterminated continued command"));
   }
 
   include_stack.pop_back();

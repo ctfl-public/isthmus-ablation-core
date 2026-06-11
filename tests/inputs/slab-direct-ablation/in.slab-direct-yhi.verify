@@ -11,7 +11,7 @@ source              q1 constant 1.8 units kg/m2/s
 iac_timestep        mass/courant 0.5 source q1
 
 iac_stats           1
-iac_stats_style     step time active-voxels deleted-voxels remaining-mass mass-fraction
+iac_stats_style     step time nvox ndel mass mf
 
 variable            i loop 8
 label               ablate-loop
@@ -20,6 +20,6 @@ iac_run             1
 next                i
 jump                SELF ablate-loop
 
-iac_verify          remaining-mass exact "initial-mass - q1*(nx*nz*dx*dx)*time" tolerance 0.01 percent norm max
-iac_verify          mass-fraction exact "1.0 - q1*time/(rho*ny*dx)" tolerance 0.01 percent norm max
-iac_verify          deleted-voxels exact "64" tolerance 0.01 absolute norm final
+iac_verify          mass exact "mass0 - q1*(nx*nz*dx*dx)*time" tolerance 0.01 percent norm max
+iac_verify          mf exact "1.0 - q1*time/(rho*ny*dx)" tolerance 0.01 percent norm max
+iac_verify          ndel exact "64" tolerance 0.01 absolute norm final

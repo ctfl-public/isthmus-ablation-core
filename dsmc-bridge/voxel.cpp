@@ -288,7 +288,7 @@ void Voxel::command(int narg, char **arg) {
       error->all(FLERR, "voxel write-vtu references unknown voxel model");
     }
     std::string select = "active";
-    std::string scalar = "mass-fraction";
+    std::string scalar = "mf";
     const char *select_value = value_after(narg - 3, arg + 3, "select");
     const char *scalar_value = value_after(narg - 3, arg + 3, "scalar");
     if (select_value) {

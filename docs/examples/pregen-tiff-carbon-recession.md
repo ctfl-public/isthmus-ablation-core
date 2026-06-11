@@ -64,7 +64,7 @@ The example writes real voxels and ghost voxels as separate VTU series. The
 ghost files use `select ghosts`, so ParaView can show the mirror-image ghost
 voxels used by ISTHMUS without mixing them into the real solid. The surface VTP
 files dump the full closed real-plus-ghost ISTHMUS surface. They include
-`last-mass-flux` and `selected` cell fields, so the full surface can be colored
+`mflux-last` and `selected` cell fields, so the full surface can be colored
 by applied flux while unselected triangles remain visible with zero flux.
 
 With the committed parameters, the case recesses to about `0.70` remaining

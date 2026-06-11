@@ -5,5 +5,5 @@ include             examples/sphere-isthmus-ablation/in.sphere-isthmus-local
 voxel_dump          off
 surf_dump           off
 
-iac_verify          radius exact "initial-radius - q1*time/rho" tolerance 7.0 percent norm final
-iac_verify          mass-fraction exact "((initial-radius - q1*time/rho)/initial-radius)^3" tolerance 20.0 percent norm final
+iac_verify          rad exact "rad0 - q1*time/rho" tolerance 7.0 percent norm final
+iac_verify          mf exact "((rad0 - q1*time/rho)/rad0)^3" tolerance 20.0 percent norm final

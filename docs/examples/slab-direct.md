@@ -17,10 +17,10 @@ variable ablation_time equal 4.0e-3
 variable keep internal 1
 
 iac_stats 1
-iac_stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction front
+iac_stats_style step time nvox ndel mass mf vf front
 
 voxel_dump hist solid history 1 output/slab-direct-ablation/history.csv
-voxel_dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mass-fraction
+voxel_dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mf
 
 label ablate-loop
 iac_limit time ${ablation_time}
@@ -47,16 +47,16 @@ output/slab-direct-ablation/voxels_000008.vtu
 ```
 
 The VTU dump uses `select active`, so voxels removed by `delete yes` disappear
-from the visualized voxel mesh. It also uses `scalar mass-fraction`, so
-ParaView should open the files with `mass-fraction` as the active cell field.
+from the visualized voxel mesh. It also uses `scalar mf`, so
+ParaView should open the files with `mf` as the active cell field.
 
 The test form is:
 
 ```text
 include ../../../examples/slab-direct-ablation/in.slab-direct-ablation
 
-iac_verify remaining-mass exact "initial-mass - q1*area*time" tolerance 0.01 percent norm max
-iac_verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
+iac_verify mass exact "mass0 - q1*area*time" tolerance 0.01 percent norm max
+iac_verify mf exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
 iac_verify front exact "q1*time/rho" tolerance 0.01 percent norm final
 ```
 

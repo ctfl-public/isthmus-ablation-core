@@ -30,9 +30,9 @@ struct Result {
   double volume_fraction = 0.0;
   double exact_volume_fraction = 0.0;
   double volume_error_percent = 0.0;
-  double radius = 0.0;
-  double exact_radius = 0.0;
-  double radius_error_percent = 0.0;
+  double rad = 0.0;
+  double exact_rad = 0.0;
+  double rad_error_percent = 0.0;
   std::string history;
 };
 
@@ -155,10 +155,10 @@ struct Options {
   double solid_molar_mass = 0.0120107;
   double solid_atoms_per_hit = 1.0;
   double reaction_probability = 1.0;
-  double initial_radius = 5.0e-4;
+  double rad0 = 5.0e-4;
   double max_mass_error_percent = 35.0;
   double max_volume_error_percent = 35.0;
-  double max_radius_error_percent = 35.0;
+  double max_rad_error_percent = 35.0;
   double min_mass_improvement_percent = 0.0;
 };
 
@@ -190,14 +190,14 @@ Options parse_options(int argc, char **argv) {
       options.solid_atoms_per_hit = parse_double(next(), key);
     } else if (key == "--reaction-probability") {
       options.reaction_probability = parse_double(next(), key);
-    } else if (key == "--initial-radius") {
-      options.initial_radius = parse_double(next(), key);
+    } else if (key == "--rad0") {
+      options.rad0 = parse_double(next(), key);
     } else if (key == "--max-mass-error-percent") {
       options.max_mass_error_percent = parse_double(next(), key);
     } else if (key == "--max-volume-error-percent") {
       options.max_volume_error_percent = parse_double(next(), key);
-    } else if (key == "--max-radius-error-percent") {
-      options.max_radius_error_percent = parse_double(next(), key);
+    } else if (key == "--max-rad-error-percent") {
+      options.max_rad_error_percent = parse_double(next(), key);
     } else if (key == "--min-mass-improvement-percent") {
       options.min_mass_improvement_percent = parse_double(next(), key);
     } else {
@@ -233,20 +233,20 @@ std::vector<Result> evaluate_cases(const Options &options) {
     result.history = test_case.history;
     result.time = parse_double(required(row, "time"), "time");
     result.mass_fraction =
-        parse_double(required(row, "mass-fraction"), "mass-fraction");
+        parse_double(required(row, "mf"), "mf");
     result.volume_fraction =
-        parse_double(required(row, "volume-fraction"), "volume-fraction");
-    result.radius = parse_double(required(row, "radius"), "radius");
-    result.exact_radius = std::max(options.initial_radius - speed * result.time, 0.0);
+        parse_double(required(row, "vf"), "vf");
+    result.rad = parse_double(required(row, "rad"), "rad");
+    result.exact_rad = std::max(options.rad0 - speed * result.time, 0.0);
     const double radius_fraction =
-        options.initial_radius > 0.0 ? result.exact_radius / options.initial_radius : 0.0;
+        options.rad0 > 0.0 ? result.exact_rad / options.rad0 : 0.0;
     result.exact_mass_fraction = radius_fraction * radius_fraction * radius_fraction;
     result.exact_volume_fraction = result.exact_mass_fraction;
     result.mass_error_percent =
         percent_error(result.mass_fraction, result.exact_mass_fraction);
     result.volume_error_percent =
         percent_error(result.volume_fraction, result.exact_volume_fraction);
-    result.radius_error_percent = percent_error(result.radius, result.exact_radius);
+    result.rad_error_percent = percent_error(result.rad, result.exact_rad);
     results.push_back(result);
   }
   std::sort(results.begin(), results.end(),
@@ -259,17 +259,17 @@ void write_summary(const std::string &path, const std::vector<Result> &results) 
   if (!output) {
     throw std::runtime_error("could not write summary file: " + path);
   }
-  output << "resolution,time,mass-fraction,exact-mass-fraction,mass-error-percent,"
-            "volume-fraction,exact-volume-fraction,volume-error-percent,"
-            "radius,exact-radius,radius-error-percent,history\n";
+  output << "resolution,time,mf,exact-mf,mass-error-percent,"
+            "vf,exact-vf,volume-error-percent,"
+            "rad,exact-rad,rad-error-percent,history\n";
   output << std::setprecision(17);
   for (const auto &result : results) {
     output << result.resolution << ',' << result.time << ','
            << result.mass_fraction << ',' << result.exact_mass_fraction << ','
            << result.mass_error_percent << ',' << result.volume_fraction << ','
            << result.exact_volume_fraction << ',' << result.volume_error_percent << ','
-           << result.radius << ',' << result.exact_radius << ','
-           << result.radius_error_percent << ',' << result.history << '\n';
+           << result.rad << ',' << result.exact_rad << ','
+           << result.rad_error_percent << ',' << result.history << '\n';
   }
 }
 
@@ -281,7 +281,7 @@ int check_results(const Options &options, const std::vector<Result> &results) {
     std::cout << "resolution " << result.resolution
               << ": mass error " << result.mass_error_percent
               << "%, volume error " << result.volume_error_percent
-              << "%, radius error " << result.radius_error_percent << "%\n";
+              << "%, rad error " << result.rad_error_percent << "%\n";
   }
 
   bool pass = true;
@@ -295,9 +295,9 @@ int check_results(const Options &options, const std::vector<Result> &results) {
               << "% > " << options.max_volume_error_percent << "%\n";
     pass = false;
   }
-  if (fine.radius_error_percent > options.max_radius_error_percent) {
-    std::cerr << "finest radius error exceeds tolerance: " << fine.radius_error_percent
-              << "% > " << options.max_radius_error_percent << "%\n";
+  if (fine.rad_error_percent > options.max_rad_error_percent) {
+    std::cerr << "finest rad error exceeds tolerance: " << fine.rad_error_percent
+              << "% > " << options.max_rad_error_percent << "%\n";
     pass = false;
   }
   const double improvement =

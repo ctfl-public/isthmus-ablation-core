@@ -34,8 +34,8 @@ Example:
 compute        gas thermal/grid all air temp press
 compute        frac grid all species massfrac
 fix            gasave ave/grid all 1 100 100 c_gas[*] c_frac[*] ave one
-grid_write_vtu gasave output/fluid_*.vtu index iac-step fields temperature pressure mass-fraction-O2 mass-fraction-N2 mass-fraction-CO
-grid_dump      fluid gasave vtu 1 output/fluid_*.vtu index iac-step fields temperature pressure mass-fraction-O2 mass-fraction-N2 mass-fraction-CO
+grid_write_vtu gasave output/fluid_*.vtu index iac-step fields T p mf-O2 mf-N2 mf-CO
+grid_dump      fluid gasave vtu 1 output/fluid_*.vtu index iac-step fields T p mf-O2 mf-N2 mf-CO
 ```
 
 This command is DSMC-hosted only. It is intended for visualizing coupled runs,

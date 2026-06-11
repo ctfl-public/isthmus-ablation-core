@@ -733,24 +733,24 @@ void Surface::command(int narg, char **arg) {
         const double area_exact = cfg.geometry == iac::GeometryKind::Sphere
                                       ? 4.0 * pi * std::pow(0.5 * cfg.sphere.diameter, 2)
                                       : surface_area;
-        model.set_diagnostic("surface-area", surface_area);
-        model.set_diagnostic("expected-surface-area", area_exact);
-        model.set_diagnostic("reaction-count-per-step", reaction_count_sum);
-        model.set_diagnostic("expected-reaction-count-per-step",
+        model.set_diagnostic("area", surface_area);
+        model.set_diagnostic("area-exact", area_exact);
+        model.set_diagnostic("nreact", reaction_count_sum);
+        model.set_diagnostic("nreact-exact",
                              expected_flux * surface_area * update->dt / update->fnum);
         model.set_diagnostic("sample-steps", static_cast<double>(sample_steps));
-        model.set_diagnostic("reaction-flux", measured_flux);
-        model.set_diagnostic("expected-reaction-flux", expected_flux);
-        model.set_diagnostic("reaction-flux-ratio", measured_flux / expected_flux);
+        model.set_diagnostic("rflux", measured_flux);
+        model.set_diagnostic("rflux-exact", expected_flux);
+        model.set_diagnostic("rflux-ratio", measured_flux / expected_flux);
         flux_error_percent = 100.0 * std::abs(measured_flux - expected_flux) /
                              std::abs(expected_flux);
-        model.set_diagnostic("reaction-flux-error-percent", flux_error_percent);
+        model.set_diagnostic("rflux-errpct", flux_error_percent);
         if (solid_mass_value || reaction_file) {
-          model.set_diagnostic("reaction-mass-flux", measured_flux * solid_mass_per_reaction);
-          model.set_diagnostic("expected-reaction-mass-flux",
+          model.set_diagnostic("rmflux", measured_flux * solid_mass_per_reaction);
+          model.set_diagnostic("rmflux-exact",
                                expected_flux * solid_mass_per_reaction);
         }
-        model.set_diagnostic("surface-area-error-percent",
+        model.set_diagnostic("area-errpct",
                              100.0 * std::abs(surface_area - area_exact) /
                                  std::abs(area_exact));
         if (screen) {

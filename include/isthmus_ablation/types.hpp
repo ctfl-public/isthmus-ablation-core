@@ -123,7 +123,7 @@ struct VoxelDump {
   int every = 1;
   std::string path;
   std::string select = "active";
-  std::string scalar = "mass-fraction";
+  std::string scalar = "mf";
 };
 
 struct SurfaceDump {

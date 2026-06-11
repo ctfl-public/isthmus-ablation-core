@@ -56,19 +56,19 @@ tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify
 tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify
 ```
 
-It compares the inferred continuum-equivalent radius and mass fraction against
+It compares the inferred continuum-equivalent radius (`rad`) and mass fraction against
 the analytical shrinking-sphere solution:
 
 ```text
-radius = initial-radius - q1*time/rho
-mass-fraction = (radius / initial-radius)^3
+rad = rad0 - q1*time/rho
+mf = (rad / rad0)^3
 ```
 
 The local wrapper is the intentionally nonconservative reference path. It uses
-percent tolerances of `7.0 percent` for radius and `20.0 percent` for mass
+percent tolerances of `7.0 percent` for `rad` and `20.0 percent` for mass
 fraction at the final time.
 
 The normal-carryover wrapper conserves mapped surface mass by pushing overshoot
 inward through live neighbor voxels. It uses tighter percent tolerances of
-`4.0 percent` for radius and `12.0 percent` for mass fraction, and it checks
+`4.0 percent` for `rad` and `12.0 percent` for mass fraction, and it checks
 that final-step dropped mass is essentially zero.

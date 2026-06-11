@@ -13,6 +13,9 @@
       "include": "#variables"
     },
     {
+      "include": "#continuations"
+    },
+    {
       "include": "#commands"
     },
     {
@@ -50,6 +53,14 @@
         {
           "name": "variable.other.iac-input",
           "match": "\\$\\{[A-Za-z_][A-Za-z0-9_:-]*\\}"
+        }
+      ]
+    },
+    "continuations": {
+      "patterns": [
+        {
+          "name": "keyword.operator.continuation.iac-input",
+          "match": "&\\s*(?=#|$)"
         }
       ]
     },

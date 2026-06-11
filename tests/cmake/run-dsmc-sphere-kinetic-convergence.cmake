@@ -68,10 +68,10 @@ execute_process(
           --solid-density "${solid_density}"
           --solid-molar-mass "${solid_molar_mass}"
           --solid-atoms-per-hit "${solid_atoms_per_hit}"
-          --initial-radius "${initial_radius}"
+          --rad0 "${initial_radius}"
           --max-mass-error-percent 35.0
           --max-volume-error-percent 80.0
-          --max-radius-error-percent 35.0
+          --max-rad-error-percent 35.0
           --min-mass-improvement-percent 5.0
   RESULT_VARIABLE result
   OUTPUT_VARIABLE stdout

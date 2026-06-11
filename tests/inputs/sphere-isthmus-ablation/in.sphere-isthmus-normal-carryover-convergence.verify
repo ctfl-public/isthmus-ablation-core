@@ -12,7 +12,7 @@ source              q1 constant 0.8 units kg/m2/s
 iac_timestep        mass/courant 0.25 source q1
 
 iac_stats           1000000
-iac_stats_style     step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction radius requested-mass-step applied-mass-step dropped-mass-step
+iac_stats_style     step time nvox ndel mass mf vf rad mreq mapp mdrop
 
 variable            i loop ${steps}
 label               ablate-loop
@@ -23,5 +23,5 @@ iac_run             1
 next                i
 jump                SELF ablate-loop
 
-convergence         radius exact "initial-radius - q1*time/rho" tolerance 100.0 percent norm final vary resolution 5 10 20 vary steps 1 2 4 order 0.75 2.5 monotonic yes
-convergence         volume-fraction exact "((initial-radius - q1*time/rho)/initial-radius)^3" tolerance 100.0 percent norm final vary resolution 5 10 20 vary steps 1 2 4 order 0.75 2.5 monotonic no
+convergence         rad exact "rad0 - q1*time/rho" tolerance 100.0 percent norm final vary resolution 5 10 20 vary steps 1 2 4 order 0.75 2.5 monotonic yes
+convergence         vf exact "((rad0 - q1*time/rho)/rad0)^3" tolerance 100.0 percent norm final vary resolution 5 10 20 vary steps 1 2 4 order 0.75 2.5 monotonic no

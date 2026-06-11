@@ -7,7 +7,7 @@ voxel_create        solid slab nx 8 ny 4 nz 4 dx 1.0e-6 material carbon
 
 source              q1 constant 1.8 units kg/m2/s
 iac_stats           1
-iac_stats_style     step time active-voxels deleted-voxels mass-fraction front
+iac_stats_style     step time nvox ndel mf front
 iac_timestep        mass/courant 0.5 source q1
 
 variable            keep internal 1

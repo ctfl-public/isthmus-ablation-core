@@ -13,12 +13,12 @@ convergence <quantity> exact "<expression>" tolerance <value> [absolute|percent]
 ## Examples
 
 ```text
-iac_verify remaining-mass exact "initial-mass - q1*area*time" tolerance 0.01 percent norm max
-iac_verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
-iac_verify volume-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm final
+iac_verify mass exact "mass0 - q1*area*time" tolerance 0.01 percent norm max
+iac_verify mf exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
+iac_verify vf exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm final
 iac_verify front exact "q1*time/rho" tolerance 0.01 percent norm final
-iac_verify radius exact "initial-radius - q1*time/rho" tolerance 3.0 percent norm final
-convergence radius exact "initial-radius - q1*time/rho" tolerance 100.0 percent norm final vary resolution 5 10 20 vary steps 1 2 4 order 0.75 2.5 monotonic yes
+iac_verify          rad exact "rad0 - q1*time/rho" tolerance 3.0 percent norm final
+convergence         rad exact "rad0 - q1*time/rho" tolerance 100.0 percent norm final vary resolution 5 10 20 vary steps 1 2 4 order 0.75 2.5 monotonic yes
 ```
 
 ## Description
@@ -88,14 +88,16 @@ ny
 nz
 length
 area
-initial-mass
-voxel-mass
-active-voxels
-deleted-voxels
-remaining-mass
-mass-fraction
-volume-fraction
-voxel-volume-fraction
+rad0
+rad
+mass0
+mvox
+nvox0
+nvox
+ndel
+mass
+mf
+vf
 front
 q1
 source:q1

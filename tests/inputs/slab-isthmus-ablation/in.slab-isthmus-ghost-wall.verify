@@ -5,6 +5,6 @@ include             examples/slab-isthmus-ablation/in.slab-isthmus-ghost
 voxel_dump          off
 surf_dump           off
 
-iac_verify          mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
-iac_verify          volume-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm final
+iac_verify          mf exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
+iac_verify          vf exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm final
 iac_verify          front exact "q1*time/rho" tolerance 0.01 percent norm final

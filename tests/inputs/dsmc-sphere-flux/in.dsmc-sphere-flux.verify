@@ -40,6 +40,6 @@ run                 1 post no
 
 surf_measure_flux   skin dsmc/reaction fix rco column 1 sample-steps 1 expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 temperature 5000.0 molecular-mass 5.31352e-26 reaction examples/dsmc-sphere-kinetic/carbon-co.surf
 
-iac_verify          surface-area exact expected-surface-area tolerance 2.0 percent
-iac_verify          reaction-count-per-step exact expected-reaction-count-per-step tolerance 15.0 percent
-iac_verify          reaction-mass-flux exact expected-reaction-mass-flux tolerance 15.0 percent
+iac_verify          area exact area-exact tolerance 2.0 percent
+iac_verify          nreact exact nreact-exact tolerance 15.0 percent
+iac_verify          rmflux exact rmflux-exact tolerance 15.0 percent

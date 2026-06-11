@@ -19,6 +19,17 @@ In standalone mode, `iac_run` is the only timestep advancement command. In
 DSMC-hosted mode, native `run` advances particles and collisions, while
 `iac_run` advances only the solid voxel ledger.
 
+Long commands can be split across physical lines with a trailing `&`:
+
+```text
+surf_flux           skin dsmc/reaction fix rco column 1 sample-steps 100 &
+                      reaction carbon-co.surf mass-courant 1.0 &
+                      select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
+```
+
+The standalone parser joins these lines before tokenizing, matching DSMC/SPARTA
+input syntax.
+
 The usual solid update order is:
 
 ```text
@@ -69,7 +80,7 @@ include             examples/slab-direct-ablation/in.slab-direct-ablation
 voxel_dump          off
 surf_dump           off
 
-iac_verify          mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
+iac_verify          mf exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
 ```
 
 This keeps examples and tests from drifting apart while leaving examples useful
