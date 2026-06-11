@@ -689,7 +689,7 @@ void Model::validate_ghosts() const {
 void Model::execute(std::ostream *stats) {
   reset_run_state();
   if (stats != nullptr) {
-    print_run_summary(*stats);
+    print_run_summary(*stats, "Standalone voxel ablation");
     print_header(*stats);
     print_row(*stats, history_.back());
   }
@@ -1915,7 +1915,11 @@ void Model::verify_diagnostic(const VerificationCheck &check) const {
 }
 
 void Model::print_run_summary_public(std::ostream &out) const {
-  print_run_summary(out);
+  print_run_summary(out, "Standalone voxel ablation");
+}
+
+void Model::print_run_summary_public(std::ostream &out, const std::string &run_type) const {
+  print_run_summary(out, run_type);
 }
 
 void Model::print_stats_header(std::ostream &out) const {
@@ -1927,6 +1931,10 @@ void Model::print_latest_stats(std::ostream &out) const {
     throw RuntimeError("cannot print stats before model initialization");
   }
   print_row(out, history_.back());
+}
+
+void Model::set_stats_config(const StatsConfig &stats) {
+  config_.stats = stats;
 }
 
 void Model::print_header(std::ostream &out) const {
@@ -1966,8 +1974,8 @@ void Model::print_row(std::ostream &out, const HistoryRow &row) const {
   out << '\n';
 }
 
-void Model::print_run_summary(std::ostream &out) const {
-  out << "# Standalone voxel ablation\n";
+void Model::print_run_summary(std::ostream &out, const std::string &run_type) const {
+  out << "# " << run_type << '\n';
   out << "# run configuration\n";
   out << "#   voxel model = " << config_.voxel_name << '\n';
   if (config_.geometry == GeometryKind::Slab) {

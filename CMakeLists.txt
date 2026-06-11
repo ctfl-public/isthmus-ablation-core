@@ -145,9 +145,9 @@ if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND Python3_Interpreter_FOUND AND IAC_MAKE
     COMMAND ${CMAKE_COMMAND} -E chdir ${IAC_DSMC_OVERLAY_SRC}
             ${IAC_MAKE_EXECUTABLE} ${DSMC_MACHINE}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bin
-    COMMAND ${CMAKE_COMMAND} -E create_symlink
-            ${IAC_DSMC_OVERLAY_EXECUTABLE}
-            ${CMAKE_BINARY_DIR}/bin/dsmc-iac
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/create-dsmc-wrapper.py
+            --executable ${IAC_DSMC_OVERLAY_EXECUTABLE}
+            --wrapper ${CMAKE_BINARY_DIR}/bin/dsmc-iac
     DEPENDS ${IAC_DSMC_TARGET_DEPENDS}
     COMMAND_EXPAND_LISTS
     COMMENT "Building private DSMC/IAC executable in the IAC build tree"

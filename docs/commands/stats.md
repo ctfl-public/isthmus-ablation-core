@@ -7,6 +7,7 @@ The `iac_stats` and `iac_stats_style` commands control IAC console output.
 ```text
 iac_stats <N>
 iac_stats_style <column> <column> ...
+iac_spa_stats
 ```
 
 ## Example
@@ -53,7 +54,27 @@ iac_stats_style step time active-voxels deleted-voxels remaining-mass mass-fract
 ```
 
 These commands do not change DSMC's native `stats` or `stats_style` settings.
-For coupled gas/solid runs, DSMC can continue printing particle/collision
+For coupled gas/solid runs, DSMC can continue owning particle/collision
 statistics while `iac_stats` prints the voxel mass ledger after IAC ablation
-steps. Longer term, selected IAC quantities can also be exposed through DSMC
-compute/fix styles for native `c_...` or `f_...` output.
+steps.
+
+`iac_spa_stats` is a DSMC-hosted helper for coupled logs. Place it after a
+native DSMC `run` and before the IAC ablation update:
+
+```text
+stats_style     step np nscoll nscheck nsreact
+stats           100000
+run             100 post no
+iac_spa_stats
+voxel_ablate    solid surface skin policy carryover/normal delete yes
+iac_run         1
+```
+
+On the first call, the bridge prints an `[IAC]` title/configuration block before
+the first `[SPA]` table. The block summarizes the voxel model, DSMC box,
+boundary conditions, timestep, particle weight, species/mixtures, surface
+collision/reaction models, and registered `grid_write_vtu` fluid outputs.
+
+Each call then captures SPARTA's current native `stats_style` header and row,
+formats them as a fixed-width `[SPA]` table, and prints them at the gas-to-solid
+switch point. It does not modify the user's native `stats_style` command.

@@ -4,6 +4,7 @@ CommandStyle(iac_continue,IacContinue)
 CommandStyle(iac_limit,IacLimit)
 CommandStyle(iac_run,IacRun)
 CommandStyle(iac_set,IacSet)
+CommandStyle(iac_spa_stats,IacSpaStats)
 CommandStyle(iac_stats,IacStats)
 CommandStyle(iac_stats_style,IacStatsStyle)
 CommandStyle(iac_timestep,IacTimestep)
@@ -51,6 +52,12 @@ public:
 class IacStats : protected Pointers {
 public:
   explicit IacStats(class SPARTA *);
+  void command(int, char **);
+};
+
+class IacSpaStats : protected Pointers {
+public:
+  explicit IacSpaStats(class SPARTA *);
   void command(int, char **);
 };
 

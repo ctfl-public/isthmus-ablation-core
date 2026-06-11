@@ -63,8 +63,10 @@ public:
   void verify_diagnostic(const VerificationCheck &check) const;
   bool has_diagnostic(const std::string &name) const;
   void print_run_summary_public(std::ostream &out) const;
+  void print_run_summary_public(std::ostream &out, const std::string &run_type) const;
   void print_stats_header(std::ostream &out) const;
   void print_latest_stats(std::ostream &out) const;
+  void set_stats_config(const StatsConfig &stats);
 
 private:
   struct SurfaceTriangle {
@@ -140,7 +142,7 @@ private:
   void write_vtu(const VoxelDump &dump, int step) const;
   void write_vtp(const SurfaceDump &dump, int step,
                  const std::vector<SurfaceCellField> &fields = {}) const;
-  void print_run_summary(std::ostream &out) const;
+  void print_run_summary(std::ostream &out, const std::string &run_type) const;
   void print_header(std::ostream &out) const;
   void print_row(std::ostream &out, const HistoryRow &row) const;
 

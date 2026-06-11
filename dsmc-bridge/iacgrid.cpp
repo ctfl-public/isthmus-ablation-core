@@ -216,6 +216,7 @@ void GridWriteVtu::command(int narg, char **arg) {
   for (int i = fields + 1; i < narg; ++i) {
     field_names.push_back(xml_name(arg[i]));
   }
+  IACBridge::record_grid_vtu_dump(arg[0], arg[1], index_mode, field_names);
   Fix *fix = require_grid_fix(modify, error, arg[0], nfields);
 
   const int row_width = 7 + nfields;

@@ -60,6 +60,7 @@ IAC_FORWARD_COMMAND(IacContinue, "continue")
 IAC_FORWARD_COMMAND(IacLimit, "limit")
 IAC_FORWARD_COMMAND(IacRun, "run")
 IAC_FORWARD_COMMAND(IacSet, "set")
+IAC_FORWARD_COMMAND(IacSpaStats, "spa_stats")
 IAC_FORWARD_COMMAND(IacStats, "stats")
 IAC_FORWARD_COMMAND(IacStatsStyle, "stats_style")
 IAC_FORWARD_COMMAND(IacTimestep, "timestep")
@@ -159,6 +160,9 @@ void Iac::command(int narg, char **arg) {
     if (cfg.stats.every <= 0) {
       error->all(FLERR, "iac stats interval must be positive");
     }
+    if (IACBridge::owns_model(sparta) && IACBridge::has_model()) {
+      IACBridge::model(sparta).set_stats_config(cfg.stats);
+    }
     IACBridge::reset_stats_output();
     return;
   }
@@ -172,7 +176,18 @@ void Iac::command(int narg, char **arg) {
     for (int i = 1; i < narg; ++i) {
       columns.push_back(arg[i]);
     }
+    if (IACBridge::owns_model(sparta) && IACBridge::has_model()) {
+      IACBridge::model(sparta).set_stats_config(IACBridge::config().stats);
+    }
     IACBridge::reset_stats_output();
+    return;
+  }
+
+  if (std::strcmp(arg[0], "spa_stats") == 0) {
+    if (narg != 1) {
+      error->all(FLERR, "Expected iac_spa_stats");
+    }
+    IACBridge::print_sparta_stats(sparta);
     return;
   }
 

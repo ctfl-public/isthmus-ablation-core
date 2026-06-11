@@ -50,12 +50,20 @@ grid_write_vtu      gasave output/pregen-tiff-carbon-recession/fluid_*.vtu index
 stats_style         step cpu np nscoll nscheck nsreact
 stats_modify        flush yes
 stats               100000
+iac_stats           1
+iac_stats_style     step time active-voxels deleted-voxels mass-fraction volume-fraction applied-mass-step dropped-mass-step
 
 variable            ablation_time equal 2.0e-7
 variable            keep internal 1
 label               coupled-loop
 
-run                 100 post no
+variable            sample_loop loop 4
+label               dsmc-sample-loop
+run                 25 post no
+iac_spa_stats
+next                sample_loop
+jump                SELF dsmc-sample-loop
+
 grid_write_vtu      gasave output/pregen-tiff-carbon-recession/fluid_*.vtu index iac-next fields temperature pressure mass-fraction-O2 mass-fraction-N2 mass-fraction-CO
 
 surf_flux           skin dsmc/reaction fix rco column 1 sample-steps 100 reaction carbon-co.surf mass-courant 1.0 select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5

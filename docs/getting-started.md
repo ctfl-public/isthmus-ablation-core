@@ -89,6 +89,22 @@ build-dsmc/bin/dsmc-iac \
   -in examples/dsmc-sphere-kinetic/in.dsmc-sphere-kinetic
 ```
 
+`build-dsmc/bin/dsmc-iac` quiets native SPARTA screen output by default and
+prints compact IAC coupled summaries instead. Full SPARTA output is still
+written to the log file. Add `--iac-dsmc-verbose` to show native SPARTA screen
+output while debugging.
+
+Compact `[IAC]` and `[SPA]` lines are colored by default when stdout is a
+terminal. IAC lines are green and SPARTA lines are blue. Control this with:
+
+```bash
+build-dsmc/bin/dsmc-iac --iac-color auto -in examples/.../in.case
+build-dsmc/bin/dsmc-iac --iac-color on -in examples/.../in.case
+build-dsmc/bin/dsmc-iac --iac-color off -in examples/.../in.case
+```
+
+Color is only applied to terminal output; log files remain plain text.
+
 Run the fast DSMC verification suite:
 
 ```bash
