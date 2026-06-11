@@ -30,7 +30,8 @@ The DSMC preset includes:
 - standalone `ia-core` regression tests;
 - the same pure-IAC inputs hosted through `build-dsmc/bin/dsmc-iac`;
 - MPI-hosted twins when CMake finds an MPI launcher;
-- DSMC gas-domain checks for surface flux measurement and bridge behavior.
+- DSMC gas-domain checks for surface flux measurement, bridge behavior, and a
+  small particle-driven kinetic sphere recession convergence case.
 
 For standalone-only development:
 
@@ -82,3 +83,13 @@ python3 tools/run-test-report.py slab-direct-command-verification
 Keep slow exploratory plotting and convergence reports out of the default CTest
 suite until they are deterministic and fast enough to serve as regression
 tests.
+
+The coupled DSMC kinetic recession regression is intentionally small:
+
+```bash
+ctest --test-dir build-dsmc -R dsmc-sphere-kinetic-convergence --output-on-failure
+```
+
+It runs three generated DSMC inputs at 4, 6, and 8 voxels across the sphere
+diameter and checks that the particle-sampled recession converges toward the
+ideal-gas kinetic-theory mass-fraction solution.

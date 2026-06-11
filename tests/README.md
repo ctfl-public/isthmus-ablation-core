@@ -21,7 +21,7 @@ ctest --test-dir build-dsmc -N
 | Standalone IAC | `slab-*`, `sphere-*`, `tiff-*` | The core library, standalone parser, ISTHMUS path, ablation policies, dumps, and exact-solution checks work without DSMC. |
 | DSMC-hosted parity | `hosted-*` | The same pure-IAC input files can run through the DSMC executable. |
 | DSMC-hosted MPI parity | `hosted-mpi-*` | The same bridge commands do not break when DSMC launches with MPI. |
-| DSMC gas-domain checks | `dsmc-*` and `dsmc-mpi-*` | Actual DSMC setup, surface installation, surface flux measurement, and bridge verification work in serial and MPI. |
+| DSMC gas-domain checks | `dsmc-*` and `dsmc-mpi-*` | Actual DSMC setup, surface installation, surface flux measurement, bridge verification, and coupled particle-driven recession work. |
 
 ## Input Organization
 
@@ -55,3 +55,36 @@ convergence tests compare observed order across variable overrides.
 Long exploratory convergence scripts and plotting reports are intentionally not
 part of the default test suite. Keep those untracked or under `artifacts/` until
 they become fast, deterministic regression tests.
+
+## Coupled DSMC Kinetic Recession
+
+`dsmc-sphere-kinetic-convergence` is the compact coupled DSMC recession test. It
+does not use a Python runner. CTest configures three generated DSMC inputs at 4,
+6, and 8 voxels across a 1 mm carbon sphere, runs the private DSMC/IAC
+executable, and then calls the compiled
+`dsmc-kinetic-convergence-check` helper.
+
+The DSMC runs sample pure O2 incident number flux on the ISTHMUS triangles with
+native `compute surf` and `fix ave/surf`. IAC converts that particle-sampled
+flux into per-triangle carbon mass flux, maps it back to voxels, applies
+normal-directed carryover, deletes depleted voxels, regenerates the ISTHMUS
+surface, and repeats to a fixed physical ablation time.
+
+The checker compares the final mass fraction, voxelized volume fraction, and
+radius against the continuum sphere solution:
+
+```text
+Gamma = n*sqrt(kB*T/(2*pi*m))
+j = Gamma*Msolid/NA
+R(t) = R0 - j*t/rho
+m/m0 = (R/R0)^3
+```
+
+The pass/fail criterion is intentionally regression-test sized: the finest grid
+must satisfy the configured percent-error tolerances, and the mass-fraction
+error must improve from the coarsest grid to the finest grid. The output summary
+is written to:
+
+```text
+build-dsmc/output/dsmc-sphere-kinetic-convergence/summary.csv
+```

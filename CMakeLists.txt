@@ -66,6 +66,11 @@ endif()
 add_executable(ia-core src/main.cpp)
 target_link_libraries(ia-core PRIVATE isthmus_ablation_core)
 
+add_executable(
+  dsmc-kinetic-convergence-check
+  tests/tools/dsmc-kinetic-convergence-check.cpp
+)
+
 find_package(Python3 COMPONENTS Interpreter)
 find_package(MPI QUIET)
 find_program(PDFLATEX_EXECUTABLE pdflatex)
@@ -124,7 +129,7 @@ if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND Python3_Interpreter_FOUND AND IAC_MAKE
     COMMAND ${CMAKE_COMMAND} -E create_symlink
             ${IAC_DSMC_OVERLAY_EXECUTABLE}
             ${CMAKE_BINARY_DIR}/bin/dsmc-iac
-    DEPENDS ia-core
+    DEPENDS ia-core dsmc-kinetic-convergence-check
     COMMAND_EXPAND_LISTS
     COMMENT "Building private DSMC/IAC executable in the IAC build tree"
   )
@@ -294,6 +299,20 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
   iac_add_dsmc_input_test(
     dsmc-sphere-flux-verification
     tests/inputs/dsmc-sphere-flux/in.dsmc-sphere-flux.verify
+  )
+
+  add_test(
+    NAME dsmc-sphere-kinetic-convergence
+    COMMAND ${CMAKE_COMMAND}
+            -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
+            -DCHECKER=$<TARGET_FILE:dsmc-kinetic-convergence-check>
+            -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
+            -DBINARY_DIR=${CMAKE_BINARY_DIR}
+            -P ${CMAKE_SOURCE_DIR}/tests/cmake/run-dsmc-sphere-kinetic-convergence.cmake
+  )
+  set_tests_properties(dsmc-sphere-kinetic-convergence PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    TIMEOUT 90
   )
 
 endif()

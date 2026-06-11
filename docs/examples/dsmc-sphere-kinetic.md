@@ -84,8 +84,10 @@ surf_modify all collide 1
 The committed example uses a 10-voxel sphere, `C_m = 1/6`, and a named
 `ablation_time` target. `iac_limit time` clips the last solid timestep so the
 history ends at exactly that physical ablation time while exercising the full
-DSMC-to-ISTHMUS-to-voxel loop. It is a workflow example; committed regression
-coverage currently keeps the cheaper DSMC checks in `tests/inputs`.
+DSMC-to-ISTHMUS-to-voxel loop. It is a workflow example. The smaller committed
+regression version is `dsmc-sphere-kinetic-convergence`, which runs generated
+4-, 6-, and 8-voxel inputs and checks grid convergence in the default DSMC CTest
+suite.
 
 ## Analytical Comparison
 

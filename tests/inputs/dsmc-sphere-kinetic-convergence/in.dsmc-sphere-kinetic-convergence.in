@@ -1,0 +1,54 @@
+# Generated DSMC gas-domain convergence input.
+# CTest configures this file for each voxel resolution.
+
+seed                12345
+dimension           3
+global              nrho @number_density@ fnum @fnum@ gridcut 0.0 surfmax @surfmax@ splitmax @splitmax@ comm/sort yes
+timestep            @dsmc_dt@
+
+boundary            p p p
+create_box          -@domain_half_width@ @domain_half_width@ -@domain_half_width@ @domain_half_width@ -@domain_half_width@ @domain_half_width@
+create_grid         @grid_cells@ @grid_cells@ @grid_cells@
+balance_grid        rcb cell
+
+species             @species_file@ O2
+mixture             gas O2 frac 1.0
+mixture             gas temp @temperature@ vstream 0.0 0.0 0.0
+
+voxel_material      carbon density @solid_density@ molar-mass @solid_molar_mass@ formula C
+voxel_create        solid sphere diameter 1.0e-3 resolution @resolution@ material carbon
+isthmus_surface     skin voxels solid buffer 1 weighting no map yes
+surf_install        skin particle none type 1
+
+surf_collide        1 diffuse @temperature@ 1.0
+surf_modify         all collide 1
+
+compute             sflux surf all gas nflux_incident
+create_particles    gas n 0 twopass
+
+stats_style         step cpu np nscoll nscheck
+stats_modify        flush yes
+stats               100000
+
+variable            ablation_time equal @ablation_time@
+variable            keep internal 1
+label               coupled-loop
+
+fix                 sflux ave/surf all 1 @sample_steps@ @sample_steps@ c_sflux[*] ave one
+run                 @sample_steps@ post no
+
+surf_flux           skin dsmc/surf fix sflux mass-courant @mass_courant@
+iac_limit           time ${ablation_time}
+unfix               sflux
+voxel_ablate        solid surface skin policy carryover/normal delete yes
+iac_run             1
+
+remove_surf         all
+isthmus_surface     skin voxels solid buffer 1 weighting no map yes
+surf_install        skin particle none type 1
+surf_modify         all collide 1
+
+iac_continue        time ${ablation_time} variable keep
+if                  "${keep} > 0" then "jump SELF coupled-loop"
+
+voxel_write_history solid @history_file@
