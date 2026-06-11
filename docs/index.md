@@ -62,7 +62,7 @@ ctest --preset standalone
 - Use explicit or mass-Courant timesteps.
 - Apply local voxel ablation with delete-empty behavior.
 - Use simple standalone loops with `variable`, `label`, `next`, and `jump`.
-- Print aligned standalone stats with `stats` and `stats_style`.
+- Print aligned standalone stats with `iac_stats` and `iac_stats_style`.
 - Write a CSV history file.
 - Write VTU voxel files for visual inspection.
 - Compute single-species ideal-gas kinetic-theory flux on ISTHMUS triangles.
@@ -119,22 +119,24 @@ voxel_material carbon density 1800.0
 voxel_create solid slab nx 8 ny 4 nz 4 dx 1.0e-6 material carbon
 
 source q1 constant 1.8 units kg/m2/s
-timestep mass/courant 0.5 source q1
+iac_timestep mass/courant 0.5 source q1
 variable ablation_time equal 4.0e-3
+variable keep internal 1
 
-stats 1
-stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction front
+iac_stats 1
+iac_stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction front
 
 voxel_dump hist solid history 1 output/slab-direct-ablation/history.csv
 voxel_dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mass-fraction
 
 label ablate-loop
-limit time ${ablation_time}
+iac_limit time ${ablation_time}
 voxel_ablate solid source q1 policy local face xlo delete yes
-run 1
-jump SELF ablate-loop until time ${ablation_time}
+iac_run 1
+iac_continue time ${ablation_time} variable keep
+if "${keep} > 0" then "jump SELF ablate-loop"
 ```
 
 The regression wrapper in
 `tests/inputs/slab-direct-ablation/in.slab-direct-command.verify` includes this
-example and adds exact-solution checks with `verify`.
+example and adds exact-solution checks with `iac_verify`.

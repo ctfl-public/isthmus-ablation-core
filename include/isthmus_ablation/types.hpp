@@ -73,16 +73,6 @@ struct Timestep {
   std::string source;
 };
 
-struct AblationFix {
-  std::string name;
-  int every = 1;
-  std::string voxels;
-  std::string source;
-  std::string policy = "local";
-  std::string face;
-  bool delete_empty = true;
-};
-
 struct AblationCommand {
   std::string voxels;
   std::string source;
@@ -211,7 +201,6 @@ struct Config {
   TiffGeometry tiff;
   ConstantSource source;
   Timestep timestep;
-  AblationFix fix;
   StatsConfig stats;
   std::vector<VoxelDump> dumps;
   std::vector<SurfaceDump> surface_dumps;

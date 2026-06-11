@@ -2,11 +2,11 @@
 # The tolerance is intentionally broad because this case exposes finite-edge
 # surface effects.
 
-include ../../../examples/slab-isthmus-ablation/in.slab-isthmus-finite
+include             examples/slab-isthmus-ablation/in.slab-isthmus-finite
 
-voxel_dump off
-surf_dump off
+voxel_dump          off
+surf_dump           off
 
-verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 25.0 percent norm final
-verify volume-fraction exact "1.0 - q1*time/(rho*length)" tolerance 40.0 percent norm final
-verify front exact "q1*time/rho" tolerance 80.0 percent norm final
+iac_verify          mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 25.0 percent norm final
+iac_verify          volume-fraction exact "1.0 - q1*time/(rho*length)" tolerance 40.0 percent norm final
+iac_verify          front exact "q1*time/rho" tolerance 80.0 percent norm final

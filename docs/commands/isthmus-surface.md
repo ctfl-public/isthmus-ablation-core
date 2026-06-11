@@ -1,20 +1,20 @@
-# `isthmus_surf` Command
+# `isthmus_surface` Command
 
-The `isthmus_surf` command reconstructs a triangle surface from active
+The `isthmus_surface` command reconstructs a triangle surface from active
 voxels.
 
 ## Syntax
 
 ```text
-isthmus_surf <surface-id> voxels <model> [buffer <N>] [resolution <R|A:B|voxel>] [weighting yes|no] [map yes|no] [crop real|no]
+isthmus_surface <surface-id> voxels <model> [buffer <N>] [resolution <R|A:B|voxel>] [weighting yes|no] [map yes|no] [crop real|no]
 ```
 
 ## Example
 
 ```text
-isthmus_surf skin voxels solid buffer 1 weighting no map yes
-isthmus_surf skin voxels solid buffer 1 weighting no map yes crop real
-isthmus_surf skin voxels solid buffer 2 resolution 2:1 weighting no map yes
+isthmus_surface skin voxels solid buffer 1 weighting no map yes
+isthmus_surface skin voxels solid buffer 1 weighting no map yes crop real
+isthmus_surface skin voxels solid buffer 2 resolution 2:1 weighting no map yes
 ```
 
 ## Description

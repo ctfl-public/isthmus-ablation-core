@@ -5,7 +5,7 @@ applies a constant mass flux to all surface triangles, maps the triangle mass
 loss back to voxels, and deletes depleted voxels.
 
 The current case uses a 1 mm diameter sphere with `resolution 20`, meaning 20
-voxels across the diameter. It uses `timestep mass/courant 0.5 source q1`,
+voxels across the diameter. It uses `iac_timestep mass/courant 0.5 source q1`,
 which gives `dt = 0.05625 s` for the current material, grid spacing, and flux.
 The four-step test therefore runs to `0.225 s`.
 
@@ -19,10 +19,10 @@ examples/sphere-isthmus-ablation/in.sphere-isthmus-normal
 The core loop is:
 
 ```text
-isthmus_surf skin voxels solid buffer 1 weighting no map yes
+isthmus_surface skin voxels solid buffer 1 weighting no map yes
 surf_flux skin source q1 select all
 voxel_ablate solid surface skin policy carryover/normal delete yes
-run 1
+iac_run 1
 ```
 
 This loop is intentionally command-driven. A future DSMC run can place DSMC

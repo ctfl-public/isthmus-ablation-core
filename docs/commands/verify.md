@@ -1,23 +1,23 @@
-# `verify` Command
+# `iac_verify` Command
 
-The `verify` command compares tracked quantities to input-file exact/reference
-expressions.
+The `iac_verify` command compares tracked quantities to input-file
+exact/reference expressions.
 
 ## Syntax
 
 ```text
-verify <quantity> exact "<expression>" tolerance <value> [absolute|percent] norm <final|max|rms>
+iac_verify <quantity> exact "<expression>" tolerance <value> [absolute|percent] norm <final|max|rms>
 convergence <quantity> exact "<expression>" tolerance <value> [absolute|percent] norm <final|max|rms> vary <variable> <v1> <v2> ... [vary <variable> <v1> <v2> ...] order <min> <max> [monotonic yes|no]
 ```
 
 ## Examples
 
 ```text
-verify remaining-mass exact "initial-mass - q1*area*time" tolerance 0.01 percent norm max
-verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
-verify volume-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm final
-verify front exact "q1*time/rho" tolerance 0.01 percent norm final
-verify radius exact "initial-radius - q1*time/rho" tolerance 3.0 percent norm final
+iac_verify remaining-mass exact "initial-mass - q1*area*time" tolerance 0.01 percent norm max
+iac_verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
+iac_verify volume-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm final
+iac_verify front exact "q1*time/rho" tolerance 0.01 percent norm final
+iac_verify radius exact "initial-radius - q1*time/rho" tolerance 3.0 percent norm final
 convergence radius exact "initial-radius - q1*time/rho" tolerance 100.0 percent norm final vary resolution 5 10 20 vary steps 1 2 4 order 0.75 2.5 monotonic yes
 ```
 

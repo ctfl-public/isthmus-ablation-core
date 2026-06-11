@@ -1,28 +1,31 @@
-# `run` Command
+# `iac_run` Command
 
-The `run` command starts standalone time advancement.
+The `iac_run` command advances IAC solid time/history/dumps/stats. It is
+separate from DSMC/SPARTA's native `run` command, which advances particles and
+gas collisions.
 
 ## Syntax
 
 ```text
-run <steps>
-run duration <time>
+iac_run <steps>
+iac_run duration <time>
 ```
 
 ## Examples
 
 ```text
-run 8
-run duration 0.02
+iac_run 8
+iac_run duration 0.02
 ```
 
 ## Description
 
-`run <steps>` advances a fixed number of steps.
+`iac_run <steps>` advances a fixed number of solid ablation steps.
 
-`run duration <time>` advances for a requested physical duration using the
+`iac_run duration <time>` advances for a requested physical duration using the
 current timestep. If the final step would overshoot, the model clips that step
 so the recorded time ends exactly at the requested duration.
 
-For explicit ablation loops, use `limit time <target>` before `voxel_ablate`
-and `jump SELF <label> until time <target>` after `run 1`.
+For explicit ablation loops, use `iac_limit time <target>` before
+`voxel_ablate`, then use `iac_continue` with DSMC-style `if ... then "jump SELF
+<label>"` after `iac_run 1`.

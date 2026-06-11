@@ -12,23 +12,22 @@ voxel_material carbon density 1800.0
 voxel_create solid slab nx 8 ny 4 nz 4 dx 1.0e-6 material carbon
 
 source q1 constant 1.8 units kg/m2/s
-timestep mass/courant 0.5 source q1
+iac_timestep mass/courant 0.5 source q1
 variable ablation_time equal 4.0e-3
+variable keep internal 1
 
-# Compact callback-style alternative:
-# fix ab all voxel/ablate 1 voxels solid source q1 policy local face xlo delete yes
-
-stats 1
-stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction front
+iac_stats 1
+iac_stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction front
 
 voxel_dump hist solid history 1 output/slab-direct-ablation/history.csv
 voxel_dump vox solid vtu 1 output/slab-direct-ablation/voxels_*.vtu select active scalar mass-fraction
 
 label ablate-loop
-limit time ${ablation_time}
+iac_limit time ${ablation_time}
 voxel_ablate solid source q1 policy local face xlo delete yes
-run 1
-jump SELF ablate-loop until time ${ablation_time}
+iac_run 1
+iac_continue time ${ablation_time} variable keep
+if "${keep} > 0" then "jump SELF ablate-loop"
 ```
 
 Run it:
@@ -56,9 +55,9 @@ The test form is:
 ```text
 include ../../../examples/slab-direct-ablation/in.slab-direct-ablation
 
-verify remaining-mass exact "initial-mass - q1*area*time" tolerance 0.01 percent norm max
-verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
-verify front exact "q1*time/rho" tolerance 0.01 percent norm final
+iac_verify remaining-mass exact "initial-mass - q1*area*time" tolerance 0.01 percent norm max
+iac_verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
+iac_verify front exact "q1*time/rho" tolerance 0.01 percent norm final
 ```
 
 Run the test:

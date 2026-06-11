@@ -1,6 +1,6 @@
-# `surface` Commands
+# `surf_*` Commands
 
-The `surface` command family works with triangle surfaces generated from
+The `surf_*` command family works with triangle surfaces generated from
 voxels. These commands are deliberately separate from `voxel` commands because
 future DSMC-coupled runs will need to refresh surfaces, apply DSMC surface
 tallies, and then map that information back to voxels inside input-file loops.
@@ -151,7 +151,7 @@ converts them to a number flux with:
 reaction-flux = sum(reaction-count) * fnum / (surface-area * DSMC-timestep)
 ```
 
-and stores scalar diagnostics that can be checked later with `iac verify`.
+and stores scalar diagnostics that can be checked later with `iac_verify`.
 The `expected kinetic/theory` arguments compute the ideal-gas one-way
 impingement flux for a reactive species:
 
@@ -173,9 +173,13 @@ tests geometry generation, surface installation, DSMC surface chemistry
 tallies, core diagnostics, and input-file verification without introducing
 voxel deletion or remeshing.
 
-By default, DSMC-coupled sources advance voxel ablation by the elapsed DSMC
-time since the previous coupling update. The optional `ablation-dt` argument
-overrides that physical ablation time. For `dsmc/reaction`, `time-scale`
+DSMC-coupled sources assign triangle mass loss and set the current IAC
+ablation timestep; they do not themselves advance the solid clock. Use
+`voxel_ablate` to map the pending triangle mass to voxels, then `iac_run 1` to
+record the solid step, history, dumps, and stats. By default, the bridge uses
+the elapsed DSMC time since the previous coupling update as the ablation time.
+The optional `ablation-dt` argument overrides that physical ablation time. For
+`dsmc/reaction`, `time-scale`
 multiplies both the sampled reaction-count mass and the ablation time. This is
 useful for quasi-steady chemistry probes: the input can sample a short DSMC
 window and advance the solid over a longer reservoir-equivalent ablation time.
@@ -191,7 +195,7 @@ non-fixed voxel:
 dt = C * density * voxel-size / max(triangle-flux)
 ```
 
-This is the same nondimensional definition as standalone `timestep
+This is the same nondimensional definition as `iac_timestep
 mass/courant`: it is the mass that the local flux would remove through one
 voxel face during the timestep divided by one voxel mass. Thus
 `mass-courant 0.1666666667` is the conservative value `1/6`; even if all six
@@ -228,7 +232,7 @@ wrappers can use it after including a visual example input.
 
 Inside DSMC, `surf_write_vtp` writes a one-shot VTP snapshot immediately.
 This mirrors `voxel_write_vtu`: DSMC owns the run loop, and the input script can
-write the current ISTHMUS surface after each `isthmus_surf` regeneration. If
+write the current ISTHMUS surface after each `isthmus_surface` regeneration. If
 the path does not contain `*`, the current core step number is inserted before
 the file extension.
 

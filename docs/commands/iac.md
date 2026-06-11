@@ -1,12 +1,9 @@
-# `iac` Commands
+# `iac_*` Commands
 
-The `iac` command family is available in the DSMC bridge. It exposes
-repository-level diagnostics and checks that are not naturally owned by a
-single `voxel`, `isthmus`, or `surface` command.
-
-Standalone inputs should keep using the standalone `verify` command. DSMC
-inputs use `iac verify` because DSMC already owns the top-level input parser
-and this command avoids collisions with native DSMC syntax.
+The `iac_*` command family controls IAC state that is not naturally owned by a
+single voxel, ISTHMUS, or surface command. Core commands use the same names in
+standalone mode and in the DSMC bridge wherever the host has the needed
+capability.
 
 For DSMC-hosted inputs, write long bridge commands on one physical line. The
 examples below are wrapped only for readability.
@@ -14,18 +11,17 @@ examples below are wrapped only for readability.
 ## Syntax
 
 ```text
-iac timestep <dt>
-iac timestep mass/courant <C> source <source-id>
-iac stats <N>
-iac stats_style <column> <column> ...
-iac limit time <target>
-iac continue time <target> variable <name>
-iac set <name> time
-iac set <name> step
-iac set <name> dt
-iac set <name> diagnostic <diagnostic-name>
-iac verify <quantity> exact <expression> tolerance <value> [percent|absolute]
-iac print <quantity>
+iac_timestep <dt>
+iac_timestep mass/courant <C> source <source-id>
+iac_stats <N>
+iac_stats_style <column> <column> ...
+iac_limit time <target>
+iac_continue time <target> variable <name>
+iac_set <name> time
+iac_set <name> step
+iac_set <name> dt
+iac_set <name> diagnostic <diagnostic-name>
+iac_verify <quantity> exact <expression> tolerance <value> [percent|absolute]
 ```
 
 ## Examples
@@ -35,33 +31,35 @@ surf_measure_flux skin dsmc/reaction fix rco column 1 sample-steps 1 \
   expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 \
   temperature 5000.0 molecular-mass 5.31352e-26 reaction carbon-co.surf
 
-iac verify surface-area exact expected-surface-area tolerance 2.0 percent
-iac verify reaction-count-per-step exact expected-reaction-count-per-step tolerance 5.0 percent
-iac verify reaction-mass-flux exact expected-reaction-mass-flux tolerance 5.0 percent
-iac print reaction-flux-error-percent
+iac_verify surface-area exact expected-surface-area tolerance 2.0 percent
+iac_verify reaction-count-per-step exact expected-reaction-count-per-step tolerance 5.0 percent
+iac_verify reaction-mass-flux exact expected-reaction-mass-flux tolerance 5.0 percent
+iac_set fluxerr diagnostic reaction-flux-error-percent
+print "reaction flux error = ${fluxerr} percent"
 
 source q1 constant 1.8 units kg/m2/s
-iac timestep mass/courant 0.5 source q1
-iac stats 1
-iac stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction front
+iac_timestep mass/courant 0.5 source q1
+iac_stats 1
+iac_stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction front
 
 variable keep internal 1
 label ablate-loop
-iac limit time 1.1e-3
+iac_limit time 1.1e-3
 voxel_ablate solid source q1 policy local face xlo delete yes
-iac continue time 1.1e-3 variable keep
+iac_run 1
+iac_continue time 1.1e-3 variable keep
 if "${keep} > 0" then "jump SELF ablate-loop"
 ```
 
 ## Description
 
-`iac timestep` controls the ablation timestep used by this package when DSMC is
-the host executable. It does not change DSMC's native fluid timestep. Use native
-DSMC `timestep` for particle motion and collisions; use `iac timestep` for
+`iac_timestep` controls the solid ablation timestep used by this package. In
+DSMC-hosted inputs, it does not change DSMC's native fluid timestep. Use native
+DSMC `timestep` for particle motion and collisions; use `iac_timestep` for
 voxel mass-loss updates.
 
 The explicit form sets the ablation timestep directly. The `mass/courant` form
-matches the standalone timestep command and computes:
+computes:
 
 ```text
 dt = C * density * voxel-size / source
@@ -69,49 +67,56 @@ dt = C * density * voxel-size / source
 
 for the named constant source.
 
-`iac stats` and `iac stats_style` print the core's own ablation table while
-DSMC is the host executable. They intentionally do not modify DSMC's native
-`stats` or `stats_style` settings. The title block and table header are printed
-the first time a bridge command advances the core step; later rows are printed
-at the requested IAC interval.
+`iac_run` advances IAC solid time/history/dumps/stats. It is intentionally
+separate from native DSMC `run`, which advances particles and gas collisions.
+Use `voxel_ablate` or `surf_flux` to apply mass changes, then `iac_run 1` to
+record the solid step.
 
-`iac limit time <target>` clips the current IAC solid timestep so the next
+`iac_stats` and `iac_stats_style` print the core's own ablation table. In
+DSMC-hosted inputs, they intentionally do not modify DSMC's native `stats` or
+`stats_style` settings. The title block and table header are printed the first
+time `iac_run` advances the core step; later rows are printed at the requested
+IAC interval.
+
+`iac_limit time <target>` clips the current IAC solid timestep so the next
 voxel mass update cannot advance past the requested physical ablation time.
 This is usually placed after a command such as `surf_flux ... mass-courant`,
 which may have just recomputed the timestep from the current flux, and before
 `voxel_ablate`.
 
-`iac continue time <target> variable <name>` writes `1` to a DSMC internal
+`iac_continue time <target> variable <name>` writes `1` to a DSMC internal
 variable while the IAC solid time is less than the target and `0` once it has
-reached or exceeded the target. Use it with `iac limit time`, native DSMC `if`,
-and `jump` commands to run a coupled ablation loop to an exact physical solid
-time:
+reached or exceeded the target. In standalone mode, the same pattern is parsed
+as a compact time-limited jump. Use it with `iac_limit time`, DSMC-style `if`,
+and `jump` commands to run an ablation loop to an exact physical solid time:
 
 ```text
 variable keep internal 1
 label coupled-loop
 run 100 post no
 surf_flux skin dsmc/surf fix sflux mass-courant 0.1666666667
-iac limit time 2.5e-2
+iac_limit time 2.5e-2
 voxel_ablate solid surface skin policy carryover/normal delete yes
-iac continue time 2.5e-2 variable keep
+iac_run 1
+iac_continue time 2.5e-2 variable keep
 if "${keep} > 0" then "jump SELF coupled-loop"
 ```
 
-If the named variable does not exist, the bridge creates it as an internal
-variable. If it does exist, it must already be internal style.
+If the named variable does not exist, the DSMC bridge creates it as an internal
+variable. If it does exist, it must already be internal style. For portable
+standalone/DSMC inputs, declare it explicitly with `variable keep internal 1`.
 
-`iac set` copies IAC state into a DSMC internal variable. Supported quantities
+`iac_set` copies IAC state into a DSMC internal variable. Supported quantities
 are `time`, `step`, `dt`, and `diagnostic <diagnostic-name>`. This is useful
 for printing, conditional input logic, and lightweight debugging:
 
 ```text
-iac set solidtime time
+iac_set solidtime time
 print "IAC solid time = ${solidtime}"
 ```
 
-`iac verify` compares a named diagnostic to an exact expression using the same
-tolerance modes as the standalone `verify` command. The exact expression can
+`iac_verify` compares a named diagnostic to an exact expression using the same
+tolerance modes as the standalone `iac_verify` command. The exact expression can
 refer to diagnostics registered by earlier bridge commands. For example,
 `surf_measure_flux` registers:
 
@@ -134,10 +139,6 @@ surface depletes the nearby O2 population. Longer depletion and coupled
 ablation cases belong in examples and report targets, not the default test
 suite.
 
-`iac print` writes one diagnostic to the DSMC screen and log. It is intended for
-small interactive probes and should not replace `iac verify` in regression
-tests.
-
 History-based quantities such as `mass-fraction`, `front`, and `radius` can be
 checked with `norm final`, `norm max`, or `norm rms` once the bridge has
 advanced at least one IAC step. Scalar diagnostics registered by bridge
@@ -145,7 +146,8 @@ commands are checked directly.
 
 ## Current Limits
 
-- `iac` is currently a DSMC bridge command only.
+- `iac_continue` is shared for the common time-loop pattern. `iac_set` is a
+  DSMC bridge command because it interacts with DSMC internal variables.
 - A full DSMC-hosted `convergence` command is not implemented. Convergence
   suites still belong at the CTest/report layer or in explicit DSMC input loops
   because true convergence orchestration requires rerunning the host input with

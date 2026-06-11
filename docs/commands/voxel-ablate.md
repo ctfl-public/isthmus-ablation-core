@@ -37,22 +37,22 @@ any overshoot as dropped mass.
 a depleted voxel into live 26-neighbor voxels along the inward normal direction.
 This policy is intended for closed ISTHMUS surfaces such as spheres.
 
-Use `run 1` after `voxel_ablate` to advance time, record history, print stats,
-and write scheduled dumps:
+Use `iac_run 1` after `voxel_ablate` to advance IAC solid time, record history,
+print stats, and write scheduled dumps:
 
 ```text
 voxel_ablate solid source q1 policy local face xlo delete yes
 voxel_ablate solid source q1 policy local face zhi delete yes
-run 1
+iac_run 1
 ```
 
 A surface-coupled loop is:
 
 ```text
-isthmus_surf skin voxels solid buffer 1 weighting no map yes
+isthmus_surface skin voxels solid buffer 1 weighting no map yes
 surf_flux skin source q1 select all
 voxel_ablate solid surface skin policy carryover/normal delete yes
-run 1
+iac_run 1
 ```
 
 `delete yes` is the default. When a voxel's mass is depleted, it is marked

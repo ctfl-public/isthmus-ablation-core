@@ -1,24 +1,28 @@
-units si
+# Shared standalone/DSMC-hosted sphere ablation from kinetic-theory triangle flux.
 
-voxel_material carbon density 1800.0
-voxel_create solid sphere diameter 1.0e-3 resolution 20 material carbon
+units               si
+
+voxel_material      carbon density 1800.0
+voxel_create        solid sphere diameter 1.0e-3 resolution 20 material carbon
 
 # qkin is the continuum mass flux implied by the kinetic/theory parameters below.
-source qkin constant 0.9 units kg/m2/s
-timestep mass/courant 0.5 source qkin
-variable ablation_time equal 2.0e-1
+source              qkin constant 0.9 units kg/m2/s
+iac_timestep        mass/courant 0.5 source qkin
+variable            ablation_time equal 2.0e-1
+variable            keep internal 1
 
-stats 1
-stats_style step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction radius
+iac_stats           1
+iac_stats_style     step time active-voxels deleted-voxels remaining-mass mass-fraction volume-fraction radius
 
-voxel_dump hist solid history 1 output/sphere-isthmus-kinetic/history.csv
-voxel_dump vox solid vtu 1 output/sphere-isthmus-kinetic/voxels_*.vtu select active scalar mass-fraction
-surf_dump skin skin vtp 1 output/sphere-isthmus-kinetic/surface_*.vtp
+voxel_dump          hist solid history 1 output/sphere-isthmus-kinetic/history.csv
+voxel_dump          vox solid vtu 1 output/sphere-isthmus-kinetic/voxels_*.vtu select active scalar mass-fraction
+surf_dump           skin skin vtp 1 output/sphere-isthmus-kinetic/surface_*.vtp
 
-label ablate-loop
-limit time ${ablation_time}
-isthmus_surf skin voxels solid buffer 1 weighting no map yes
-surf_flux skin kinetic/theory pressure 50.0 temperature 5000.0 mole-fraction 0.21 molecular-mass 5.313e-26 reaction-prob 1.0 solid-mass-per-hit 1.3011869411625376e-23 select all
-voxel_ablate solid surface skin policy carryover/normal delete yes
-run 1
-jump SELF ablate-loop until time ${ablation_time}
+label               ablate-loop
+iac_limit           time ${ablation_time}
+isthmus_surface     skin voxels solid buffer 1 weighting no map yes
+surf_flux           skin kinetic/theory pressure 50.0 temperature 5000.0 mole-fraction 0.21 molecular-mass 5.313e-26 reaction-prob 1.0 solid-mass-per-hit 1.3011869411625376e-23 select all
+voxel_ablate        solid surface skin policy carryover/normal delete yes
+iac_run             1
+iac_continue        time ${ablation_time} variable keep
+if                  "${keep} > 0" then "jump SELF ablate-loop"

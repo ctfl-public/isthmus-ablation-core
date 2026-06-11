@@ -1,10 +1,10 @@
 # Regression wrapper for the infinite-wall ghost ISTHMUS slab path.
 
-include ../../../examples/slab-isthmus-ablation/in.slab-isthmus-ghost
+include             examples/slab-isthmus-ablation/in.slab-isthmus-ghost
 
-voxel_dump off
-surf_dump off
+voxel_dump          off
+surf_dump           off
 
-verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
-verify volume-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm final
-verify front exact "q1*time/rho" tolerance 0.01 percent norm final
+iac_verify          mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
+iac_verify          volume-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm final
+iac_verify          front exact "q1*time/rho" tolerance 0.01 percent norm final

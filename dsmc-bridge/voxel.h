@@ -1,6 +1,5 @@
 #ifdef COMMAND_CLASS
 
-CommandStyle(voxel,Voxel)
 CommandStyle(voxel_ablate,VoxelAblate)
 CommandStyle(voxel_create,VoxelCreate)
 CommandStyle(voxel_dump,VoxelDumpCommand)

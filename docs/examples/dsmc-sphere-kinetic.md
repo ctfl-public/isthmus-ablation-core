@@ -25,8 +25,7 @@ ctest --preset dsmc
 ```
 
 The normal standalone build does not include DSMC tests. A DSMC-enabled build
-runs the standalone tests plus DSMC-hosted bridge tests, including the
-`dsmc-sphere-kinetic-grid-convergence` check.
+runs the standalone tests plus DSMC-hosted bridge tests.
 
 ## Collision-Flux Loop
 
@@ -57,7 +56,7 @@ IAC reads the incident number flux and converts it to carbon mass flux:
 
 ```text
 surf_flux skin dsmc/surf fix sflux mass-courant 0.1666666667
-iac limit time ${ablation_time}
+iac_limit time ${ablation_time}
 voxel_ablate solid surface skin policy carryover/normal delete yes
 ```
 
@@ -77,16 +76,16 @@ surface and install the regenerated ISTHMUS surface directly from memory:
 
 ```text
 remove_surf all
-isthmus_surf skin voxels solid buffer 1 weighting no map yes
+isthmus_surface skin voxels solid buffer 1 weighting no map yes
 surf_install skin particle none type 1
 surf_modify all collide 1
 ```
 
 The committed example uses a 10-voxel sphere, `C_m = 1/6`, and a named
-`ablation_time` target. `iac limit time` clips the last solid timestep so the
+`ablation_time` target. `iac_limit time` clips the last solid timestep so the
 history ends at exactly that physical ablation time while exercising the full
-DSMC-to-ISTHMUS-to-voxel loop. It is a workflow example; the grid-refinement
-report below is the stronger accuracy check.
+DSMC-to-ISTHMUS-to-voxel loop. It is a workflow example; committed regression
+coverage currently keeps the cheaper DSMC checks in `tests/inputs`.
 
 ## Analytical Comparison
 
@@ -103,7 +102,13 @@ The example writes:
 
 ```text
 examples/dsmc-sphere-kinetic/output/history.csv
+examples/dsmc-sphere-kinetic/output/voxels_*.vtu
+examples/dsmc-sphere-kinetic/output/surface_*.vtp
 ```
+
+The VTU files show active voxels with `mass-fraction` as the selected cell
+field, including the initial voxel state. The VTP files show regenerated
+ISTHMUS triangle surfaces after solid ablation steps.
 
 Check its final mass fraction against the continuum solution with:
 
@@ -117,52 +122,6 @@ python3 ../../tools/check-dsmc-kinetic.py output/history.csv \
   --solid-atoms-per-hit 1 \
   --initial-radius 5e-4
 ```
-
-## Grid-Refinement Report
-
-The DSMC CTest suite runs this grid-refinement case without PDF generation.
-Build the visual DSMC grid-refinement report with:
-
-```bash
-cmake --build --preset dsmc --target dsmc-convergence-report
-```
-
-or run the generator directly:
-
-```bash
-python3 tools/run-dsmc-kinetic-convergence.py \
-  --dsmc build-dsmc/bin/dsmc-iac \
-  --resolutions 4,8,12 \
-  --target-mass-fraction 0.2 \
-  --sample-steps 10 \
-  --mass-courant 0.3333333333 \
-  --domain-half-width 6.5e-4 \
-  --grid-cells 6 \
-  --fnum 2.0e11 \
-  --tolerance-percent 25 \
-  --require-improvement \
-  --pdf
-```
-
-The runner generates temporary input files under the build directory, computes
-the physical ablation time corresponding to the requested target mass fraction,
-and lets the runtime `mass-courant` command choose each solid ablation timestep
-from the current maximum triangle mass flux. The final update is clipped so
-each case ends at the same analytical ablation time. The pass/fail check uses
-the finest-grid mass fraction, voxelized volume fraction, and radius errors;
-`--require-improvement` also requires the finest mass error to improve over the
-coarsest case.
-
-```text
-build-dsmc/output/dsmc-sphere-kinetic-grid-convergence/summary.csv
-build-dsmc/output/dsmc-sphere-kinetic-grid-convergence/report.pdf
-```
-
-The report is optimized as a quick regression-style coupled check. It uses a
-small periodic box around the sphere, a modest `4,8,12` voxel-resolution ladder,
-and `C_m = 1/3` so the run remains short while still showing grid refinement
-toward the continuum sphere solution. The hand-run example above keeps the more
-conservative `C_m = 1/6` setting.
 
 ## Chemistry Note
 

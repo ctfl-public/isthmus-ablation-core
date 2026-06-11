@@ -25,13 +25,13 @@ nav:
       - Expected Features: concepts/expected-features.md
   - Commands:
       - Command Reference: commands/index.md
+      - Input Language Map: commands/language.md
       - include: commands/include.md
       - voxel: commands/voxel.md
       - source: commands/source.md
       - timestep: commands/timestep.md
       - loop commands: commands/loops.md
       - voxel ablate: commands/voxel-ablate.md
-      - fix voxel/ablate: commands/fix-voxel-ablate.md
       - isthmus surface: commands/isthmus-surface.md
       - surface: commands/surface.md
       - iac: commands/iac.md
@@ -47,6 +47,7 @@ nav:
       - DSMC Sphere Kinetic Example: examples/dsmc-sphere-kinetic.md
   - Development:
       - Directory Layout: development/directory-layout.md
+      - Code Architecture: development/code-architecture.md
       - Build And Link: development/build-and-link.md
       - Testing: development/testing.md
       - Test Reports: development/test-reports.md

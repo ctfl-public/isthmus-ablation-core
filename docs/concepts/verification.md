@@ -14,10 +14,10 @@ The core tracks actual quantities such as:
 The input file declares exact or reference expressions:
 
 ```text
-verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
-verify volume-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm final
-verify front exact "q1*time/rho" tolerance 0.01 percent norm final
-verify radius exact "initial-radius - q1*time/rho" tolerance 3.0 percent norm final
+iac_verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
+iac_verify volume-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm final
+iac_verify front exact "q1*time/rho" tolerance 0.01 percent norm final
+iac_verify radius exact "initial-radius - q1*time/rho" tolerance 3.0 percent norm final
 ```
 
 This keeps geometry-specific exact solutions out of the source code.

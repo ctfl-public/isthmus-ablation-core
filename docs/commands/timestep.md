@@ -1,19 +1,19 @@
-# `timestep` Command
+# `iac_timestep` Command
 
-The `timestep` command sets the standalone time increment.
+The `iac_timestep` command sets the IAC solid ablation time increment.
 
 ## Syntax
 
 ```text
-timestep <dt>
-timestep mass/courant <C> source <source-id>
+iac_timestep <dt>
+iac_timestep mass/courant <C> source <source-id>
 ```
 
 ## Examples
 
 ```text
-timestep 1.0e-6
-timestep mass/courant 0.5 source q1
+iac_timestep 1.0e-6
+iac_timestep mass/courant 0.5 source q1
 ```
 
 ## Description
@@ -28,4 +28,3 @@ dt = C * rho * dx / source
 
 For the current slab case, `C = 0.5` removes half of one voxel mass from each
 exposed column per step.
-

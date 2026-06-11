@@ -197,8 +197,6 @@ void Voxel::command(int narg, char **arg) {
     try {
       if (IACBridge::owns_model(sparta)) {
         IACBridge::model(sparta).ablate(ablate);
-        IACBridge::model(sparta).advance_steps(1);
-        IACBridge::print_stats_after_step(sparta);
       }
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());

@@ -361,7 +361,7 @@ void Model::validate_and_initialize() {
     throw RuntimeError("only 'units si' is currently supported");
   }
   if (config_.voxel_name.empty()) {
-    throw RuntimeError("missing voxel model; expected 'voxel create <name> ...'");
+    throw RuntimeError("missing voxel model; expected 'voxel_create <name> ...'");
   }
   if (config_.material.name.empty() || config_.material.density <= 0.0) {
     throw RuntimeError("voxel material requires a positive density");
@@ -380,17 +380,8 @@ void Model::validate_and_initialize() {
   if (config_.source.name.empty() || config_.source.value < 0.0) {
     throw RuntimeError("source constant requires a nonnegative value");
   }
-  if (!config_.fix.name.empty()) {
-    validate_ablation(
-        AblationCommand{config_.fix.voxels, config_.fix.source, "", config_.fix.policy,
-                        config_.fix.face, config_.fix.delete_empty},
-        "fix '" + config_.fix.name + "'");
-    if (config_.fix.every <= 0) {
-      throw RuntimeError("fix every value must be positive");
-    }
-  }
   bool has_run = false;
-  bool has_ablation = !config_.fix.name.empty();
+  bool has_ablation = false;
   for (const auto &command : config_.program) {
     if (command.kind == CommandKind::Run) {
       has_run = true;
@@ -411,10 +402,10 @@ void Model::validate_and_initialize() {
   }
   validate_ghosts();
   if (config_.require_program && !has_run) {
-    throw RuntimeError("input must contain at least one run command");
+    throw RuntimeError("input must contain at least one iac_run command");
   }
   if (config_.require_program && !has_ablation) {
-    throw RuntimeError("input must contain a voxel ablate command or fix voxel/ablate");
+    throw RuntimeError("input must contain a voxel ablate command");
   }
 
   if (config_.geometry == GeometryKind::Slab) {
@@ -797,11 +788,6 @@ void Model::run_steps(const RunConfig &run, std::ostream *stats) {
     }
     open_step();
     const int next_step = current_step_ + 1;
-    if (!config_.fix.name.empty() && next_step % config_.fix.every == 0) {
-      advance_local_slab(AblationCommand{config_.fix.voxels, config_.fix.source, "",
-                                         config_.fix.policy, config_.fix.face,
-                                         config_.fix.delete_empty});
-    }
     current_step_ = next_step;
     current_time_ += dt_;
     record_history(current_step_, current_time_);
@@ -1958,13 +1944,6 @@ void Model::print_run_summary(std::ostream &out) const {
   out << '\n';
   out << "#   timestep = " << dt_ << " s\n";
   out << "#   program commands = " << config_.program.size() << '\n';
-  if (config_.fix.name.empty()) {
-    out << "#   fix = off\n";
-  } else {
-    out << "#   fix = " << config_.fix.name << " voxel/ablate every " << config_.fix.every
-        << " policy " << config_.fix.policy << " delete "
-        << (config_.fix.delete_empty ? "yes" : "no") << '\n';
-  }
   out << "#   stats = every " << config_.stats.every << " steps\n";
   out << "#   voxel dumps = ";
   if (config_.dumps.empty()) {

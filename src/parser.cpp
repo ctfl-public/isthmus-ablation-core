@@ -101,7 +101,7 @@ void insert_subcommand(std::vector<std::string> &tokens, const std::string &comm
   tokens.insert(tokens.begin() + 1, subcommand);
 }
 
-void normalize_command_alias(std::vector<std::string> &tokens) {
+void normalize_canonical_command(std::vector<std::string> &tokens) {
   if (tokens.empty()) {
     return;
   }
@@ -116,12 +116,59 @@ void normalize_command_alias(std::vector<std::string> &tokens) {
     insert_subcommand(tokens, "voxel", "ablate");
   } else if (command == "voxel_ghost") {
     insert_subcommand(tokens, "voxel", "ghost");
-  } else if (command == "isthmus_surf") {
+  } else if (command == "isthmus_surface") {
     insert_subcommand(tokens, "isthmus", "surface");
   } else if (command == "surf_flux") {
     insert_subcommand(tokens, "surface", "flux");
   } else if (command == "surf_dump") {
     insert_subcommand(tokens, "surface", "dump");
+  } else if (command == "iac_timestep") {
+    tokens[0] = "timestep";
+  } else if (command == "iac_run") {
+    tokens[0] = "run";
+  } else if (command == "iac_limit") {
+    tokens[0] = "limit";
+  } else if (command == "iac_verify") {
+    tokens[0] = "verify";
+  } else if (command == "iac_stats") {
+    tokens[0] = "stats";
+  } else if (command == "iac_stats_style") {
+    tokens[0] = "stats_style";
+  }
+}
+
+void reject_legacy_command(const std::string &command, int line_number) {
+  if (command == "voxel") {
+    throw InputError(line_error(line_number,
+                                "use DSMC-style voxel_* commands, not 'voxel <subcommand>'"));
+  }
+  if (command == "isthmus") {
+    throw InputError(line_error(line_number, "use isthmus_surface, not 'isthmus surface'"));
+  }
+  if (command == "surface") {
+    throw InputError(line_error(line_number,
+                                "use DSMC-style surf_* commands, not 'surface <subcommand>'"));
+  }
+  if (command == "isthmus_surf") {
+    throw InputError(line_error(line_number, "use isthmus_surface, not isthmus_surf"));
+  }
+  if (command == "timestep") {
+    throw InputError(line_error(line_number, "use iac_timestep, not timestep"));
+  }
+  if (command == "run") {
+    throw InputError(line_error(line_number, "use iac_run for solid advancement"));
+  }
+  if (command == "limit") {
+    throw InputError(line_error(line_number, "use iac_limit, not limit"));
+  }
+  if (command == "verify") {
+    throw InputError(line_error(line_number, "use iac_verify, not verify"));
+  }
+  if (command == "stats") {
+    throw InputError(line_error(line_number, "use iac_stats, not stats"));
+  }
+  if (command == "stats_style") {
+    throw InputError(line_error(line_number, "use iac_stats_style, not stats_style"));
   }
 }
 
@@ -237,6 +284,8 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
 
   std::string line;
   int line_number = 0;
+  bool pending_continue = false;
+  double pending_continue_time = 0.0;
   while (std::getline(input, line)) {
     ++line_number;
     std::vector<std::string> tokens;
@@ -251,7 +300,9 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
     if (!(tokens.size() >= 4 && tokens[0] == "variable" && tokens[2] == "equal")) {
       substitute_tokens(tokens, variables, line_number);
     }
-    normalize_command_alias(tokens);
+    const std::string original_command = tokens[0];
+    reject_legacy_command(original_command, line_number);
+    normalize_canonical_command(tokens);
 
     const auto &command = tokens[0];
     if (command == "include") {
@@ -261,7 +312,8 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
       }
       auto include_path = std::filesystem::path(tokens[1]);
       if (include_path.is_relative()) {
-        include_path = path.parent_path() / include_path;
+        const auto input_relative = path.parent_path() / include_path;
+        include_path = std::filesystem::exists(input_relative) ? input_relative : include_path;
       }
       parse_input_file_into(include_path, config, include_stack, variables, overrides);
     } else if (command == "units") {
@@ -572,25 +624,6 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
         config.timestep.kind = TimestepKind::Explicit;
         config.timestep.value = parse_double(tokens[1], line_number);
       }
-    } else if (command == "fix") {
-      require_size(tokens, 6, line_number);
-      config.fix.name = tokens[1];
-      if (tokens[3] != "voxel/ablate") {
-        throw InputError(line_error(line_number, "only fix style voxel/ablate is supported"));
-      }
-      config.fix.every = parse_int(tokens[4], line_number);
-      const auto values = parse_pairs(tokens, 5, line_number);
-      config.fix.voxels = required(values, "voxels", line_number);
-      config.fix.source = required(values, "source", line_number);
-      config.fix.policy = required(values, "policy", line_number);
-      const auto face = values.find("face");
-      if (face != values.end()) {
-        config.fix.face = face->second;
-      }
-      const auto delete_it = values.find("delete");
-      if (delete_it != values.end()) {
-        config.fix.delete_empty = parse_bool(delete_it->second, line_number);
-      }
     } else if (command == "stats") {
       require_size(tokens, 2, line_number);
       config.stats.every = parse_int(tokens[1], line_number);
@@ -608,6 +641,11 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
         }
         const auto override = overrides.find(tokens[1]);
         variables[tokens[1]] = override == overrides.end() ? tokens[3] : override->second;
+      } else if (tokens[2] == "internal") {
+        if (tokens.size() != 4) {
+          throw InputError(line_error(line_number, "variable internal takes exactly one value"));
+        }
+        variables[tokens[1]] = tokens[3];
       } else if (tokens[2] == "loop") {
         substitute_tokens(tokens, variables, line_number);
         ScriptCommand command_entry;
@@ -620,7 +658,7 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
         config.program.push_back(std::move(command_entry));
       } else {
         throw InputError(line_error(line_number,
-                                    "variable must use equal or loop"));
+                                    "variable must use equal, internal, or loop"));
       }
     } else if (command == "label") {
       require_size(tokens, 2, line_number);
@@ -643,15 +681,8 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
       command_entry.kind = CommandKind::Jump;
       command_entry.target = tokens[2];
       if (tokens.size() > 3) {
-        if (tokens.size() != 6 || tokens[3] != "until" || tokens[4] != "time") {
-          throw InputError(line_error(
-              line_number, "expected 'jump SELF <label> until time <target>'"));
-        }
-        command_entry.use_time_limit = true;
-        command_entry.time_limit = parse_double(tokens[5], line_number);
-        if (command_entry.time_limit <= 0.0) {
-          throw InputError(line_error(line_number, "jump until time target must be positive"));
-        }
+        throw InputError(line_error(line_number,
+                                    "use iac_continue with if/jump for time-limited loops"));
       }
       config.program.push_back(std::move(command_entry));
     } else if (command == "limit") {
@@ -665,6 +696,45 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
         throw InputError(line_error(line_number, "limit time target must be positive"));
       }
       config.program.push_back(std::move(command_entry));
+    } else if (command == "iac_continue" || command == "continue") {
+      if (tokens.size() != 5 || tokens[1] != "time" || tokens[3] != "variable") {
+        throw InputError(line_error(line_number,
+                                    "expected 'iac_continue time <target> variable <name>'"));
+      }
+      pending_continue = true;
+      pending_continue_time = parse_double(tokens[2], line_number);
+      if (pending_continue_time <= 0.0) {
+        throw InputError(line_error(line_number, "iac_continue time target must be positive"));
+      }
+      variables[tokens[4]] = "1";
+    } else if (command == "if") {
+      if (tokens.size() != 4 || tokens[2] != "then") {
+        throw InputError(line_error(line_number,
+                                    "expected 'if \"${var} > 0\" then \"jump SELF <label>\"'"));
+      }
+      std::vector<std::string> then_tokens;
+      try {
+        then_tokens = tokenize(tokens[3]);
+      } catch (const InputError &error) {
+        throw InputError(source_error(path, line_number, error.what()));
+      }
+      if (then_tokens.size() != 3 || then_tokens[0] != "jump" ||
+          then_tokens[1] != "SELF") {
+        throw InputError(line_error(line_number,
+                                    "only 'if ... then \"jump SELF <label>\"' is supported"));
+      }
+      if (!pending_continue) {
+        throw InputError(line_error(
+            line_number,
+            "standalone if/jump loops require a preceding iac_continue time command"));
+      }
+      ScriptCommand command_entry;
+      command_entry.kind = CommandKind::Jump;
+      command_entry.target = then_tokens[2];
+      command_entry.use_time_limit = true;
+      command_entry.time_limit = pending_continue_time;
+      config.program.push_back(std::move(command_entry));
+      pending_continue = false;
     } else if (command == "run") {
       require_size(tokens, 2, line_number);
       ScriptCommand command_entry;

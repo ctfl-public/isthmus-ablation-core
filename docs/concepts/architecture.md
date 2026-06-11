@@ -33,12 +33,12 @@ The current standalone ISTHMUS path is:
 3. Cache the surface mesh and triangle-to-voxel ownership fractions.
 4. Run `surf_flux ...` to apply mass flux to selected triangles.
 5. Run `voxel_ablate ...` to update voxel mass and delete empty voxels.
-6. Run `isthmus_surf ...` again if the voxel state changed.
+6. Run `isthmus_surface ...` again if the voxel state changed.
 
 ## Future DSMC/SPARTA Coupling
 
 The planned DSMC coupling should support both a command-loop path and a
-timestep-callback path. We will implement whichever proves easiest first.
+iac_timestep-callback path. We will implement whichever proves easiest first.
 
 The command-loop path would look like:
 
@@ -47,7 +47,7 @@ label ablate-loop
 run 10000
 surf_flux surf1 source dsmc-flux select all
 voxel_ablate solid surface surf1 policy local delete yes
-isthmus_surf surf1 voxels solid map yes
+isthmus_surface surf1 voxels solid map yes
 surface update surf1 install yes
 jump SELF ablate-loop
 ```

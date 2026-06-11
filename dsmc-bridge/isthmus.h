@@ -1,7 +1,6 @@
 #ifdef COMMAND_CLASS
 
-CommandStyle(isthmus,Isthmus)
-CommandStyle(isthmus_surf,IsthmusSurf)
+CommandStyle(isthmus_surface,IsthmusSurface)
 
 #else
 
@@ -18,9 +17,9 @@ class Isthmus : protected Pointers {
   void command(int, char **);
 };
 
-class IsthmusSurf : protected Pointers {
+class IsthmusSurface : protected Pointers {
  public:
-  IsthmusSurf(class SPARTA *);
+  IsthmusSurface(class SPARTA *);
   void command(int, char **);
 };
 

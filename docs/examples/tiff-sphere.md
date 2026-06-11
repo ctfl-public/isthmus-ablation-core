@@ -33,12 +33,13 @@ The ablation loop is the same command-driven loop used by generated sphere
 cases:
 
 ```text
-limit time ${ablation_time}
-isthmus_surf skin voxels solid buffer 1 weighting no map yes
+iac_limit time ${ablation_time}
+isthmus_surface skin voxels solid buffer 1 weighting no map yes
 surf_flux skin source q1 select all
 voxel_ablate solid surface skin policy carryover/normal delete yes
-run 1
-jump SELF ablate-loop until time ${ablation_time}
+iac_run 1
+iac_continue time ${ablation_time} variable keep
+if "${keep} > 0" then "jump SELF ablate-loop"
 ```
 
 ## Run

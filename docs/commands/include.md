@@ -25,9 +25,9 @@ The command is useful for regression tests:
 ```text
 include ../../../examples/slab-direct-ablation/in.slab-direct-ablation
 
-verify remaining-mass exact "initial-mass - q1*area*time" tolerance 0.01 percent norm max
-verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
-verify front exact "q1*time/rho" tolerance 0.01 percent norm final
+iac_verify remaining-mass exact "initial-mass - q1*area*time" tolerance 0.01 percent norm max
+iac_verify mass-fraction exact "1.0 - q1*time/(rho*length)" tolerance 0.01 percent norm max
+iac_verify front exact "q1*time/rho" tolerance 0.01 percent norm final
 ```
 
 The example owns the physical case. The test wrapper owns the pass/fail

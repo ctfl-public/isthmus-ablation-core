@@ -35,12 +35,14 @@ output/
 examples/dsmc-sphere-visual/output/*
 !examples/dsmc-sphere-visual/output/.gitkeep
 reports/
+convergence-*.csv
 log.sparta
 dsmc-sphere-visual-*
 
 # Python caches
 __pycache__/
 *.py[cod]
+tools/run-dsmc-kinetic-convergence.py
 
 # Generated web docs
 site/

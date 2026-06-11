@@ -207,19 +207,28 @@ if(isthmus_cpp_FOUND)
 endif()
 
 if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
-  set(IAC_DSMC_KINETIC_CONVERGENCE_ARGS
-      --dsmc ${IAC_DSMC_EXECUTABLE}
-      --out ${CMAKE_BINARY_DIR}/output/dsmc-sphere-kinetic-grid-convergence
-      --resolutions 4,8,12
-      --target-mass-fraction 0.2
-      --sample-steps 10
-      --mass-courant 0.3333333333
-      --fnum 2.0e11
-      --domain-half-width 6.5e-4
-      --grid-cells 6
-      --tolerance-percent 25.0
-      --require-improvement
-  )
+  function(iac_add_hosted_input_test test_name input_file)
+    add_test(
+      NAME hosted-${test_name}
+      COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
+              -in ${CMAKE_SOURCE_DIR}/${input_file}
+    )
+    set_tests_properties(hosted-${test_name} PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+
+    if(IAC_ENABLE_MPI_TESTS AND IAC_MPIEXEC_EXECUTABLE)
+      add_test(
+        NAME hosted-mpi-${test_name}
+        COMMAND ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
+                ${IAC_DSMC_EXECUTABLE} -screen none -log none
+                -in ${CMAKE_SOURCE_DIR}/${input_file}
+      )
+      set_tests_properties(hosted-mpi-${test_name} PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      )
+    endif()
+  endfunction()
 
   function(iac_add_dsmc_input_test test_name input_file)
     add_test(
@@ -245,35 +254,55 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
     endif()
   endfunction()
 
-  iac_add_dsmc_input_test(
-    dsmc-slab-direct-ablation-verification
-    tests/inputs/dsmc-slab-direct-ablation/in.dsmc-slab-direct-ablation.verify
+  iac_add_hosted_input_test(
+    slab-direct-command-verification
+    tests/inputs/slab-direct-ablation/in.slab-direct-command.verify
   )
+  iac_add_hosted_input_test(
+    slab-direct-yhi-verification
+    tests/inputs/slab-direct-ablation/in.slab-direct-yhi.verify
+  )
+  iac_add_hosted_input_test(
+    slab-isthmus-finite-surface-verification
+    tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite-surface.verify
+  )
+  iac_add_hosted_input_test(
+    slab-isthmus-ghost-wall-verification
+    tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost-wall.verify
+  )
+  iac_add_hosted_input_test(
+    sphere-isthmus-local-deletion-verification
+    tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify
+  )
+  iac_add_hosted_input_test(
+    sphere-isthmus-normal-carryover-verification
+    tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify
+  )
+  iac_add_hosted_input_test(
+    sphere-isthmus-kinetic-theory-verification
+    tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-kinetic-theory.verify
+  )
+  iac_add_hosted_input_test(
+    tiff-sphere-normal-carryover-verification
+    tests/inputs/tiff-sphere/in.tiff-sphere-normal-carryover.verify
+  )
+
   iac_add_dsmc_input_test(
     dsmc-slab-time-stop-verification
     tests/inputs/dsmc-slab-time-stop/in.dsmc-slab-time-stop.verify
-  )
-  iac_add_dsmc_input_test(
-    dsmc-sphere-isthmus-normal-carryover-verification
-    tests/inputs/dsmc-sphere-isthmus-ablation/in.dsmc-sphere-isthmus-normal-carryover.verify
   )
   iac_add_dsmc_input_test(
     dsmc-sphere-flux-verification
     tests/inputs/dsmc-sphere-flux/in.dsmc-sphere-flux.verify
   )
 
-  if(Python3_Interpreter_FOUND)
-    add_test(
-      NAME dsmc-sphere-kinetic-grid-convergence
-      COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-dsmc-kinetic-convergence.py
-              ${IAC_DSMC_KINETIC_CONVERGENCE_ARGS}
-    )
-    set_tests_properties(dsmc-sphere-kinetic-grid-convergence PROPERTIES
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-      TIMEOUT 30
-    )
-  endif()
+endif()
 
+get_property(IAC_REGISTERED_TESTS DIRECTORY PROPERTY TESTS)
+if(IAC_REGISTERED_TESTS)
+  set_tests_properties(${IAC_REGISTERED_TESTS} PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  )
 endif()
 
 add_custom_target(
@@ -303,14 +332,4 @@ if(Python3_Interpreter_FOUND AND PDFLATEX_EXECUTABLE)
     COMMENT "Building combined verification report"
   )
 
-  if(IAC_DSMC_EXECUTABLE)
-    add_custom_target(
-      dsmc-convergence-report
-      COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run-dsmc-kinetic-convergence.py
-              ${IAC_DSMC_KINETIC_CONVERGENCE_ARGS}
-              --pdf
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-      COMMENT "Building DSMC sphere kinetic grid-convergence report"
-    )
-  endif()
 endif()

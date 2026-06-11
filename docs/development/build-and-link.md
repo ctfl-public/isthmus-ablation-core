@@ -164,15 +164,15 @@ voxel model, material ledger, ISTHMUS calls, history, diagnostics, and IAC file
 outputs. Other DSMC ranks still parse the same input commands, but they do not
 instantiate their own voxel model.
 
-When an `isthmus` command generates a surface, rank 0 converts the current voxel
+When `isthmus_surface` generates a surface, rank 0 converts the current voxel
 state to an ISTHMUS surface and broadcasts the public triangle geometry to all
-DSMC ranks. `surface install` then partitions those triangles across DSMC ranks
+DSMC ranks. `surf_install` then partitions those triangles across DSMC ranks
 for normal SPARTA surface/grid/particle work. DSMC surface tallies are reduced
 across ranks before rank 0 maps the resulting triangle fluxes back into voxel
 mass.
 
 Commands that need scalar IAC state for DSMC input control, such as
-`iac continue` and `iac set`, compute the value on rank 0 and broadcast it so
+`iac_continue` and `iac_set`, compute the value on rank 0 and broadcast it so
 all ranks make the same input-script decisions.
 
 This is the first MPI level. It avoids duplicated voxel/ISTHMUS work and keeps
@@ -238,11 +238,12 @@ DSMC's existing make system scans headers in the overlay and regenerates
 commands such as:
 
 ```text
-voxel ...
-isthmus ...
-surface ...
+voxel_create ...
+voxel_ablate ...
+isthmus_surface ...
+surf_flux ...
 source ...
-iac ...
+iac_run ...
 ```
 
 become visible to DSMC without editing DSMC parser logic.

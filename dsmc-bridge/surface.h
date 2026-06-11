@@ -1,6 +1,5 @@
 #ifdef COMMAND_CLASS
 
-CommandStyle(surface,Surface)
 CommandStyle(surf_dump,SurfaceDumpCommand)
 CommandStyle(surf_flux,SurfaceFlux)
 CommandStyle(surf_install,SurfaceInstall)

@@ -8,15 +8,26 @@
 
 #include <mpi.h>
 
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <string>
+#include <vector>
 
 using namespace SPARTA_NS;
 
 namespace {
+
+void forward_iac(SPARTA *sparta, const char *subcommand, int narg, char **arg) {
+  std::vector<char *> forwarded;
+  forwarded.reserve(static_cast<std::size_t>(narg) + 1);
+  forwarded.push_back(const_cast<char *>(subcommand));
+  for (int i = 0; i < narg; ++i) {
+    forwarded.push_back(arg[i]);
+  }
+  Iac iac(sparta);
+  iac.command(static_cast<int>(forwarded.size()), forwarded.data());
+}
 
 void set_internal_variable(Input *input, Error *error, const char *name, double value) {
   Variable *variable = input->variable;
@@ -40,6 +51,21 @@ double broadcast_root_value(SPARTA *sparta, double value) {
 } // namespace
 
 Iac::Iac(SPARTA *sparta) : Pointers(sparta) {}
+
+#define IAC_FORWARD_COMMAND(ClassName, Subcommand)                                             \
+  ClassName::ClassName(SPARTA *sparta) : Pointers(sparta) {}                                   \
+  void ClassName::command(int narg, char **arg) { forward_iac(sparta, Subcommand, narg, arg); }
+
+IAC_FORWARD_COMMAND(IacContinue, "continue")
+IAC_FORWARD_COMMAND(IacLimit, "limit")
+IAC_FORWARD_COMMAND(IacRun, "run")
+IAC_FORWARD_COMMAND(IacSet, "set")
+IAC_FORWARD_COMMAND(IacStats, "stats")
+IAC_FORWARD_COMMAND(IacStatsStyle, "stats_style")
+IAC_FORWARD_COMMAND(IacTimestep, "timestep")
+IAC_FORWARD_COMMAND(IacVerify, "verify")
+
+#undef IAC_FORWARD_COMMAND
 
 void Iac::command(int narg, char **arg) {
   if (narg < 1) {
@@ -137,7 +163,7 @@ void Iac::command(int narg, char **arg) {
     return;
   }
 
-  if (std::strcmp(arg[0], "stats_style") == 0 || std::strcmp(arg[0], "stats-style") == 0) {
+  if (std::strcmp(arg[0], "stats_style") == 0) {
     if (narg < 2) {
       error->all(FLERR, "Expected iac stats_style <column> ...");
     }
@@ -147,6 +173,27 @@ void Iac::command(int narg, char **arg) {
       columns.push_back(arg[i]);
     }
     IACBridge::reset_stats_output();
+    return;
+  }
+
+  if (std::strcmp(arg[0], "run") == 0) {
+    if (narg != 2) {
+      error->all(FLERR, "Expected iac_run <N>");
+    }
+    const int steps = std::atoi(arg[1]);
+    if (steps <= 0) {
+      error->all(FLERR, "iac_run step count must be positive");
+    }
+    try {
+      if (IACBridge::owns_model(sparta)) {
+        for (int i = 0; i < steps; ++i) {
+          IACBridge::model(sparta).advance_steps(1);
+          IACBridge::print_stats_after_step(sparta);
+        }
+      }
+    } catch (const std::exception &ex) {
+      error->all(FLERR, ex.what());
+    }
     return;
   }
 
@@ -233,26 +280,6 @@ void Iac::command(int narg, char **arg) {
       }
       value = broadcast_root_value(sparta, value);
       set_internal_variable(input, error, arg[1], value);
-    } catch (const std::exception &ex) {
-      error->all(FLERR, ex.what());
-    }
-    return;
-  }
-
-  if (std::strcmp(arg[0], "print") == 0) {
-    if (narg != 2) {
-      error->all(FLERR, "Illegal iac print command");
-    }
-    try {
-      if (IACBridge::owns_model(sparta)) {
-        const double value = IACBridge::model(sparta).diagnostic(arg[1]);
-        if (screen) {
-          std::fprintf(screen, "IAC diagnostic %s = %.17g\n", arg[1], value);
-        }
-        if (logfile) {
-          std::fprintf(logfile, "IAC diagnostic %s = %.17g\n", arg[1], value);
-        }
-      }
     } catch (const std::exception &ex) {
       error->all(FLERR, ex.what());
     }

@@ -1,8 +1,38 @@
 # Testing
 
-The project uses CTest.
+The clean full test path is the DSMC preset. It builds the core library,
+standalone executable, private DSMC/IAC executable, and then runs the full
+CTest matrix:
 
-Build and run tests:
+```bash
+cmake --preset dsmc
+cmake --build --preset dsmc
+ctest --preset dsmc --output-on-failure
+```
+
+For a completely fresh rebuild:
+
+```bash
+rm -rf build build-dsmc
+cmake --preset dsmc
+cmake --build --preset dsmc
+ctest --preset dsmc --output-on-failure
+```
+
+Inspect the registered tests without running them:
+
+```bash
+ctest --test-dir build-dsmc -N
+```
+
+The DSMC preset includes:
+
+- standalone `ia-core` regression tests;
+- the same pure-IAC inputs hosted through `build-dsmc/bin/dsmc-iac`;
+- MPI-hosted twins when CMake finds an MPI launcher;
+- DSMC gas-domain checks for surface flux measurement and bridge behavior.
+
+For standalone-only development:
 
 ```bash
 cmake --preset standalone
@@ -10,26 +40,32 @@ cmake --build --preset standalone
 ctest --preset standalone --output-on-failure
 ```
 
-CTest captures output from passing tests by default. To see the stats table
-while the test runs, use verbose CTest output:
+CTest captures output from passing tests by default. To see stats output while
+tests run:
 
 ```bash
 ctest --preset standalone --output-on-failure --verbose
 ```
 
-or use the convenience target:
+or:
 
 ```bash
 cmake --build --preset standalone --target check-verbose
 ```
 
-To build the optional visual verification report:
+More detail on test categories, input-file conventions, and pass/fail criteria
+lives in `tests/README.md`.
+
+## Test Reports
+
+The optional visual verification report is separate from the default test run:
 
 ```bash
 cmake --build --preset report
 ```
 
-This runs the tests, collects each configured test report CSV, and writes:
+This runs the configured report cases, collects verification CSV files, and
+writes:
 
 ```text
 build/output/test-report.pdf
@@ -43,151 +79,6 @@ python3 tools/run-test-report.py 1-3
 python3 tools/run-test-report.py slab-direct-command-verification
 ```
 
-The standalone regression tests are:
-
-```text
-slab-direct-command-verification
-slab-direct-yhi-verification
-slab-isthmus-finite-surface-verification
-slab-isthmus-ghost-wall-verification
-sphere-isthmus-local-deletion-verification
-sphere-isthmus-normal-carryover-verification
-sphere-isthmus-kinetic-theory-verification
-sphere-isthmus-normal-carryover-convergence
-sphere-isthmus-surface-resolution-convergence
-tiff-sphere-normal-carryover-verification
-```
-
-These are standalone/core tests. They run with the `ia-core` binary and should
-be the only tests present in a normal standalone build.
-
-To add coupled DSMC tests, configure and build the DSMC/IAC overlay:
-
-```bash
-cmake --preset dsmc
-cmake --build --preset dsmc
-ctest --preset dsmc
-```
-
-That build runs the standalone/core tests plus:
-
-```text
-dsmc-slab-direct-ablation-verification
-dsmc-slab-time-stop-verification
-dsmc-sphere-isthmus-normal-carryover-verification
-dsmc-sphere-flux-verification
-dsmc-sphere-kinetic-grid-convergence
-```
-
-If CMake finds an MPI launcher and `IAC_ENABLE_MPI_TESTS` is left on, every
-DSMC input-file test also gets an MPI twin:
-
-```text
-dsmc-mpi-slab-direct-ablation-verification
-dsmc-mpi-slab-time-stop-verification
-dsmc-mpi-sphere-isthmus-normal-carryover-verification
-dsmc-mpi-sphere-flux-verification
-```
-
-These run with `IAC_DSMC_MPI_NP` ranks, defaulting to `2`. If no MPI launcher
-is found, CMake prints a warning and skips only the MPI tests; the serial DSMC
-tests still run. The Python-driven `dsmc-sphere-kinetic-grid-convergence` test
-is intentionally serial-only for now.
-
-The DSMC tests are intentionally modest. The flux verification is a one-step
-instantaneous kinetic-theory check: it verifies the initial O2 reaction count
-and equivalent carbon mass flux before the perfectly consuming surface depletes
-the nearby O2 population. The kinetic grid-convergence test then runs the
-coupled collision-flux recession loop on a small `4,8,12` voxel-resolution
-ladder with `C_m = 1/3`. It compares final mass fraction, voxelized volume
-fraction, and radius to the analytical kinetic-theory sphere recession near
-20% remaining mass, and requires the finest mass error to improve over the
-coarsest case. This test is only present in DSMC-enabled builds.
-
-To build the DSMC convergence report:
-
-```bash
-cmake --build --preset dsmc --target dsmc-convergence-report
-```
-
-The target uses the same optimized `4,8,12` voxel-resolution ladder as the
-`dsmc-sphere-kinetic-grid-convergence` CTest, but also compiles the PDF report.
-The normal CTest path skips PDF generation so the pass/fail check stays quick.
-
-It writes:
-
-```text
-build-dsmc/output/dsmc-sphere-kinetic-grid-convergence/summary.csv
-build-dsmc/output/dsmc-sphere-kinetic-grid-convergence/report.pdf
-```
-
-The standalone test report currently includes:
-
-```text
-tests/inputs/slab-direct-ablation/in.slab-direct-command.verify
-tests/inputs/slab-direct-ablation/in.slab-direct-yhi.verify
-tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite-surface.verify
-tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost-wall.verify
-tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify
-tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify
-tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-kinetic-theory.verify
-tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover-convergence.verify
-```
-
-The command-loop test includes the example case:
-
-```text
-include ../../../examples/slab-direct-ablation/in.slab-direct-ablation
-```
-
-The fix test keeps the compact callback-style path covered while the examples
-move toward explicit `voxel_ablate` loops. Tests pass only if all `verify`
-commands in the wrapper input files pass.
-
-The sphere ISTHMUS tests are enabled when the build finds the ISTHMUS C++
-package. They run marching cubes, apply constant triangle flux, map that flux
-back to voxels, and compare the inferred radius and mass fraction against the
-continuum shrinking-sphere solution. The local sphere test keeps the
-nonconservative path covered. The normal-carryover sphere test checks the
-conservative path and verifies that final-step dropped mass is essentially zero.
-
-The slab ISTHMUS tests compare a finite 4 by 4 surface patch against the same
-patch with y/z infinite-wall ghost voxels. The finite-patch case has broad
-tolerances because edge effects are expected. The ghost case should match the
-one-dimensional slab recession nearly exactly.
-
-The normal-carryover convergence test is an input file, not an external runner. It uses
-`variable ... equal ...` and a `convergence ... vary ... order ...` command to
-run normal carryover at 5, 10, and 20 voxels across the diameter with
-mass-Courant timing. It requires monotone radius-error reduction. The
-voxelized volume-fraction check allows non-monotone coarse stair-step ties but
-still checks the end-to-end apparent order in a broad first-order band.
-
-The surface-resolution convergence test holds the voxel sphere fixed and varies
-the ISTHMUS marching-cubes spacing from `10:1` to `1:1`. It checks apparent
-first-to-last radius-error reduction against the continuum shrinking-sphere
-solution after substantial recession. It does not require monotone intermediate
-errors because a coarse marching grid can smooth a low-resolution voxelized
-sphere and temporarily appear closer to the continuum sphere than the fully
-resolved voxel stair-step geometry.
-
-## Test Organization
-
-Use `tests/inputs/` for automated regression wrappers. Keep these compact and
-deterministic. Prefer including a file from `examples/` and adding only the
-`verify` commands or test-specific criteria in the wrapper.
-
-Use `examples/` for readable user-facing examples. Examples should describe and
-run the physical case without embedding every regression criterion.
-
-Example cases should use DSMC/SPARTA-style descriptive folders and input names:
-
-```text
-examples/<case-name>/in.<case-name>
-tests/inputs/<case-name>/in.<case-name>.verify
-```
-
-Standalone convergence tests should live under `tests/inputs/` and use the
-explicit `convergence` verification command. Coupled DSMC convergence tests can
-use a runner under `tools/` when they need to launch DSMC repeatedly and
-generate per-case input files under `build/output`.
+Keep slow exploratory plotting and convergence reports out of the default CTest
+suite until they are deterministic and fast enough to serve as regression
+tests.

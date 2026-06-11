@@ -70,8 +70,8 @@ void forward_isthmus(SPARTA *sparta, const char *subcommand, int narg, char **ar
 
 Isthmus::Isthmus(SPARTA *sparta) : Pointers(sparta) {}
 
-IsthmusSurf::IsthmusSurf(SPARTA *sparta) : Pointers(sparta) {}
-void IsthmusSurf::command(int narg, char **arg) {
+IsthmusSurface::IsthmusSurface(SPARTA *sparta) : Pointers(sparta) {}
+void IsthmusSurface::command(int narg, char **arg) {
   forward_isthmus(sparta, "surface", narg, arg);
 }
 
