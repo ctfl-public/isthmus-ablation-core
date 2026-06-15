@@ -94,6 +94,51 @@ cmake --build build-dsmc --target dsmc
 ctest --test-dir build-dsmc --output-on-failure
 ```
 
+## University Of Kentucky MCC
+
+The Morgan Compute Cluster provides a default CMake 3.19.4 module and a newer
+CMake 3.23.5 module. The preset workflow requires CMake 3.20 or newer, so load
+the newer module stack before configuring:
+
+```bash
+module load spack/0.23.0
+module swap gnu9 gcc/13.3.0
+module load cmake/3.23.5
+cmake --version
+```
+
+Then set the external code roots and build normally:
+
+```bash
+export DSMC_ROOT=$HOME/TylerStoffel/dsmc
+export ISTHMUS_ROOT=$HOME/TylerStoffel/isthmus
+
+cmake --preset dsmc
+cmake --build --preset dsmc
+ctest --preset dsmc
+```
+
+The normal build/test path uses MCC's system Python 3.6 for small helper
+scripts. Documentation and report-generation targets may need additional LaTeX
+or Python packages, but they are not required for compiling and running the
+verification suite.
+
+If the CMake module cannot be loaded directly, ask Lmod for the prerequisite
+line:
+
+```bash
+module spider cmake/3.23.5
+```
+
+On MCC this currently reports:
+
+```text
+spack/0.23.0  gcc/13.3.0
+```
+
+so the `module swap gnu9 gcc/13.3.0` step is expected when the default `gnu9`
+compiler module is already loaded.
+
 Run a coupled input:
 
 ```bash

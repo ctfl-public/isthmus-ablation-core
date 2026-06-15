@@ -60,6 +60,41 @@ cmake --build build-dsmc --target dsmc
 ctest --test-dir build-dsmc --output-on-failure
 ```
 
+### University Of Kentucky MCC
+
+On the Morgan Compute Cluster, the default `cmake` module may be too old for
+presets. Load the newer Spack/GCC stack before configuring:
+
+```bash
+module load spack/0.23.0
+module swap gnu9 gcc/13.3.0
+module load cmake/3.23.5
+```
+
+Then point IAC at DSMC and ISTHMUS and use the normal preset workflow:
+
+```bash
+export DSMC_ROOT=$HOME/TylerStoffel/dsmc
+export ISTHMUS_ROOT=$HOME/TylerStoffel/isthmus
+
+cmake --preset dsmc
+cmake --build --preset dsmc
+ctest --preset dsmc
+```
+
+MCC's system Python 3.6 is enough for the normal build and verification tests.
+The optional PDF documentation and report targets may need additional local
+tools.
+
+If `module load cmake/3.23.5` reports that prerequisites are missing, run:
+
+```bash
+module spider cmake/3.23.5
+```
+
+and load the prerequisite modules it prints. On MCC this is currently
+`spack/0.23.0` and `gcc/13.3.0`.
+
 The `dsmc` build preset:
 
 - builds `libisthmus_ablation_core.a`;
