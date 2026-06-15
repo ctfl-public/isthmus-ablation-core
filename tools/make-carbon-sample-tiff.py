@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """Write a deterministic rough carbon-sample TIFF stack for examples/tests."""
 
-from __future__ import annotations
-
 import argparse
 import random
 import struct
 from pathlib import Path
+from typing import List
 
 
 def ifd_entry(tag: int, field_type: int, count: int, value: int) -> bytes:
     return struct.pack("<HHII", tag, field_type, count, value)
 
 
-def make_sample(width: int, height: int, depth: int, seed: int) -> list[bytes]:
+def make_sample(width: int, height: int, depth: int, seed: int) -> List[bytes]:
     rng = random.Random(seed)
     surface = [[depth for _ in range(width)] for _ in range(height)]
     pit_depth_max = max(1, min(5, depth // 2))
@@ -40,7 +39,7 @@ def make_sample(width: int, height: int, depth: int, seed: int) -> list[bytes]:
         y = rng.randrange(height)
         surface[y][x] = min(surface[y][x], depth - rng.randint(pinhole_min, pinhole_max))
 
-    pages: list[bytes] = []
+    pages = []  # type: List[bytes]
     for x_page in range(depth):
         pixels = bytearray()
         for y in range(height):
@@ -50,7 +49,7 @@ def make_sample(width: int, height: int, depth: int, seed: int) -> list[bytes]:
     return pages
 
 
-def write_tiff(path: Path, pages: list[bytes], width: int, height: int) -> int:
+def write_tiff(path: Path, pages: List[bytes], width: int, height: int) -> int:
     depth = len(pages)
     page_bytes = width * height
     ifd_entries = 8

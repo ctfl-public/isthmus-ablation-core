@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Create a private DSMC source overlay for building DSMC with IAC commands."""
 
-from __future__ import annotations
-
 import argparse
 import os
 from pathlib import Path
 import shutil
+from typing import List
 
 
 BRIDGE_FILES = {
@@ -71,7 +70,7 @@ def write_package(
     overlay_src: Path,
     iac_include: Path,
     iac_lib: Path,
-    isthmus_includes: list[Path],
+    isthmus_includes: List[Path],
     isthmus_lib: Path,
 ) -> None:
     include_flags = (

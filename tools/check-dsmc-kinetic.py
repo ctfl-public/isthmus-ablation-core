@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """Compare DSMC-hosted kinetic sphere recession history to the continuum limit."""
 
-from __future__ import annotations
-
 import argparse
 import csv
 import math
 from pathlib import Path
+from typing import Dict
 
 KB = 1.380649e-23
 AVOGADRO = 6.02214076e23
 
 
-def read_last_row(path: Path) -> dict[str, str]:
+def read_last_row(path: Path) -> Dict[str, str]:
     with path.open(newline="") as handle:
         rows = list(csv.DictReader(handle))
     if not rows:

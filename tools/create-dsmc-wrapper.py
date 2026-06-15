@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Create the user-facing DSMC/IAC launcher wrapper."""
 
-from __future__ import annotations
-
 import argparse
 from pathlib import Path
 

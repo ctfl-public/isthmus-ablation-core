@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Write a small ISTHMUS-compatible multipage TIFF sphere fixture."""
 
-from __future__ import annotations
-
 import argparse
 import math
 import struct
