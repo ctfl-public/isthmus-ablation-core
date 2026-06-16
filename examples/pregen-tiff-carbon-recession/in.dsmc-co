@@ -5,7 +5,8 @@ shell               mkdir output/pregen-tiff-carbon-recession
 
 seed                24680
 dimension           3
-global              nrho 1.014e28 fnum 2.8e15 gridcut 0.0 surfmax 4000 splitmax 400 comm/sort yes
+global              nrho 1.014e28 fnum 2.8e15 gridcut 0.0 &
+                      surfmax 4000 splitmax 400 comm/sort yes nedgebadnum 8
 timestep            1.0e-7
 
 boundary            o p p

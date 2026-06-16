@@ -116,9 +116,12 @@ progress during the 100-step sample without spelling out a second input loop.
 The installed SPARTA surface is the full watertight ISTHMUS surface, but the
 ablation flux is restricted to triangles facing `x+` with `select normal nx 1.0
 ny 0.0 nz 0.0 min-cos 0.5`.
-The committed input runs to `2.0e-7 s`, reaches about `0.70` remaining mass
-fraction and `0.75` voxelized volume fraction, and stops before the remaining
-rough geometry reaches the current SPARTA watertight-check limit.
+Because this rough TIFF sample can produce a handful of unmatched triangle
+edges after repeated voxel deletion and remeshing, the DSMC input sets the
+local SPARTA `global` tolerance `nedgebadnum 8`. Clean slab and sphere
+regression tests continue to use SPARTA's default exact watertight check.
+The committed input runs to `2.0e-7 s` and reaches about `0.70` remaining
+mass fraction and `0.75` voxelized volume fraction.
 
 It writes visual output under:
 
