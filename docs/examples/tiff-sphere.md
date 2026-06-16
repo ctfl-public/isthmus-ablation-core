@@ -45,8 +45,7 @@ if "${keep} > 0" then "jump SELF ablate-loop"
 ## Run
 
 ```bash
-cmake --preset standalone
-cmake --build --preset standalone
+make standalone
 ./build/ia-core -in examples/tiff-sphere/in.tiff-sphere-normal
 ```
 

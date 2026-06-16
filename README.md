@@ -16,18 +16,18 @@ export ISTHMUS_ROOT=$HOME/isthmus
 Then build the private DSMC/IAC executable:
 
 ```bash
-cmake --preset dsmc
-cmake --build --preset dsmc
-ctest --preset dsmc
+make mpi
+make test-dsmc
 ```
 
-The preset commands require CMake 3.20 or newer. On older systems, either load
-a newer CMake module or use:
+The top-level `make` targets wrap CMake configuration and DSMC's own machine
+targets. The common machine targets are:
 
 ```bash
-cmake -S . -B build-dsmc -DIAC_DSMC_USE_OVERLAY=ON
-cmake --build build-dsmc --target dsmc
-ctest --test-dir build-dsmc --output-on-failure
+make mpi
+make mac_mpi
+make serial
+make dsmc DSMC_MACHINE=<machine>
 ```
 
 The executable is:
@@ -50,9 +50,8 @@ symlinked together.
 ## Standalone Mode
 
 ```bash
-cmake --preset standalone
-cmake --build --preset standalone
-ctest --preset standalone
+make standalone
+make test-standalone
 ```
 
 Run:
@@ -66,15 +65,13 @@ Run:
 You can also pass roots directly:
 
 ```bash
-cmake --preset dsmc \
-  -DDSMC_ROOT=/path/to/dsmc \
-  -DISTHMUS_ROOT=/path/to/isthmus
+make mpi DSMC_ROOT=/path/to/dsmc ISTHMUS_ROOT=/path/to/isthmus
 ```
 
 The default DSMC machine target is `mpi`. Override it with:
 
 ```bash
-cmake --preset dsmc -DDSMC_MACHINE=mac_mpi
+make dsmc DSMC_MACHINE=mac_mpi
 ```
 
 See [docs/getting-started.md](docs/getting-started.md) and

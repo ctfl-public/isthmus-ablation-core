@@ -39,8 +39,7 @@ voxels. The generated TIFF is ignored by Git.
 Run the standalone case from the example folder:
 
 ```bash
-cmake --preset standalone
-cmake --build --preset standalone
+make standalone
 cd examples/pregen-tiff-carbon-recession
 ./generate-sample.sh
 ./clean-output.sh
@@ -86,8 +85,7 @@ Run the coupled DSMC case from its folder so the local species and reaction
 files resolve naturally:
 
 ```bash
-cmake --preset dsmc
-cmake --build --preset dsmc
+make mpi
 cd examples/pregen-tiff-carbon-recession
 ./generate-sample.sh
 ./clean-output.sh

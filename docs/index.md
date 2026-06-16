@@ -23,9 +23,8 @@ export ISTHMUS_ROOT=$HOME/isthmus
 Then build a private DSMC/IAC executable from this repository:
 
 ```bash
-cmake --preset dsmc
-cmake --build --preset dsmc
-ctest --preset dsmc
+make mpi
+make test-dsmc
 ```
 
 The executable is:
@@ -48,9 +47,8 @@ build-dsmc/bin/dsmc-iac \
 For standalone-only work:
 
 ```bash
-cmake --preset standalone
-cmake --build --preset standalone
-ctest --preset standalone
+make standalone
+make test-standalone
 ```
 
 ## Current Capabilities
@@ -84,8 +82,7 @@ Documentation source lives in `docs/`. After changing command syntax,
 examples, concepts, or behavior, rebuild the single PDF manual:
 
 ```bash
-cmake -S . -B build
-cmake --build build --target docs-pdf
+make docs
 ```
 
 The generated manual is:

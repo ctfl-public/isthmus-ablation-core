@@ -29,10 +29,10 @@ Then open a new terminal or source the file:
 source ~/.zshrc
 ```
 
-You can skip this and pass paths directly to CMake instead:
+You can skip this and pass paths directly to `make` instead:
 
 ```bash
-cmake --preset dsmc -DDSMC_ROOT=/path/to/dsmc -DISTHMUS_ROOT=/path/to/isthmus
+make mpi DSMC_ROOT=/path/to/dsmc ISTHMUS_ROOT=/path/to/isthmus
 ```
 
 ## Build DSMC/IAC
@@ -40,62 +40,57 @@ cmake --preset dsmc -DDSMC_ROOT=/path/to/dsmc -DISTHMUS_ROOT=/path/to/isthmus
 From a fresh clone:
 
 ```bash
+make mpi
+make test-dsmc
+```
+
+The top-level `make` targets provide a SPARTA-style front end while CMake still
+handles dependency discovery and test registration underneath. The common DSMC
+machine targets are:
+
+```bash
+make mpi
+make mac_mpi
+make serial
+make dsmc DSMC_MACHINE=<machine>
+```
+
+Use `make check-mpi` or `make check-mac_mpi` to build and run the DSMC-hosted
+test suite in one command.
+
+CMake presets are also available on machines with CMake 3.20 or newer:
+
+```bash
 cmake --preset dsmc
 cmake --build --preset dsmc
 ctest --preset dsmc
 ```
 
-These preset commands require CMake 3.20 or newer. Check with:
-
-```bash
-cmake --version
-```
-
-If your machine has an older CMake, either load a newer module or use the
-non-preset form:
-
-```bash
-cmake -S . -B build-dsmc -DIAC_DSMC_USE_OVERLAY=ON
-cmake --build build-dsmc --target dsmc
-ctest --test-dir build-dsmc --output-on-failure
-```
-
 ### University Of Kentucky MCC
 
-On the Morgan Compute Cluster, the default `cmake` module may be too old for
-presets. Load the newer Spack/GCC stack before configuring:
+On the Morgan Compute Cluster, the default CMake module is sufficient for the
+top-level `make` workflow:
 
 ```bash
-module load spack/0.23.0
-module swap gnu9 gcc/13.3.0
-module load cmake/3.23.5
+module load cmake
 ```
 
-Then point IAC at DSMC and ISTHMUS and use the normal preset workflow:
+Then point IAC at DSMC and ISTHMUS and build with DSMC's normal `mpi` machine
+target:
 
 ```bash
 export DSMC_ROOT=$HOME/TylerStoffel/dsmc
 export ISTHMUS_ROOT=$HOME/TylerStoffel/isthmus
 
-cmake --preset dsmc
-cmake --build --preset dsmc
-ctest --preset dsmc
+make mpi
+make test-dsmc
 ```
 
 MCC's system Python 3.6 is enough for the normal build and verification tests.
 The optional PDF documentation and report targets may need additional local
 tools.
 
-If `module load cmake/3.23.5` reports that prerequisites are missing, run:
-
-```bash
-module spider cmake/3.23.5
-```
-
-and load the prerequisite modules it prints. On MCC this is currently
-`spack/0.23.0` and `gcc/13.3.0`.
-
-The `dsmc` build preset:
+The DSMC/IAC build:
 
 - builds `libisthmus_ablation_core.a`;
 - creates `build-dsmc/dsmc-overlay/src`;
@@ -108,13 +103,13 @@ The `dsmc` build preset:
 The default DSMC machine target is `mpi`. Override it with:
 
 ```bash
-cmake --preset dsmc -DDSMC_MACHINE=mac_mpi
+make mac_mpi
 ```
 
-or without presets:
+or:
 
 ```bash
-cmake -S . -B build-dsmc -DIAC_DSMC_USE_OVERLAY=ON -DDSMC_MACHINE=mac_mpi
+make dsmc DSMC_MACHINE=mac_mpi
 ```
 
 ## Run A DSMC/IAC Case
@@ -143,7 +138,7 @@ Color is only applied to terminal output; log files remain plain text.
 Run the fast DSMC verification suite:
 
 ```bash
-ctest --preset dsmc
+make test-dsmc
 ```
 
 ## Standalone Only
@@ -151,17 +146,16 @@ ctest --preset dsmc
 The standalone binary does not need DSMC:
 
 ```bash
+make standalone
+make test-standalone
+```
+
+The equivalent CMake preset workflow is:
+
+```bash
 cmake --preset standalone
 cmake --build --preset standalone
 ctest --preset standalone
-```
-
-Without presets:
-
-```bash
-cmake -S . -B build -DIAC_DSMC_USE_OVERLAY=OFF
-cmake --build build
-ctest --test-dir build --output-on-failure
 ```
 
 Run the first standalone example:

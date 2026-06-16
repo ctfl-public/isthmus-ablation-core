@@ -10,8 +10,7 @@ and regenerated surface geometry.
 Run it directly with:
 
 ```bash
-cmake --preset dsmc
-cmake --build --preset dsmc
+make mpi
 
 cd examples/dsmc-sphere-kinetic
 ../../build-dsmc/bin/dsmc-iac \
@@ -21,7 +20,7 @@ cd examples/dsmc-sphere-kinetic
 To run the DSMC-enabled CTest suite:
 
 ```bash
-ctest --preset dsmc
+make test-dsmc
 ```
 
 The normal standalone build does not include DSMC tests. A DSMC-enabled build

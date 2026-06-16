@@ -1,22 +1,18 @@
 # Testing
 
-The clean full test path is the DSMC preset. It builds the core library,
-standalone executable, private DSMC/IAC executable, and then runs the full
-CTest matrix:
+The clean full test path is the DSMC/IAC make wrapper. It builds the core
+library, standalone executable, private DSMC/IAC executable, and then runs the
+full CTest matrix:
 
 ```bash
-cmake --preset dsmc
-cmake --build --preset dsmc
-ctest --preset dsmc --output-on-failure
+make check-mpi
 ```
 
 For a completely fresh rebuild:
 
 ```bash
-rm -rf build build-dsmc
-cmake --preset dsmc
-cmake --build --preset dsmc
-ctest --preset dsmc --output-on-failure
+make clean
+make check-mpi
 ```
 
 Inspect the registered tests without running them:
@@ -25,7 +21,7 @@ Inspect the registered tests without running them:
 ctest --test-dir build-dsmc -N
 ```
 
-The DSMC preset includes:
+The DSMC/IAC test suite includes:
 
 - standalone `ia-core` regression tests;
 - the same pure-IAC inputs hosted through `build-dsmc/bin/dsmc-iac`;
@@ -36,22 +32,27 @@ The DSMC preset includes:
 For standalone-only development:
 
 ```bash
-cmake --preset standalone
-cmake --build --preset standalone
-ctest --preset standalone --output-on-failure
+make check-standalone
+```
+
+For local environments where MPI launch is unavailable or blocked, run the
+DSMC-hosted non-MPI tests only:
+
+```bash
+make test-dsmc-serial
 ```
 
 CTest captures output from passing tests by default. To see stats output while
 tests run:
 
 ```bash
-ctest --preset standalone --output-on-failure --verbose
+make test-standalone CTEST_ARGS=--verbose
 ```
 
 or:
 
 ```bash
-cmake --build --preset standalone --target check-verbose
+ctest --test-dir build --output-on-failure --verbose
 ```
 
 More detail on test categories, input-file conventions, and pass/fail criteria
@@ -62,7 +63,7 @@ lives in `tests/README.md`.
 The optional visual verification report is separate from the default test run:
 
 ```bash
-cmake --build --preset report
+make report
 ```
 
 This runs the configured report cases, collects verification CSV files, and
