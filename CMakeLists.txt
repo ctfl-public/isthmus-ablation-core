@@ -142,12 +142,17 @@ if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND Python3_Interpreter_FOUND AND IAC_MAKE
             --iac-lib $<TARGET_FILE:isthmus_ablation_core>
             --isthmus-lib ${IAC_ISTHMUS_LIBRARY}
             ${IAC_DSMC_OVERLAY_ISTHMUS_INCLUDE_ARGS}
+    COMMAND ${CMAKE_COMMAND} -E echo "[IAC build] Entering DSMC native make target '${DSMC_MACHINE}'."
+    COMMAND ${CMAKE_COMMAND} -E echo "[IAC build] DSMC compiles many objects, then performs a large final link."
+    COMMAND ${CMAKE_COMMAND} -E echo "[IAC build] The final link may be quiet for several minutes on shared filesystems."
     COMMAND ${CMAKE_COMMAND} -E chdir ${IAC_DSMC_OVERLAY_SRC}
             ${IAC_MAKE_EXECUTABLE} ${DSMC_MACHINE}
+    COMMAND ${CMAKE_COMMAND} -E echo "[IAC build] DSMC native make target '${DSMC_MACHINE}' finished."
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bin
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/create-dsmc-wrapper.py
             --executable ${IAC_DSMC_OVERLAY_EXECUTABLE}
             --wrapper ${CMAKE_BINARY_DIR}/bin/dsmc-iac
+    COMMAND ${CMAKE_COMMAND} -E echo "[IAC build] Launcher written to ${CMAKE_BINARY_DIR}/bin/dsmc-iac."
     DEPENDS ${IAC_DSMC_TARGET_DEPENDS}
     COMMAND_EXPAND_LISTS
     COMMENT "Building private DSMC/IAC executable in the IAC build tree"
