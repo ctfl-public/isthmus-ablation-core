@@ -1,6 +1,40 @@
 # isthmus-ablation-core
 
-Voxel ablation and DSMC/ISTHMUS coupling core.
+`isthmus-ablation-core` is a voxel-resolved solid ablation framework for
+simulations where the shape of a material changes because gas-surface reactions,
+heat fluxes, or prescribed recession rates remove solid mass.
+
+The code treats the solid as a mass-bearing voxel ledger: each voxel has a
+material, density, volume, remaining mass, and active/deleted state. Surface
+fluxes can be applied directly to voxel faces or mapped through an ISTHMUS
+triangle mesh, then carried back into the solid with conservative policies such
+as normal-directed carryover. This makes it possible to model recession of
+curved or rough voxelized samples without pretending the voxel stair-step
+surface is the physical interface.
+
+The main coupled workflow is:
+
+1. create or import a voxelized solid, such as a sphere, slab, or TIFF scan;
+2. use ISTHMUS to reconstruct a surface and map triangles to owning voxels;
+3. run DSMC/SPARTA around that surface, or apply a standalone prescribed flux;
+4. convert surface collisions, reactions, or imposed fluxes into removed solid
+   mass;
+5. delete depleted voxels, update the voxel mass state, and rebuild the surface;
+6. repeat until the requested physical ablation time or recession state is
+   reached.
+
+The repository is designed to be useful in two modes. In standalone mode,
+`ia-core` runs lightweight SPARTA-style input files with no gas domain, which is
+ideal for testing voxel recession, ISTHMUS mapping, TIFF import, and exact
+solutions. In DSMC-hosted mode, the same core library is compiled into a private
+DSMC/SPARTA overlay so SPARTA owns particles, collisions, chemistry, MPI, and
+surface tallies while this repository owns the evolving voxel solid.
+
+Physically, the project is aimed at ablation and oxidation problems where a
+porous or rough carbon-like solid recedes under rarefied gas exposure. It is not
+a standalone flow solver; instead, it supplies the solid-state memory and
+surface/voxel coupling needed to let DSMC drive geometry change in a controlled,
+testable way.
 
 Manual PDF: [docs/isthmus-ablation-core-manual.pdf](docs/isthmus-ablation-core-manual.pdf)
 
