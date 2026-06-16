@@ -44,8 +44,7 @@ widely used, and still keeps every page as readable Markdown.
 The repository also has a local PDF builder:
 
 ```bash
-cmake --preset standalone
-cmake --build --preset docs
+make docs
 ```
 
 It writes:

@@ -58,13 +58,9 @@ make dsmc DSMC_MACHINE=<machine>
 Use `make check-mpi` or `make check-mac_mpi` to build and run the DSMC-hosted
 test suite in one command.
 
-CMake presets are also available on machines with CMake 3.20 or newer:
-
-```bash
-cmake --preset dsmc
-cmake --build --preset dsmc
-ctest --preset dsmc
-```
+Direct CMake builds are still possible for developers, but the documented
+workflow uses the top-level `make` targets because they work on older CMake
+installations such as MCC's default module.
 
 ### University Of Kentucky MCC
 
@@ -150,13 +146,9 @@ make standalone
 make test-standalone
 ```
 
-The equivalent CMake preset workflow is:
-
-```bash
-cmake --preset standalone
-cmake --build --preset standalone
-ctest --preset standalone
-```
+Direct CMake builds are mostly useful when debugging the build system itself.
+For normal use, prefer the `make standalone` and `make test-standalone`
+targets above.
 
 Run the first standalone example:
 
@@ -181,7 +173,7 @@ voxels only and select `mf` as the first visible cell scalar.
 ## Rebuild The Manual
 
 ```bash
-cmake --build --preset docs
+make docs
 ```
 
 The PDF is written to:

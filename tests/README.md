@@ -1,17 +1,16 @@
 # Tests
 
-The default DSMC preset runs the useful test matrix:
+The top-level Makefile runs the useful test matrix:
 
 ```bash
-cmake --preset dsmc
-cmake --build --preset dsmc
-ctest --preset dsmc --output-on-failure
+make mpi
+make test-dsmc
 ```
 
 Inspect registered tests without running them:
 
 ```bash
-ctest --test-dir build-dsmc -N
+cmake -E chdir build-dsmc ctest -N
 ```
 
 ## Test Groups
