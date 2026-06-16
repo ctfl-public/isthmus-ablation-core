@@ -18,7 +18,7 @@ make check-mpi
 Inspect the registered tests without running them:
 
 ```bash
-ctest --test-dir build-dsmc -N
+cmake -E chdir build-dsmc ctest -N
 ```
 
 The DSMC/IAC test suite includes:
@@ -52,7 +52,7 @@ make test-standalone CTEST_ARGS=--verbose
 or:
 
 ```bash
-ctest --test-dir build --output-on-failure --verbose
+cmake -E chdir build ctest --output-on-failure --verbose
 ```
 
 More detail on test categories, input-file conventions, and pass/fail criteria
@@ -88,7 +88,7 @@ tests.
 The coupled DSMC kinetic recession regression is intentionally small:
 
 ```bash
-ctest --test-dir build-dsmc -R dsmc-sphere-kinetic-convergence --output-on-failure
+cmake -E chdir build-dsmc ctest -R dsmc-sphere-kinetic-convergence --output-on-failure
 ```
 
 It runs three generated DSMC inputs at 4, 6, and 8 voxels across the sphere
@@ -98,8 +98,8 @@ ideal-gas kinetic-theory mf solution.
 The rough carbon TIFF workflow checks can be run directly with:
 
 ```bash
-ctest --test-dir build -R pregen-tiff-carbon-recession-constant-flux-verification --output-on-failure
-ctest --test-dir build-dsmc -R pregen-tiff-carbon-recession-dsmc-co-verification --output-on-failure
+cmake -E chdir build ctest -R pregen-tiff-carbon-recession-constant-flux-verification --output-on-failure
+cmake -E chdir build-dsmc ctest -R pregen-tiff-carbon-recession-dsmc-co-verification --output-on-failure
 ```
 
 The first uses a prescribed top-surface mass flux. The second uses DSMC surface

@@ -63,7 +63,7 @@ iac_verify front exact "q1*time/rho" tolerance 0.01 percent norm final
 Run the test:
 
 ```bash
-ctest --test-dir build --output-on-failure
+make test-standalone
 ```
 
 Print the stats table during the test:

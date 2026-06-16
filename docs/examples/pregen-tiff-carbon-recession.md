@@ -150,12 +150,12 @@ prefix after the solid update.
 The standalone constant-flux wrapper runs without visual dumps:
 
 ```bash
-ctest --test-dir build -R pregen-tiff-carbon-recession-constant-flux-verification --output-on-failure
+cmake -E chdir build ctest -R pregen-tiff-carbon-recession-constant-flux-verification --output-on-failure
 ```
 
 The DSMC chemistry wrapper runs the same generated sample through the DSMC/IAC
 executable:
 
 ```bash
-ctest --test-dir build-dsmc -R pregen-tiff-carbon-recession-dsmc-co-verification --output-on-failure
+cmake -E chdir build-dsmc ctest -R pregen-tiff-carbon-recession-dsmc-co-verification --output-on-failure
 ```

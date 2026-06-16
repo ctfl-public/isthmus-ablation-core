@@ -339,7 +339,7 @@ cmake -S . -B build-dsmc-external \
   -DIAC_DSMC_USE_OVERLAY=OFF \
   -DIAC_DSMC_EXECUTABLE=/path/to/spa_mac_mpi
 cmake --build build-dsmc-external
-ctest --test-dir build-dsmc-external --output-on-failure
+cmake -E chdir build-dsmc-external ctest --output-on-failure
 ```
 
 That external path is mainly for debugging old builds. New users should prefer

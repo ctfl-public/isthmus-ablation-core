@@ -95,13 +95,13 @@ mcc:
 
 .PHONY: test-standalone test-dsmc test-dsmc-serial test
 test-standalone:
-	$(CTEST) --test-dir $(BUILD_DIR) --output-on-failure $(CTEST_ARGS)
+	$(CMAKE) -E chdir $(BUILD_DIR) $(CTEST) --output-on-failure $(CTEST_ARGS)
 
 test-dsmc:
-	$(CTEST) --test-dir $(DSMC_BUILD_DIR) --output-on-failure $(CTEST_ARGS)
+	$(CMAKE) -E chdir $(DSMC_BUILD_DIR) $(CTEST) --output-on-failure $(CTEST_ARGS)
 
 test-dsmc-serial:
-	$(CTEST) --test-dir $(DSMC_BUILD_DIR) --output-on-failure -E '(^hosted-mpi-|^dsmc-mpi-)' $(CTEST_ARGS)
+	$(CMAKE) -E chdir $(DSMC_BUILD_DIR) $(CTEST) --output-on-failure -E '(^hosted-mpi-|^dsmc-mpi-)' $(CTEST_ARGS)
 
 test: test-dsmc
 
