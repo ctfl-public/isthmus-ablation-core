@@ -11,7 +11,7 @@ create_box          -5.0e-5 8.5e-4 -5.0e-5 6.5e-4 -5.0e-5 6.5e-4
 create_grid         5 4 4
 balance_grid        rcb cell
 
-species             @SOURCE_DIR@/examples/pregen-tiff-carbon-recession/air.species O2 N2 CO
+species             @SOURCE_DIR@/examples/pregen-tiff-carbon-recession/air-react-to-flux.species O2 N2 CO
 mixture             air O2 frac 1.0
 mixture             air N2 frac 0.0
 mixture             air CO frac 0.0

@@ -15,7 +15,7 @@ Current IAC commands:
 - [`variable`, `label`, `next`, and `jump`](loops.md)
 - [`voxel_ablate`](voxel-ablate.md)
 - [`isthmus_surface`](isthmus-surface.md)
-- [`surf_flux`, `surf_dump`, `surf_install`, `surf_measure_flux`, and `surf_write_vtp`](surface.md)
+- [`surf_flux`, `surf_dump`, `surf_install`, `surf_measure_flux`, `surf_write_vtp`, and `dsmc_converge`](surface.md)
 - [`grid_write_vtu` and `grid_dump`](grid-write-vtu.md)
 - [`iac_limit`, `iac_continue`, and `iac_set`](iac.md)
 - [`iac_stats` and `iac_stats_style`](stats.md)

@@ -1,0 +1,16 @@
+# VSS collision model parameters for the DSMC React_to_Flux branch format.
+
+# diameter (m)
+# omega
+# tref
+# alpha
+# rotc1
+# rotc2
+# Bird C1
+# Bird C2
+# MW A
+# MW B
+
+O2   3.96E-10    0.77  273.15  1.0 23.5 91.5 56.5 153.5 138.0 0.03
+N2   4.14E-10    0.74  273.15  1.0 28.497 91.5 9.1 220.0 221.0 0.029
+CO   4.19E-10    0.73  273.15  1.0 23.5 91.5 37.7 175.0 0.0 0.0

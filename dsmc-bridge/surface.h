@@ -1,6 +1,7 @@
 #ifdef COMMAND_CLASS
 
 CommandStyle(surf_dump,SurfaceDumpCommand)
+CommandStyle(dsmc_converge,DsmcConverge)
 CommandStyle(surf_flux,SurfaceFlux)
 CommandStyle(surf_install,SurfaceInstall)
 CommandStyle(surf_measure_flux,SurfaceMeasureFlux)
@@ -24,6 +25,12 @@ class Surface : protected Pointers {
 class SurfaceDumpCommand : protected Pointers {
  public:
   SurfaceDumpCommand(class SPARTA *);
+  void command(int, char **);
+};
+
+class DsmcConverge : protected Pointers {
+ public:
+  DsmcConverge(class SPARTA *);
   void command(int, char **);
 };
 

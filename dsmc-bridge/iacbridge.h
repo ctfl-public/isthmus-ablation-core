@@ -28,6 +28,8 @@ void record_grid_vtu_dump(const std::string &fix_id, const std::string &path,
                           const std::string &index_mode,
                           const std::vector<std::string> &fields, int every = 0);
 void write_scheduled_grid_vtu_dumps(SPARTA *sparta);
+void print_compact_text(SPARTA *sparta, const std::string &text);
+void print_coupled_summary(SPARTA *sparta);
 void print_stats_after_step(SPARTA *sparta);
 void print_sparta_stats(SPARTA *sparta);
 

@@ -35,7 +35,7 @@ set(domain_half_width "6.5e-4")
 set(grid_cells "6")
 set(surfmax "2500")
 set(splitmax "250")
-set(species_file "${SOURCE_DIR}/examples/dsmc-sphere-kinetic/air.species")
+set(species_file "${SOURCE_DIR}/examples/dsmc-sphere-kinetic/air-react-to-flux.species")
 
 foreach(resolution 4 6 8)
   set(case_dir "${test_root}/resolution-${resolution}")

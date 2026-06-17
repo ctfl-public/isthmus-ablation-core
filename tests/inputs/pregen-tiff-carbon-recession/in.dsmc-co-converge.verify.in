@@ -1,0 +1,7 @@
+# Test wrapper for the converged rough carbon TIFF chemistry example.
+# CTest stages this file next to the standalone example and generated TIFF.
+
+include             in.dsmc-co-converge
+
+iac_verify          mf exact "0.9221" tolerance 5.0 percent norm final
+iac_verify          vf exact "0.9794" tolerance 2.0 percent norm final

@@ -4,9 +4,12 @@
 #include "iacbridge.h"
 #include "comm.h"
 #include "fix.h"
+#include "input.h"
 #include "modify.h"
+#include "run.h"
 #include "surf.h"
 #include "update.h"
+#include "variable.h"
 
 #include <mpi.h>
 
@@ -18,6 +21,7 @@
 #include <exception>
 #include <fstream>
 #include <map>
+#include <numeric>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -40,6 +44,43 @@ struct NormalSelector {
   double min_cos = 0.0;
 };
 
+struct ConvergenceWindow {
+  std::vector<double> values;
+  int max_size = 1;
+
+  void push(double value) {
+    values.push_back(value);
+    if (static_cast<int>(values.size()) > max_size) {
+      values.erase(values.begin());
+    }
+  }
+
+  bool full() const { return static_cast<int>(values.size()) >= max_size; }
+
+  double mean() const {
+    if (values.empty()) {
+      return 0.0;
+    }
+    return std::accumulate(values.begin(), values.end(), 0.0) /
+           static_cast<double>(values.size());
+  }
+
+  double cv() const {
+    if (values.empty()) {
+      return 0.0;
+    }
+    const double avg = mean();
+    double variance = 0.0;
+    for (const double value : values) {
+      const double diff = value - avg;
+      variance += diff * diff;
+    }
+    variance /= static_cast<double>(values.size());
+    const double scale = std::sqrt(avg * avg + 1.0e-300);
+    return std::sqrt(variance) / scale;
+  }
+};
+
 const char *value_after(int narg, char **arg, const char *key) {
   for (int i = 0; i + 1 < narg; ++i) {
     if (std::strcmp(arg[i], key) == 0) {
@@ -47,6 +88,25 @@ const char *value_after(int narg, char **arg, const char *key) {
     }
   }
   return nullptr;
+}
+
+int direct_mass_flux_column(int narg, char **arg, Error *error, const char *command) {
+  const char *column_value = value_after(narg, arg, "column");
+  const char *quantity_value = value_after(narg, arg, "quantity");
+  if (column_value && quantity_value) {
+    error->all(FLERR, (std::string(command) + " cannot use both column and quantity").c_str());
+  }
+  if (quantity_value) {
+    if (std::strcmp(quantity_value, "mass-flux") == 0) {
+      return 1;
+    }
+    error->all(FLERR, (std::string(command) + " quantity must be mass-flux").c_str());
+  }
+  if (column_value) {
+    return std::atoi(column_value);
+  }
+  error->all(FLERR, (std::string(command) + " requires quantity mass-flux or column <N>").c_str());
+  return 0;
 }
 
 NormalSelector parse_optional_normal_selector(int narg, char **arg, Error *error,
@@ -178,6 +238,68 @@ std::vector<double> global_surface_fix_values(SPARTA *sparta, Surf *surf, Fix *a
   MPI_Allreduce(local.data(), global.data(), static_cast<int>(local.size()), MPI_DOUBLE,
                 MPI_SUM, sparta->world);
   return global;
+}
+
+void set_internal_variable(Input *input, Error *error, const char *name, double value) {
+  Variable *variable = input->variable;
+  int ivar = variable->find(const_cast<char *>(name));
+  if (ivar < 0) {
+    char command[512];
+    std::snprintf(command, sizeof(command), "variable %s internal %.17g", name, value);
+    input->one(command);
+    return;
+  }
+  if (!variable->internal_style(ivar)) {
+    std::string message = "IAC variable '" + std::string(name) + "' must be internal style";
+    error->all(FLERR, message.c_str());
+  }
+  variable->internal_set(ivar, value);
+}
+
+double reduce_surface_values(const std::vector<double> &values,
+                             const std::vector<iac::Model::PublicSurfaceTriangle> &triangles,
+                             const std::string &mode, Error *error, const char *command) {
+  if (values.size() != triangles.size()) {
+    error->all(FLERR, (std::string(command) + " triangle count mismatch").c_str());
+  }
+  double sum = 0.0;
+  double area_sum = 0.0;
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    const double area = triangles[i].area;
+    area_sum += area;
+    if (mode == "sum-area" || mode == "ave-area") {
+      sum += values[i] * area;
+    } else if (mode == "sum" || mode == "ave") {
+      sum += values[i];
+    } else {
+      error->all(FLERR, (std::string(command) + " reduce must be sum, ave, sum-area, or ave-area").c_str());
+    }
+  }
+  if (mode == "ave") {
+    return values.empty() ? 0.0 : sum / static_cast<double>(values.size());
+  }
+  if (mode == "ave-area") {
+    return area_sum > 0.0 ? sum / area_sum : 0.0;
+  }
+  return sum;
+}
+
+void run_dsmc_block(SPARTA *sparta, int steps, bool first_block) {
+  std::vector<std::string> strings;
+  strings.push_back(std::to_string(steps));
+  if (!first_block) {
+    strings.push_back("pre");
+    strings.push_back("no");
+  }
+  strings.push_back("post");
+  strings.push_back("no");
+  std::vector<char *> args;
+  args.reserve(strings.size());
+  for (auto &text : strings) {
+    args.push_back(const_cast<char *>(text.c_str()));
+  }
+  Run run(sparta);
+  run.command(static_cast<int>(args.size()), args.data());
 }
 
 void reduce_surface_fields(SPARTA *sparta, Surf *surf,
@@ -351,6 +473,11 @@ void SurfaceDumpCommand::command(int narg, char **arg) {
   forward_surface(sparta, "dump", narg, arg);
 }
 
+DsmcConverge::DsmcConverge(SPARTA *sparta) : Pointers(sparta) {}
+void DsmcConverge::command(int narg, char **arg) {
+  forward_surface(sparta, "converge", narg, arg);
+}
+
 SurfaceFlux::SurfaceFlux(SPARTA *sparta) : Pointers(sparta) {}
 void SurfaceFlux::command(int narg, char **arg) { forward_surface(sparta, "flux", narg, arg); }
 
@@ -380,6 +507,72 @@ void Surface::command(int narg, char **arg) {
     }
     iac::SurfaceFluxCommand flux;
     flux.surface = arg[1];
+
+    if (std::strcmp(arg[2], "dsmc/mass-flux") == 0) {
+      char **pairs = arg + 3;
+      const int npairs = narg - 3;
+      const char *fix_id = value_after(npairs, pairs, "fix");
+      const char *units_value = value_after(npairs, pairs, "units");
+      const NormalSelector selector =
+          parse_optional_normal_selector(npairs, pairs, error, "surface flux dsmc/mass-flux");
+      if (!fix_id || !units_value) {
+        error->all(FLERR, "surface flux dsmc/mass-flux requires fix, quantity mass-flux, and units <flux|flow>");
+      }
+      const bool units_flux = std::strcmp(units_value, "flux") == 0;
+      const bool units_flow = std::strcmp(units_value, "flow") == 0;
+      if (!units_flux && !units_flow) {
+        error->all(FLERR, "surface flux dsmc/mass-flux units must be flux or flow");
+      }
+      const int column = direct_mass_flux_column(npairs, pairs, error,
+                                                 "surface flux dsmc/mass-flux");
+      Fix *ave = require_surface_fix(sparta, modify, comm, error,
+                                     "surface flux dsmc/mass-flux", fix_id, column);
+      const char *ablation_dt_value = value_after(npairs, pairs, "ablation-dt");
+      const char *mass_courant_value = value_after(npairs, pairs, "mass-courant");
+      const double ablation_dt = ablation_dt_value ? std::atof(ablation_dt_value) : 0.0;
+      if (ablation_dt_value && ablation_dt <= 0.0) {
+        error->all(FLERR, "surface flux dsmc/mass-flux ablation-dt must be positive");
+      }
+      const double mass_courant = mass_courant_value ? std::atof(mass_courant_value) : 0.0;
+      if (mass_courant_value && mass_courant <= 0.0) {
+        error->all(FLERR, "surface flux dsmc/mass-flux mass-courant must be positive");
+      }
+      if (ablation_dt_value && mass_courant_value) {
+        error->all(FLERR, "surface flux dsmc/mass-flux cannot use both ablation-dt and mass-courant");
+      }
+
+      try {
+        const auto &triangles = IACBridge::surface_triangles(sparta, flux.surface);
+        if (triangles.size() != static_cast<std::size_t>(surf->nsurf)) {
+          error->all(FLERR, "surface flux dsmc/mass-flux triangle count does not match SPARTA surface count");
+        }
+        auto mass_fluxes =
+            global_surface_fix_values(sparta, surf, ave, column, error,
+                                      "surface flux dsmc/mass-flux");
+        for (std::size_t idx = 0; idx < mass_fluxes.size(); ++idx) {
+          if (!selected_by_normal(selector, triangles[idx])) {
+            mass_fluxes[idx] = 0.0;
+          } else if (units_flow) {
+            const double area = triangles[idx].area;
+            mass_fluxes[idx] = area > 0.0 ? mass_fluxes[idx] / area : 0.0;
+          }
+        }
+        if (IACBridge::owns_model(sparta)) {
+          if (mass_courant_value) {
+            IACBridge::model(sparta).set_timestep_from_triangle_fluxes(
+                flux.surface, mass_fluxes, mass_courant);
+          } else if (ablation_dt_value) {
+            IACBridge::model(sparta).set_timestep(ablation_dt);
+          } else {
+            IACBridge::set_coupling_interval_from_dsmc(sparta);
+          }
+          IACBridge::model(sparta).apply_triangle_fluxes(flux.surface, mass_fluxes);
+        }
+      } catch (const std::exception &ex) {
+        error->all(FLERR, ex.what());
+      }
+      return;
+    }
 
     if (std::strcmp(arg[2], "dsmc/reaction") == 0) {
       char **pairs = arg + 3;
@@ -643,7 +836,214 @@ void Surface::command(int narg, char **arg) {
     return;
   }
 
+  if (std::strcmp(arg[0], "converge") == 0) {
+    if (narg < 19 || std::strcmp(arg[1], "flux") != 0) {
+      error->all(FLERR, "Illegal dsmc_converge command");
+    }
+    const char *surface_id = arg[2];
+    char **pairs = arg + 3;
+    const int npairs = narg - 3;
+    const char *fix_id = value_after(npairs, pairs, "fix");
+    const char *every_value = value_after(npairs, pairs, "every");
+    const char *reduce_value = value_after(npairs, pairs, "reduce");
+    const char *rel_value = value_after(npairs, pairs, "rel");
+    const char *cv_value = value_after(npairs, pairs, "cv");
+    const char *window_value = value_after(npairs, pairs, "window");
+    const char *max_iter_value = value_after(npairs, pairs, "max-iter");
+    if (!fix_id || !every_value || !reduce_value || !rel_value ||
+        !cv_value || !window_value || !max_iter_value) {
+      error->all(FLERR, "dsmc_converge flux requires surface, fix, quantity mass-flux, every, reduce, rel, cv, window, and max-iter");
+    }
+    const int column = direct_mass_flux_column(npairs, pairs, error, "dsmc_converge flux");
+    const int every = std::atoi(every_value);
+    const int window_size = std::atoi(window_value);
+    const int max_iter = std::atoi(max_iter_value);
+    const char *min_iter_value = value_after(npairs, pairs, "min-iter");
+    const char *passes_value = value_after(npairs, pairs, "passes");
+    const char *variable_name = value_after(npairs, pairs, "variable");
+    const int min_iter = min_iter_value ? std::atoi(min_iter_value) : window_size;
+    const int passes_required = passes_value ? std::atoi(passes_value) : 1;
+    const double rel_tol = std::atof(rel_value);
+    const double cv_tol = std::atof(cv_value);
+    if (every <= 0 || column <= 0 || window_size <= 0 || max_iter <= 0 ||
+        min_iter <= 0 || passes_required <= 0 || rel_tol < 0.0 || cv_tol < 0.0) {
+      error->all(FLERR, "dsmc_converge flux has invalid numeric arguments");
+    }
+
+    const auto &triangles = IACBridge::surface_triangles(sparta, surface_id);
+    if (triangles.size() != static_cast<std::size_t>(surf->nsurf)) {
+      error->all(FLERR, "dsmc_converge flux triangle count does not match SPARTA surface count");
+    }
+
+    ConvergenceWindow window;
+    window.max_size = window_size;
+    bool converged = false;
+    int pass_count = 0;
+    double previous = 0.0;
+    double current = 0.0;
+    double rel = 0.0;
+    double cv = 0.0;
+    int iter = 0;
+
+    IACBridge::print_coupled_summary(sparta);
+
+    for (iter = 1; iter <= max_iter; ++iter) {
+      run_dsmc_block(sparta, every, iter == 1);
+      Fix *ave = require_surface_fix(sparta, modify, comm, error,
+                                     "dsmc_converge flux", fix_id, column);
+      const auto values =
+          global_surface_fix_values(sparta, surf, ave, column, error,
+                                    "dsmc_converge flux");
+      current = reduce_surface_values(values, triangles, reduce_value, error,
+                                      "dsmc_converge flux");
+      rel = iter == 1 ? 1.0 : std::abs(current - previous) /
+                                std::sqrt(previous * previous + 1.0e-300);
+      window.push(current);
+      cv = window.cv();
+      const bool pass = iter >= min_iter && window.full() &&
+                        rel <= rel_tol && cv <= cv_tol;
+      pass_count = pass ? pass_count + 1 : 0;
+      if (pass_count >= passes_required) {
+        converged = true;
+        break;
+      }
+      previous = current;
+    }
+
+    if (IACBridge::owns_model(sparta)) {
+      auto &model = IACBridge::model(sparta);
+      model.set_diagnostic("dsmc-converge-value", current);
+      model.set_diagnostic("dsmc-converge-rel", rel);
+      model.set_diagnostic("dsmc-converge-cv", cv);
+      model.set_diagnostic("dsmc-converge-iter", static_cast<double>(iter));
+      model.set_diagnostic("dsmc-converge-steps", static_cast<double>(iter * every));
+      model.set_diagnostic("dsmc-converged", converged ? 1.0 : 0.0);
+    }
+    if (variable_name) {
+      set_internal_variable(input, error, variable_name, converged ? 1.0 : 0.0);
+    }
+    if (!converged) {
+      error->all(FLERR, "dsmc_converge flux did not converge before max-iter");
+    }
+    return;
+  }
+
   if (std::strcmp(arg[0], "measure-flux") == 0) {
+    if (narg >= 12 && std::strcmp(arg[2], "dsmc/mass-flux") == 0) {
+      const char *surface_id = arg[1];
+      char **pairs = arg + 3;
+      const int npairs = narg - 3;
+      const char *fix_id = value_after(npairs, pairs, "fix");
+      const char *units_value = value_after(npairs, pairs, "units");
+      if (!fix_id || !units_value) {
+        error->all(FLERR, "surface measure-flux dsmc/mass-flux requires fix, quantity mass-flux, and units <flux|flow>");
+      }
+      const bool units_flux = std::strcmp(units_value, "flux") == 0;
+      const bool units_flow = std::strcmp(units_value, "flow") == 0;
+      if (!units_flux && !units_flow) {
+        error->all(FLERR, "surface measure-flux dsmc/mass-flux units must be flux or flow");
+      }
+
+      const int column = direct_mass_flux_column(npairs, pairs, error,
+                                                 "surface measure-flux dsmc/mass-flux");
+      Fix *ave = require_surface_fix(sparta, modify, comm, error,
+                                     "surface measure-flux dsmc/mass-flux",
+                                     fix_id, column);
+      const char *expected = value_after(npairs, pairs, "expected");
+      const char *number_density_value = value_after(npairs, pairs, "number-density");
+      const char *mole_fraction_value = value_after(npairs, pairs, "mole-fraction");
+      const char *temperature_value = value_after(npairs, pairs, "temperature");
+      const char *molecular_mass_value = value_after(npairs, pairs, "molecular-mass");
+      const char *reaction_prob_value = value_after(npairs, pairs, "reaction-prob");
+      const char *solid_mass_value = value_after(npairs, pairs, "solid-mass-per-reaction");
+      const char *reaction_file = value_after(npairs, pairs, "reaction");
+      if (!expected || std::strcmp(expected, "kinetic/theory") != 0 ||
+          !number_density_value || !mole_fraction_value || !temperature_value ||
+          !molecular_mass_value) {
+        error->all(FLERR, "surface measure-flux dsmc/mass-flux expected kinetic/theory requires number-density, mole-fraction, temperature, and molecular-mass");
+      }
+
+      const double number_density = std::atof(number_density_value);
+      const double mole_fraction = std::atof(mole_fraction_value);
+      const double temperature = std::atof(temperature_value);
+      const double molecular_mass = std::atof(molecular_mass_value);
+      double reaction_prob = reaction_prob_value ? std::atof(reaction_prob_value) : 1.0;
+      double solid_mass_per_reaction = solid_mass_value ? std::atof(solid_mass_value) : 0.0;
+      if (reaction_file) {
+        if (solid_mass_value || reaction_prob_value) {
+          error->all(FLERR, "surface measure-flux dsmc/mass-flux cannot use reaction with reaction-prob or solid-mass-per-reaction");
+        }
+        try {
+          const auto reaction = parse_reaction_file(reaction_file, IACBridge::config().material);
+          reaction_prob = reaction.probability;
+          solid_mass_per_reaction = reaction.solid_mass;
+        } catch (const std::exception &ex) {
+          error->all(FLERR, ex.what());
+        }
+      }
+      if (number_density <= 0.0 || mole_fraction < 0.0 || temperature <= 0.0 ||
+          molecular_mass <= 0.0 || reaction_prob < 0.0 || reaction_prob > 1.0 ||
+          solid_mass_per_reaction <= 0.0) {
+        error->all(FLERR, "surface measure-flux dsmc/mass-flux expected kinetic/theory has invalid parameters");
+      }
+
+      try {
+        const auto &triangles = IACBridge::surface_triangles(sparta, surface_id);
+        if (triangles.size() != static_cast<std::size_t>(surf->nsurf)) {
+          error->all(FLERR, "surface measure-flux dsmc/mass-flux triangle count does not match SPARTA surface count");
+        }
+        const auto values =
+            global_surface_fix_values(sparta, surf, ave, column, error,
+                                      "surface measure-flux dsmc/mass-flux");
+        double surface_area = 0.0;
+        double mass_flow = 0.0;
+        for (std::size_t idx = 0; idx < values.size(); ++idx) {
+          const double area = triangles[idx].area;
+          surface_area += area;
+          mass_flow += units_flux ? values[idx] * area : values[idx];
+        }
+        const double measured_mass_flux = surface_area > 0.0 ? mass_flow / surface_area : 0.0;
+        const double pi = std::acos(-1.0);
+        const double expected_number_flux =
+            mole_fraction * number_density *
+            std::sqrt(1.380649e-23 * temperature / (2.0 * pi * molecular_mass)) *
+            reaction_prob;
+        const double expected_mass_flux = expected_number_flux * solid_mass_per_reaction;
+        double flux_error_percent = 0.0;
+        if (IACBridge::owns_model(sparta)) {
+          auto &model = IACBridge::model(sparta);
+          const auto &cfg = IACBridge::config();
+          const double area_exact = cfg.geometry == iac::GeometryKind::Sphere
+                                        ? 4.0 * pi * std::pow(0.5 * cfg.sphere.diameter, 2)
+                                        : surface_area;
+          model.set_diagnostic("area", surface_area);
+          model.set_diagnostic("area-exact", area_exact);
+          model.set_diagnostic("rmflux", measured_mass_flux);
+          model.set_diagnostic("rmflux-exact", expected_mass_flux);
+          model.set_diagnostic("rflux-exact", expected_number_flux);
+          flux_error_percent = 100.0 * std::abs(measured_mass_flux - expected_mass_flux) /
+                               std::abs(expected_mass_flux);
+          model.set_diagnostic("rmflux-errpct", flux_error_percent);
+          model.set_diagnostic("area-errpct",
+                               100.0 * std::abs(surface_area - area_exact) /
+                                   std::abs(area_exact));
+          if (screen) {
+            std::fprintf(screen,
+                         "IAC surface mass flux: measured %.8e expected %.8e error %.6g percent\n",
+                         measured_mass_flux, expected_mass_flux, flux_error_percent);
+          }
+          if (logfile) {
+            std::fprintf(logfile,
+                         "IAC surface mass flux: measured %.8e expected %.8e error %.6g percent\n",
+                         measured_mass_flux, expected_mass_flux, flux_error_percent);
+          }
+        }
+      } catch (const std::exception &ex) {
+        error->all(FLERR, ex.what());
+      }
+      return;
+    }
+
     if (narg < 12 || std::strcmp(arg[2], "dsmc/reaction") != 0) {
       error->all(FLERR, "Illegal surface measure-flux command");
     }

@@ -15,7 +15,7 @@ create_box          -1.5e-3 1.5e-3 -1.5e-3 1.5e-3 -1.5e-3 1.5e-3
 create_grid         10 10 10
 balance_grid        rcb cell
 
-species             air.species O2
+species             air-react-to-flux.species O2
 mixture             gas O2 frac 1.0
 mixture             gas temp 5000.0 vstream 0.0 0.0 0.0
 
@@ -35,13 +35,15 @@ create_particles    gas n 0 twopass
 stats_style         step cpu np nscoll nscheck
 stats_modify        flush yes
 stats               100000
+iac_stats           1
+iac_stats_style     step time nvox ndel mf vf mapp mdrop
 
 variable            ablation_time equal 4.0e-2
 variable            keep internal 1
 label               coupled-loop
 
   fix               sflux ave/surf all 1 100 100 c_sflux[*] ave one
-  run               100 post no
+  run               100 post no every 100 "iac_spa_stats"
 
   surf_flux         skin dsmc/surf fix sflux mass-courant 0.1666666667
   iac_limit         time ${ablation_time}

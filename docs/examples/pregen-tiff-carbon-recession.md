@@ -8,7 +8,9 @@ examples/pregen-tiff-carbon-recession/
   generate-sample.sh
   in.constant-flux
   in.dsmc-co
+  in.dsmc-co-converge
   air.species
+  air-react-to-flux.species
   air.vss
   carbon-co.surf
 ```
@@ -162,3 +164,42 @@ executable:
 ```bash
 cmake -E chdir build-dsmc ctest -R pregen-tiff-carbon-recession-dsmc-co-verification --output-on-failure
 ```
+
+When the configured DSMC source tree includes `compute react/surf/mass/flux`,
+an additional compact chemistry example is available. This case uses
+`dsmc_converge` to sample DSMC mass flux before each voxel update:
+
+```bash
+make mpi
+cd examples/pregen-tiff-carbon-recession
+./generate-sample.sh
+../../build-dsmc/bin/dsmc-iac -in in.dsmc-co-converge
+```
+
+The example is standalone and writes visual output under:
+
+```text
+output/pregen-tiff-carbon-recession/converge-history.csv
+output/pregen-tiff-carbon-recession/converge-voxels_*.vtu
+output/pregen-tiff-carbon-recession/converge-ghosts_*.vtu
+output/pregen-tiff-carbon-recession/converge-surface_*.vtp
+```
+
+The corresponding CTest wrapper stages a private run directory containing the
+standalone example input, local species/reaction files, and the generated TIFF
+fixture. Its test input then includes `in.dsmc-co-converge` and appends the
+final `iac_verify` criteria:
+
+```bash
+cmake -E chdir build-dsmc ctest -R pregen-tiff-carbon-recession-dsmc-co-converge-verification --output-on-failure
+```
+
+This test uses the same generated TIFF, ghost treatment, `O2 --> CO + CO`
+surface chemistry, and `x+` normal selection as the visual DSMC example, but it
+reads carbon mass flux directly from DSMC's `compute react/surf/mass/flux`
+instead of converting `compute react/surf` counts inside IAC. The input reads
+that field as `quantity mass-flux`, converges the sampled flux with
+`dsmc_converge`, advances the solid with `mass-courant 1.0`, and uses
+`iac_limit time ${ablation_time}` plus `iac_continue` so the example ends at the
+requested physical ablation time. The test checks final `mf` and `vf`. On the
+local development machine it runs in about six seconds.

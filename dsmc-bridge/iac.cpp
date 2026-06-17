@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -33,7 +34,9 @@ void set_internal_variable(Input *input, Error *error, const char *name, double 
   Variable *variable = input->variable;
   int ivar = variable->find(const_cast<char *>(name));
   if (ivar < 0) {
-    variable->internal_create(const_cast<char *>(name), value);
+    char command[512];
+    std::snprintf(command, sizeof(command), "variable %s internal %.17g", name, value);
+    input->one(command);
     return;
   }
   if (!variable->internal_style(ivar)) {

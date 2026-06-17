@@ -66,6 +66,48 @@ def symlink_or_copy(source: Path, dest: Path) -> None:
             shutil.copy2(source, dest)
 
 
+def copy_directory(source: Path, dest: Path) -> None:
+    if dest.exists() or dest.is_symlink():
+        if dest.is_dir() and not dest.is_symlink():
+            shutil.rmtree(dest)
+        else:
+            dest.unlink()
+    shutil.copytree(source, dest)
+
+
+def clear_directory(path: Path) -> None:
+    if not path.exists():
+        path.mkdir(parents=True)
+        return
+    if not path.is_dir():
+        raise SystemExit(f"Overlay path exists but is not a directory: {path}")
+    for item in path.iterdir():
+        if item.is_dir() and not item.is_symlink():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
+
+
+def patch_machine_makefiles(overlay_src: Path, include_flags: List[str], libs: List[str]) -> None:
+    make_dir = overlay_src / "MAKE"
+    if not make_dir.is_dir():
+        return
+    include_text = " ".join(include_flags)
+    lib_text = " ".join(libs)
+    for path in make_dir.glob("Makefile.*"):
+        lines = path.read_text().splitlines()
+        patched = []
+        for line in lines:
+            stripped = line.lstrip()
+            if stripped.startswith("CCFLAGS") and "=" in line and include_text:
+                patched.append(f"{line} {include_text}")
+            elif stripped.startswith("LIB") and "=" in line and lib_text:
+                patched.append(f"{line} {lib_text}")
+            else:
+                patched.append(line)
+        path.write_text("\n".join(patched) + "\n")
+
+
 def write_package(
     overlay_src: Path,
     iac_include: Path,
@@ -74,7 +116,7 @@ def write_package(
     isthmus_lib: Path,
 ) -> None:
     include_flags = (
-        [f"-I{iac_include}"]
+        ["-std=c++17", f"-I{iac_include}"]
         + [f"-I{path}" for path in isthmus_includes]
     )
     libs = [str(iac_lib), str(isthmus_lib)]
@@ -133,12 +175,21 @@ def main() -> int:
     if not args.isthmus_lib.is_file():
         raise SystemExit(f"ISTHMUS library does not exist: {args.isthmus_lib}")
 
-    args.overlay_src.mkdir(parents=True, exist_ok=True)
+    clear_directory(args.overlay_src)
+
+    include_flags = (
+        ["-std=c++17", f"-I{args.iac_include.resolve()}"]
+        + [f"-I{path.resolve()}" for path in args.isthmus_include]
+    )
+    libs = [str(args.iac_lib.resolve()), str(args.isthmus_lib.resolve())]
 
     for item in dsmc_src.iterdir():
         if should_skip(item.name):
             continue
-        symlink_or_copy(item.resolve(), args.overlay_src / item.name)
+        if item.name == "MAKE" and item.is_dir():
+            copy_directory(item.resolve(), args.overlay_src / item.name)
+        else:
+            symlink_or_copy(item.resolve(), args.overlay_src / item.name)
 
     for name in sorted(BRIDGE_FILES):
         source = args.bridge_dir / name
@@ -158,6 +209,7 @@ def main() -> int:
         [path.resolve() for path in args.isthmus_include],
         args.isthmus_lib.resolve(),
     )
+    patch_machine_makefiles(args.overlay_src, include_flags, libs)
 
     readme = "\n".join(
         [

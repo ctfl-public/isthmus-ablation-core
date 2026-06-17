@@ -46,6 +46,7 @@ nav:
       - Sphere ISTHMUS Ablation: examples/sphere-isthmus.md
       - TIFF Sphere Example: examples/tiff-sphere.md
       - DSMC Sphere Kinetic Example: examples/dsmc-sphere-kinetic.md
+      - DSMC Sphere Mass Flux Example: examples/dsmc-sphere-mass-flux.md
       - Pregen TIFF Carbon Recession: examples/pregen-tiff-carbon-recession.md
   - Development:
       - Directory Layout: development/directory-layout.md

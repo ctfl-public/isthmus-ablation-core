@@ -103,3 +103,33 @@ installs the ISTHMUS surface into DSMC, reacts O2 into CO at the surface, reads
 back to voxels, and checks the final mass and volume fractions. The case is
 intentionally small and uses no gas-gas collision model so it remains a fast
 workflow regression.
+
+`pregen-tiff-carbon-recession-dsmc-co-converge-verification` uses the same
+rough carbon TIFF fixture and surface chemistry, but reads DSMC's direct
+`compute react/surf/mass/flux` output. It runs four compact
+chemistry/ablation/remesh cycles, using `dsmc_converge` before each voxel
+update, and verifies the final `mf` and `vf`. The standalone simulation input
+lives in `examples/pregen-tiff-carbon-recession` with visual dumps enabled. The
+CTest wrapper stages that example, the local species/reaction files, and the
+generated TIFF into a private run directory; the test input includes the
+example and adds pass/fail criteria.
+
+## Direct DSMC Mass-Flux Tests
+
+When the configured DSMC source tree contains `compute_react_surf_mass_flux`,
+CTest also registers `dsmc-mass-flux-*` checks. These exercise the
+`React_to_Flux` workflow where DSMC computes per-triangle solid mass flux
+directly from surface reactions and IAC only reads, verifies, maps, and ablates
+that flux.
+
+`dsmc-mass-flux-explicit-verification` runs one DSMC step on a fixed sphere
+and compares area-averaged `kg/m2/s` against ideal-gas impingement theory.
+
+`dsmc-converge-verification` covers the compact `dsmc_converge` command. It is
+intentionally a sanity check with loose tolerances; deeper fluid convergence
+studies belong in examples or report workflows.
+
+`dsmc-mass-flux-ablation-verification` runs a tiny fixed-sphere
+chemistry-driven ablation step and checks final `mf` and `vf`. It is a compact
+workflow regression, not a rough-sample proof. The rough-sample full chemistry
+loop lives with the pregen TIFF carbon tests above.

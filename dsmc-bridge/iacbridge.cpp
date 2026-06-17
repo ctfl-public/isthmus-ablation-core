@@ -288,6 +288,8 @@ void write_to_dsmc_outputs(SPARTA *sparta, const std::string &text) {
   }
 }
 
+void print_coupled_summary_if_needed(SPARTA *sparta);
+
 void record_grid_vtu_dump(const std::string &fix_id, const std::string &path,
                           const std::string &index_mode,
                           const std::vector<std::string> &fields, int every) {
@@ -301,6 +303,14 @@ void record_grid_vtu_dump(const std::string &fix_id, const std::string &path,
     }
   }
   grid_vtu_dumps.push_back(GridVtuDumpInfo{fix_id, path, index_mode, fields, every});
+}
+
+void print_compact_text(SPARTA *sparta, const std::string &text) {
+  write_to_dsmc_outputs(sparta, text);
+}
+
+void print_coupled_summary(SPARTA *sparta) {
+  print_coupled_summary_if_needed(sparta);
 }
 
 void write_scheduled_grid_vtu_dumps(SPARTA *sparta) {
@@ -599,7 +609,6 @@ void install_surface(SPARTA *sparta, const char *surface_id, int partflag, int t
   Particle *particle = sparta->particle;
   Comm *comm = sparta->comm;
   Error *error = sparta->error;
-  Memory *memory = sparta->memory;
   MPI_Comm world = sparta->world;
 
   if (surf->exist && surf->nsurf > 0) {
@@ -615,39 +624,19 @@ void install_surface(SPARTA *sparta, const char *surface_id, int partflag, int t
   }
 
   const std::size_t total_triangles = triangles.size();
-  const std::size_t base = total_triangles / static_cast<std::size_t>(comm->nprocs);
-  const std::size_t extra = total_triangles % static_cast<std::size_t>(comm->nprocs);
-  const std::size_t first =
-      static_cast<std::size_t>(comm->me) * base +
-      std::min(static_cast<std::size_t>(comm->me), extra);
-  const std::size_t count = base + (static_cast<std::size_t>(comm->me) < extra ? 1 : 0);
-
-  Surf::Tri *tris = count > 0
-                        ? static_cast<Surf::Tri *>(memory->smalloc(
-                              count * sizeof(Surf::Tri), "isthmus_ablation:tris"))
-                        : nullptr;
-  for (std::size_t local = 0; local < count; ++local) {
-    const std::size_t i = first + local;
-    const auto &src = triangles[i];
-    Surf::Tri &tri = tris[local];
-    tri.id = static_cast<surfint>(i + 1);
-    tri.type = type;
-    tri.mask = 1;
-    tri.isc = tri.isr = -1;
-    std::memcpy(tri.p1, src.a.data(), 3 * sizeof(double));
-    std::memcpy(tri.p2, src.b.data(), 3 * sizeof(double));
-    std::memcpy(tri.p3, src.c.data(), 3 * sizeof(double));
-    tri.norm[0] = tri.norm[1] = tri.norm[2] = 0.0;
-    tri.transparent = 0;
-  }
-
   const bigint nsurf_old = surf->nsurf;
   const int nsurf_old_mine = surf->distributed ? surf->nown : surf->nlocal;
   surf->exist = 1;
-  surf->add_surfs(0, static_cast<int>(count), nullptr, tris, 0, nullptr, nullptr);
-  if (tris) {
-    memory->sfree(tris);
+  surf->implicit = 0;
+  surf->distributed = 0;
+  for (std::size_t i = 0; i < total_triangles; ++i) {
+    const auto &src = triangles[i];
+    double p1[3] = {src.a[0], src.a[1], src.a[2]};
+    double p2[3] = {src.b[0], src.b[1], src.b[2]};
+    double p3[3] = {src.c[0], src.c[1], src.c[2]};
+    surf->add_tri(static_cast<surfint>(i + 1), type, p1, p2, p3);
   }
+  surf->nsurf = static_cast<bigint>(total_triangles);
 
   surf->output_extent(nsurf_old_mine);
   surf->compute_tri_normal(nsurf_old_mine);

@@ -1,0 +1,15 @@
+# Species data for the DSMC React_to_Flux branch format.
+
+# ID
+# Molwt (amu)
+# Molmass (kg)
+# Rotational dof
+# RotRel
+# Rotational temp
+# Vibrational dof
+# VibRel
+# VibTemp (K)
+# species wt
+# charge
+
+O2  32.00    5.31E-26  2    0.2  4.14   2    5.58659E-5    2256.0    1.0      0.0

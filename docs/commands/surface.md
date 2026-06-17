@@ -24,10 +24,24 @@ surf_flux <surface-id> dsmc/reaction fix <fix-id> column <N> \
   sample-steps <Nstep> reaction <path> \
   [ablation-dt <dt> | mass-courant <C>] [time-scale <S>] \
   [select all | select normal nx <x> ny <y> nz <z> [min-cos <c>]]
+surf_flux <surface-id> dsmc/mass-flux fix <fix-id> quantity mass-flux \
+  units <flux|flow> [ablation-dt <dt> | mass-courant <C>] \
+  [select normal nx <x> ny <y> nz <z> [min-cos <c>]]
+surf_flux <surface-id> dsmc/mass-flux fix <fix-id> column <N> \
+  units <flux|flow> [ablation-dt <dt> | mass-courant <C>] \
+  [select normal nx <x> ny <y> nz <z> [min-cos <c>]]
 surf_measure_flux <surface-id> dsmc/reaction fix <fix-id> column <N> \
   sample-steps <Nstep> expected kinetic/theory number-density <n> \
   mole-fraction <x> temperature <T> molecular-mass <kg> \
   [reaction <path>]
+surf_measure_flux <surface-id> dsmc/mass-flux fix <fix-id> quantity mass-flux \
+  units <flux|flow> expected kinetic/theory number-density <n> \
+  mole-fraction <x> temperature <T> molecular-mass <kg> \
+  [reaction-prob <p> solid-mass-per-reaction <kg>]
+
+dsmc_converge flux <surface-id> fix <fix-id> quantity mass-flux every <Nstep> \
+  reduce <sum|ave|sum-area|ave-area> rel <tol> cv <tol> window <N> \
+  max-iter <N> [min-iter <N>] [passes <N>] [variable <name>]
 
 surf_dump <dump-id> <surface-id> vtp <N> <path>
 surf_dump off
@@ -51,9 +65,17 @@ surf_flux skin dsmc/reaction fix rco column 1 sample-steps 20 \
 surf_flux skin dsmc/reaction fix rco column 1 sample-steps 100 \
   reaction carbon-co.surf mass-courant 1.0 \
   select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
+surf_flux skin dsmc/mass-flux fix mflux quantity mass-flux units flux \
+  mass-courant 0.3333333333
 surf_measure_flux skin dsmc/reaction fix rco column 1 sample-steps 1 \
   expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 \
   temperature 5000.0 molecular-mass 5.31352e-26 reaction carbon-co.surf
+surf_measure_flux skin dsmc/mass-flux fix mflux quantity mass-flux units flux \
+  expected kinetic/theory number-density 7.244e23 mole-fraction 0.21 \
+  temperature 5000.0 molecular-mass 5.31352e-26 \
+  solid-mass-per-reaction 3.98894696e-26
+dsmc_converge flux skin fix mflux quantity mass-flux every 20 reduce sum-area \
+  rel 0.10 cv 0.10 window 3 min-iter 3 max-iter 20
 
 surf_dump skin skin vtp 10 output/sphere/surface_*.vtp
 surf_dump off
@@ -179,6 +201,73 @@ This command is the first DSMC-hosted regression hook for the coupled path: it
 tests geometry generation, surface installation, DSMC surface chemistry
 tallies, core diagnostics, and input-file verification without introducing
 voxel deletion or remeshing.
+
+With `dsmc/mass-flux`, the command reads a mass flux already computed inside
+DSMC. This mode is intended for DSMC branches that provide
+`compute react/surf/mass/flux`, for example:
+
+```text
+compute mflux react/surf/mass/flux all ox mass 0.0240214 norm flux
+fix mflux ave/surf all 1 20 20 c_mflux[*] ave one
+```
+
+Here DSMC owns the chemistry, reaction counting, normalization by surface area
+and timestep, and conversion to solid mass flux. IAC normally reads
+`quantity mass-flux` from the `fix ave/surf` result. The lower-level
+`column <N>` form remains available when a custom DSMC fix exposes the desired
+mass flux in a nonstandard column. IAC optionally filters triangles by normal
+direction, maps
+the triangle fluxes through the ISTHMUS ownership fractions, chooses the solid
+timestep from `mass-courant` when requested, and then `voxel_ablate` consumes
+the pending triangle mass. Use `units flux` when the DSMC column is already
+`kg/m2/s`; use `units flow` when the DSMC column is `kg/s` per triangle and
+IAC should divide by triangle area.
+
+`surf_measure_flux ... dsmc/mass-flux` performs the same read and reduction
+without changing voxel mass. With `expected kinetic/theory`, it compares the
+area-averaged DSMC mass flux to the ideal-gas one-way impingement estimate:
+
+```text
+Gamma = mole-fraction * number-density
+        * sqrt(kB*temperature/(2*pi*molecular-mass))
+rmflux-exact = reaction-prob * solid-mass-per-reaction * Gamma
+```
+
+The command registers `area`, `area-exact`, `rmflux`, `rmflux-exact`,
+`rmflux-errpct`, and `area-errpct` for later `iac_verify` checks.
+
+`dsmc_converge` is a DSMC-bridge command that runs native DSMC in repeated
+blocks before ablation. The command is deliberately bounded: `every` is the
+number of DSMC steps per block, and `max-iter` is the maximum number of blocks
+allowed before the command errors. After each block it reads the selected
+surface column, reduces it with `sum`, `ave`, `sum-area`, or `ave-area`, and
+checks both relative change and a rolling coefficient of variation. This gives
+two clean coupled workflows:
+
+```text
+# Explicit input-file loop.
+run 20 post no every 20 "iac_spa_stats"
+surf_flux skin dsmc/mass-flux fix mflux quantity mass-flux \
+  units flux mass-courant 0.3333333333
+voxel_ablate solid surface skin policy carryover/normal delete yes
+iac_run 1
+iac_spa_stats
+
+# Compact convergence block.
+dsmc_converge flux skin fix mflux quantity mass-flux every 20 reduce sum-area \
+  rel 0.10 cv 0.10 window 3 max-iter 20
+surf_flux skin dsmc/mass-flux fix mflux quantity mass-flux \
+  units flux mass-courant 0.3333333333
+voxel_ablate solid surface skin policy carryover/normal delete yes
+iac_run 1
+iac_spa_stats
+```
+
+The compact command is quiet during normal console output. Use `iac_spa_stats`
+after the IAC update to print the compact `[SPA]` gas stats row for the DSMC
+block that fed that update. The command also registers diagnostics named
+`dsmc-converge-value`, `dsmc-converge-rel`, `dsmc-converge-cv`,
+`dsmc-converge-iter`, `dsmc-converge-steps`, and `dsmc-converged`.
 
 DSMC-coupled sources assign triangle mass loss and set the current IAC
 ablation timestep; they do not themselves advance the solid clock. Use

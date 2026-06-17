@@ -131,6 +131,12 @@ refer to diagnostics registered by earlier bridge commands. For example,
 - `rflux-errpct`
 - `rmflux`, when `reaction` or `solid-mass-per-reaction` is provided
 - `rmflux-exact`, when `reaction` or `solid-mass-per-reaction` is provided
+- `dsmc-converge-value`, after `dsmc_converge`
+- `dsmc-converge-rel`, after `dsmc_converge`
+- `dsmc-converge-cv`, after `dsmc_converge`
+- `dsmc-converge-iter`, after `dsmc_converge`
+- `dsmc-converge-steps`, after `dsmc_converge`
+- `dsmc-converged`, after `dsmc_converge`
 
 The DSMC flux verification in `tests/inputs/dsmc-sphere-flux` is deliberately
 an instantaneous one-step test. It checks the initial kinetic-theory O2
@@ -148,7 +154,6 @@ commands are checked directly.
 
 - `iac_continue` is shared for the common time-loop pattern. `iac_set` is a
   DSMC bridge command because it interacts with DSMC internal variables.
-- A full DSMC-hosted `convergence` command is not implemented. Convergence
-  suites still belong at the CTest/report layer or in explicit DSMC input loops
-  because true convergence orchestration requires rerunning the host input with
-  different variable overrides.
+- `dsmc_converge` can converge one surface diagnostic inside a coupled input
+  loop. Broader studies that rerun a case at multiple grids, particle weights,
+  or physical parameters still belong at the CTest/report layer.
