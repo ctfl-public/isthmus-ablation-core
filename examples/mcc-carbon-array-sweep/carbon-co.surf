@@ -1,0 +1,5 @@
+# Surface oxidation surrogate for carbon monoxide formation.
+# Represents O2 + 2 C(s) -> 2 CO as one incident O2 becoming two CO particles.
+
+O2 --> CO + CO
+D S 1.0

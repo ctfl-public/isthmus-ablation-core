@@ -1,0 +1,11 @@
+case,tiff,temp,vx,ablation_time,fnum,seed
+cut-001,cuts/cut-001.tif,7600,-850,1.2e-7,2.4e15,41001
+cut-002,cuts/cut-002.tif,7800,-900,1.2e-7,2.4e15,41002
+cut-003,cuts/cut-003.tif,8000,-950,1.2e-7,2.4e15,41003
+cut-004,cuts/cut-004.tif,8200,-1000,1.2e-7,2.4e15,41004
+cut-005,cuts/cut-005.tif,8400,-1050,1.2e-7,2.4e15,41005
+cut-006,cuts/cut-006.tif,8600,-850,1.2e-7,2.4e15,41006
+cut-007,cuts/cut-007.tif,8800,-900,1.2e-7,2.4e15,41007
+cut-008,cuts/cut-008.tif,9000,-950,1.2e-7,2.4e15,41008
+cut-009,cuts/cut-009.tif,9200,-1000,1.2e-7,2.4e15,41009
+cut-010,cuts/cut-010.tif,9400,-1050,1.2e-7,2.4e15,41010
