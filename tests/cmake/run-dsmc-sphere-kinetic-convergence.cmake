@@ -44,7 +44,7 @@ foreach(resolution 4 6 8)
   set(history_file "${case_dir}/history.csv")
   configure_file("${template}" "${input_file}" @ONLY)
   execute_process(
-    COMMAND "${DSMC_EXECUTABLE}" -screen none -log "${case_dir}/log.sparta" -in "${input_file}"
+    COMMAND "${DSMC_EXECUTABLE}" -log "${case_dir}/log.sparta" -in "${input_file}"
     WORKING_DIRECTORY "${SOURCE_DIR}"
     RESULT_VARIABLE result
     OUTPUT_VARIABLE stdout

@@ -33,7 +33,7 @@ file(RENAME
      "${run_dir}/in.dsmc-co-converge.verify")
 
 execute_process(
-  COMMAND "${DSMC_EXECUTABLE}" -screen none -log none -in in.dsmc-co-converge.verify
+  COMMAND "${DSMC_EXECUTABLE}" -log none -in in.dsmc-co-converge.verify
   WORKING_DIRECTORY "${run_dir}"
   RESULT_VARIABLE result
 )

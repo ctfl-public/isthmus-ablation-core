@@ -278,7 +278,7 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
   function(iac_add_hosted_input_test test_name input_file)
     add_test(
       NAME hosted-${test_name}
-      COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
+      COMMAND ${IAC_DSMC_EXECUTABLE} -log none
               -in ${CMAKE_SOURCE_DIR}/${input_file}
     )
     set_tests_properties(hosted-${test_name} PROPERTIES
@@ -289,7 +289,7 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
       add_test(
         NAME hosted-mpi-${test_name}
         COMMAND ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
-                ${IAC_DSMC_EXECUTABLE} -screen none -log none
+                ${IAC_DSMC_EXECUTABLE} -log none
                 -in ${CMAKE_SOURCE_DIR}/${input_file}
       )
       set_tests_properties(hosted-mpi-${test_name} PROPERTIES
@@ -301,7 +301,7 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
   function(iac_add_dsmc_input_test test_name input_file)
     add_test(
       NAME ${test_name}
-      COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
+      COMMAND ${IAC_DSMC_EXECUTABLE} -log none
               -in ${CMAKE_SOURCE_DIR}/${input_file}
     )
     set_tests_properties(${test_name} PROPERTIES
@@ -313,7 +313,7 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
       add_test(
         NAME dsmc-mpi-${mpi_test_suffix}
         COMMAND ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
-                ${IAC_DSMC_EXECUTABLE} -screen none -log none
+                ${IAC_DSMC_EXECUTABLE} -log none
                 -in ${CMAKE_SOURCE_DIR}/${input_file}
       )
       set_tests_properties(dsmc-mpi-${mpi_test_suffix} PROPERTIES
@@ -325,7 +325,7 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
   function(iac_add_dsmc_input_test_serial test_name input_file)
     add_test(
       NAME ${test_name}
-      COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
+      COMMAND ${IAC_DSMC_EXECUTABLE} -log none
               -in ${CMAKE_SOURCE_DIR}/${input_file}
     )
     set_tests_properties(${test_name} PROPERTIES
@@ -420,7 +420,7 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
     )
     add_test(
       NAME pregen-tiff-carbon-recession-dsmc-co-verification
-      COMMAND ${IAC_DSMC_EXECUTABLE} -screen none -log none
+      COMMAND ${IAC_DSMC_EXECUTABLE} -log none
               -in ${IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT}
     )
     set_tests_properties(pregen-tiff-carbon-recession-dsmc-co-verification PROPERTIES

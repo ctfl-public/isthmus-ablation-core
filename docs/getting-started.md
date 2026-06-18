@@ -127,9 +127,11 @@ build-dsmc/bin/dsmc-iac \
 ```
 
 `build-dsmc/bin/dsmc-iac` quiets native SPARTA screen output by default and
-prints compact IAC coupled summaries instead. Full SPARTA output is still
-written to the log file. Add `--iac-dsmc-verbose` to show native SPARTA screen
-output while debugging.
+prints compact IAC coupled summaries instead. If DSMC/SPARTA exits with an
+error, the launcher prints the captured quiet screen output so failures are not
+silent. Full SPARTA output is still written to the log file when logging is
+enabled. Add `--iac-dsmc-verbose` to show native SPARTA screen output while
+debugging.
 
 Compact `[IAC]` and `[SPA]` lines are colored by default when stdout is a
 terminal. IAC lines are green and SPARTA lines are blue. Control this with:
