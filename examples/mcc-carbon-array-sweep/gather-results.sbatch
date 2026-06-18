@@ -1,6 +1,6 @@
 #!/bin/sh
 #SBATCH --job-name=iac-gather
-#SBATCH --partition=normal
+#SBATCH --partition=short
 #SBATCH --account=coa_sjpo228_uksr
 #SBATCH --nodes=1
 #SBATCH --ntasks=1

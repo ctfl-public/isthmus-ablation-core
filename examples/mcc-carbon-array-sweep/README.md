@@ -27,17 +27,21 @@ default:
 sbatch --array=1-10%2 run-row.sbatch
 ```
 
-That means SLURM keeps at most two 128-rank cases running at once and launches
-the next row as soon as one finishes. Override the defaults without editing the
-scripts:
+That means SLURM keeps at most two cases running at once and launches the next
+row as soon as one finishes. By default each row uses one task on the `short`
+partition, which is the validated mode for this demonstration. Override the
+defaults without editing the scripts:
 
 ```bash
-MAX_RUNNING=4 NTASKS=128 PARTITION=normal ACCOUNT=coa_sjpo228_uksr ./submit-mcc-sweep.sh
+MAX_RUNNING=4 NTASKS=1 PARTITION=short ACCOUNT=coa_sjpo228_uksr ./submit-mcc-sweep.sh
 ```
 
-Each row runs inside its SLURM allocation with `mpirun -np $SLURM_NTASKS` by
-default. This matches MCC's OpenMPI setup more reliably than launching the
-OpenMPI executable directly with `srun`. To override the launcher:
+This example currently uses array-level parallelism: many independent rows run
+at the same time, but each coupled DSMC/IAC row runs serially. The row script
+can launch through MPI, but the fully coupled TIFF recession loop still needs a
+separate bridge fix before 128-rank row runs should be treated as supported. To
+experiment with MPI row execution after that fix, override both the task count
+and launcher:
 
 ```bash
 MPI_LAUNCHER="mpirun -np 128" ./submit-mcc-sweep.sh

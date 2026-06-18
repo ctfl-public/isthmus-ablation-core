@@ -1,10 +1,9 @@
 #!/bin/sh
 #SBATCH --job-name=iac-row
-#SBATCH --partition=normal
+#SBATCH --partition=short
 #SBATCH --account=coa_sjpo228_uksr
 #SBATCH --nodes=1
-#SBATCH --ntasks=128
-#SBATCH --exclusive
+#SBATCH --ntasks=1
 #SBATCH --time=00:20:00
 #SBATCH --output=logs/row-%A-%a.out
 #SBATCH --error=logs/row-%A-%a.err

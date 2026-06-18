@@ -3,8 +3,8 @@ set -eu
 
 csv=${1:-sweep.csv}
 max_running=${MAX_RUNNING:-2}
-ntasks=${NTASKS:-128}
-partition=${PARTITION:-normal}
+ntasks=${NTASKS:-1}
+partition=${PARTITION:-short}
 account=${ACCOUNT:-coa_sjpo228_uksr}
 time_limit=${TIME_LIMIT:-00:20:00}
 dsmc_iac=${DSMC_IAC:-dsmc-iac}
