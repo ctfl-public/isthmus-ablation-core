@@ -194,13 +194,15 @@ void Voxel::command(int narg, char **arg) {
     if (delete_empty) {
       ablate.delete_empty = parse_bool(delete_empty);
     }
+    std::string root_error;
     try {
       if (IACBridge::owns_model(sparta)) {
         IACBridge::model(sparta).ablate(ablate);
       }
     } catch (const std::exception &ex) {
-      error->all(FLERR, ex.what());
+      root_error = ex.what();
     }
+    IACBridge::error_if_root_failed(sparta, root_error);
     return;
   }
 

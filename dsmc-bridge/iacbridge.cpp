@@ -722,5 +722,23 @@ void install_surface(SPARTA *sparta, const char *surface_id, int partflag, int t
   MPI_Barrier(world);
 }
 
+void error_if_root_failed(SPARTA *sparta, const std::string &message) {
+  int length = 0;
+  if (owns_model(sparta) && !message.empty()) {
+    length = static_cast<int>(message.size());
+  }
+  MPI_Bcast(&length, 1, MPI_INT, 0, sparta->world);
+  if (length <= 0) {
+    return;
+  }
+
+  std::vector<char> buffer(static_cast<std::size_t>(length) + 1, '\0');
+  if (owns_model(sparta)) {
+    std::copy(message.begin(), message.end(), buffer.begin());
+  }
+  MPI_Bcast(buffer.data(), length, MPI_CHAR, 0, sparta->world);
+  sparta->error->all(FLERR, buffer.data());
+}
+
 } // namespace IACBridge
 } // namespace SPARTA_NS

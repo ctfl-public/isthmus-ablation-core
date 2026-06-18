@@ -541,6 +541,7 @@ void Surface::command(int narg, char **arg) {
         error->all(FLERR, "surface flux dsmc/mass-flux cannot use both ablation-dt and mass-courant");
       }
 
+      std::string root_error;
       try {
         const auto &triangles = IACBridge::surface_triangles(sparta, flux.surface);
         if (triangles.size() != static_cast<std::size_t>(surf->nsurf)) {
@@ -569,8 +570,9 @@ void Surface::command(int narg, char **arg) {
           IACBridge::model(sparta).apply_triangle_fluxes(flux.surface, mass_fluxes);
         }
       } catch (const std::exception &ex) {
-        error->all(FLERR, ex.what());
+        root_error = ex.what();
       }
+      IACBridge::error_if_root_failed(sparta, root_error);
       return;
     }
 
@@ -643,6 +645,7 @@ void Surface::command(int narg, char **arg) {
         error->all(FLERR, "surface flux dsmc/reaction cannot use both ablation-dt and mass-courant");
       }
 
+      std::string root_error;
       try {
         const auto &triangles = IACBridge::surface_triangles(sparta, flux.surface);
         if (triangles.size() != static_cast<std::size_t>(surf->nsurf)) {
@@ -686,8 +689,9 @@ void Surface::command(int narg, char **arg) {
           IACBridge::model(sparta).apply_triangle_fluxes(flux.surface, mass_fluxes);
         }
       } catch (const std::exception &ex) {
-        error->all(FLERR, ex.what());
+        root_error = ex.what();
       }
+      IACBridge::error_if_root_failed(sparta, root_error);
       return;
     }
 
@@ -775,6 +779,7 @@ void Surface::command(int narg, char **arg) {
         mass_flux *= reaction_prob * solid_mass_per_hit;
       }
 
+      std::string root_error;
       try {
         if (IACBridge::owns_model(sparta)) {
           if (mass_courant_value) {
@@ -788,8 +793,9 @@ void Surface::command(int narg, char **arg) {
           IACBridge::model(sparta).apply_triangle_fluxes(flux.surface, mass_fluxes);
         }
       } catch (const std::exception &ex) {
-        error->all(FLERR, ex.what());
+        root_error = ex.what();
       }
+      IACBridge::error_if_root_failed(sparta, root_error);
       return;
     } else if (std::strcmp(arg[2], "kinetic/theory") == 0) {
       flux.style = "kinetic/theory";

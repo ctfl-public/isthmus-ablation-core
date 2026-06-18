@@ -402,6 +402,10 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
     dsmc-mass-flux-ablation-verification
     tests/inputs/dsmc-sphere-mass-flux/in.dsmc-mass-flux-ablation.verify
   )
+  iac_add_dsmc_input_test(
+    dsmc-converge-ablation-loop-verification
+    tests/inputs/dsmc-sphere-mass-flux/in.dsmc-converge-ablation-loop.verify
+  )
   set_tests_properties(
     dsmc-mass-flux-explicit-verification
     dsmc-converge-verification

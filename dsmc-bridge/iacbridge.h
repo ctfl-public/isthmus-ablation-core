@@ -32,6 +32,7 @@ void print_compact_text(SPARTA *sparta, const std::string &text);
 void print_coupled_summary(SPARTA *sparta);
 void print_stats_after_step(SPARTA *sparta);
 void print_sparta_stats(SPARTA *sparta);
+void error_if_root_failed(SPARTA *sparta, const std::string &message);
 
 } // namespace IACBridge
 

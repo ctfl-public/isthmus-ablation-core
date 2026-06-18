@@ -99,6 +99,7 @@ void Iac::command(int narg, char **arg) {
         error->all(FLERR, "Unknown iac verify option");
       }
     }
+    std::string root_error;
     try {
       if (IACBridge::owns_model(sparta)) {
         auto &model = IACBridge::model(sparta);
@@ -114,13 +115,14 @@ void Iac::command(int narg, char **arg) {
             if (check.tolerance_mode == "percent") {
               message += " percent";
             }
-            error->all(FLERR, message.c_str());
+            root_error = message;
           }
         }
       }
     } catch (const std::exception &ex) {
-      error->all(FLERR, ex.what());
+      root_error = ex.what();
     }
+    IACBridge::error_if_root_failed(sparta, root_error);
     return;
   }
 
@@ -129,6 +131,7 @@ void Iac::command(int narg, char **arg) {
       error->all(FLERR, "Illegal iac timestep command");
     }
     auto &cfg = IACBridge::config();
+    std::string root_error;
     try {
       if (std::strcmp(arg[1], "mass/courant") == 0) {
         if (narg != 5 || std::strcmp(arg[3], "source") != 0) {
@@ -149,8 +152,9 @@ void Iac::command(int narg, char **arg) {
         }
       }
     } catch (const std::exception &ex) {
-      error->all(FLERR, ex.what());
+      root_error = ex.what();
     }
+    IACBridge::error_if_root_failed(sparta, root_error);
     return;
   }
 
@@ -202,6 +206,7 @@ void Iac::command(int narg, char **arg) {
     if (steps <= 0) {
       error->all(FLERR, "iac_run step count must be positive");
     }
+    std::string root_error;
     try {
       if (IACBridge::owns_model(sparta)) {
         for (int i = 0; i < steps; ++i) {
@@ -210,8 +215,9 @@ void Iac::command(int narg, char **arg) {
         }
       }
     } catch (const std::exception &ex) {
-      error->all(FLERR, ex.what());
+      root_error = ex.what();
     }
+    IACBridge::error_if_root_failed(sparta, root_error);
     return;
   }
 
@@ -224,6 +230,7 @@ void Iac::command(int narg, char **arg) {
     if (target <= 0.0) {
       error->all(FLERR, "iac continue time target must be positive");
     }
+    std::string root_error;
     try {
       double keep_running = 0.0;
       if (IACBridge::owns_model(sparta)) {
@@ -232,8 +239,9 @@ void Iac::command(int narg, char **arg) {
       keep_running = broadcast_root_value(sparta, keep_running);
       set_internal_variable(input, error, arg[4], keep_running);
     } catch (const std::exception &ex) {
-      error->all(FLERR, ex.what());
+      root_error = ex.what();
     }
+    IACBridge::error_if_root_failed(sparta, root_error);
     return;
   }
 
@@ -245,6 +253,7 @@ void Iac::command(int narg, char **arg) {
     if (target <= 0.0) {
       error->all(FLERR, "iac limit time target must be positive");
     }
+    std::string root_error;
     try {
       if (IACBridge::owns_model(sparta)) {
         auto &model = IACBridge::model(sparta);
@@ -254,8 +263,9 @@ void Iac::command(int narg, char **arg) {
         }
       }
     } catch (const std::exception &ex) {
-      error->all(FLERR, ex.what());
+      root_error = ex.what();
     }
+    IACBridge::error_if_root_failed(sparta, root_error);
     return;
   }
 
