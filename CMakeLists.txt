@@ -118,6 +118,16 @@ if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT)
       "Optional DSMC/SPARTA executable for coupled tests" FORCE)
 endif()
 
+if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT)
+  add_executable(dsmc-iac src/dsmc_iac_launcher.cpp)
+  set_target_properties(dsmc-iac PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+  )
+  target_compile_definitions(dsmc-iac PRIVATE
+    IAC_DSMC_EXECUTABLE_PATH="${IAC_DSMC_OVERLAY_EXECUTABLE}"
+  )
+endif()
+
 set(IAC_DSMC_REQUIRED_MASS_FLUX_FILES
   src/compute_react_surf_mass_flux.cpp
   src/compute_react_surf_mass_flux.h
@@ -153,6 +163,9 @@ if(IAC_ISTHMUS_INCLUDE_DIRS)
 endif()
 
 set(IAC_DSMC_TARGET_DEPENDS ia-core dsmc-kinetic-convergence-check)
+if(TARGET dsmc-iac)
+  list(APPEND IAC_DSMC_TARGET_DEPENDS dsmc-iac)
+endif()
 if(TARGET generated-fixtures)
   list(APPEND IAC_DSMC_TARGET_DEPENDS generated-fixtures)
 endif()
@@ -174,11 +187,7 @@ if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND Python3_Interpreter_FOUND AND IAC_MAKE
     COMMAND ${CMAKE_COMMAND} -E chdir ${IAC_DSMC_OVERLAY_SRC}
             ${IAC_MAKE_EXECUTABLE} ${DSMC_MACHINE}
     COMMAND ${CMAKE_COMMAND} -E echo "[IAC build] DSMC native make target '${DSMC_MACHINE}' finished."
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bin
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/create-dsmc-wrapper.py
-            --executable ${IAC_DSMC_OVERLAY_EXECUTABLE}
-            --wrapper ${CMAKE_BINARY_DIR}/bin/dsmc-iac
-    COMMAND ${CMAKE_COMMAND} -E echo "[IAC build] Launcher written to ${CMAKE_BINARY_DIR}/bin/dsmc-iac."
+    COMMAND ${CMAKE_COMMAND} -E echo "[IAC build] Launcher available at ${CMAKE_BINARY_DIR}/bin/dsmc-iac."
     DEPENDS ${IAC_DSMC_TARGET_DEPENDS}
     COMMAND_EXPAND_LISTS
     COMMENT "Building private DSMC/IAC executable in the IAC build tree"

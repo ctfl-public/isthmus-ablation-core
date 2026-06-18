@@ -81,6 +81,11 @@ The executable is:
 build-dsmc/bin/dsmc-iac
 ```
 
+`dsmc-iac` is a compiled launcher, not a Python script. Python is still used by
+build/helper tools such as DSMC overlay generation and TIFF fixture generation,
+but running coupled cases does not require a Python runtime in the launcher
+path.
+
 Run a coupled example:
 
 ```bash

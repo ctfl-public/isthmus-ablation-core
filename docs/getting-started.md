@@ -93,9 +93,10 @@ make mpi
 make test-dsmc
 ```
 
-MCC's system Python 3.6 is enough for the normal build and verification tests.
-The optional PDF documentation and report targets may need additional local
-tools.
+MCC's system Python 3.6 is enough for the build/helper scripts used during the
+normal build and verification tests. The installed `dsmc-iac` launcher itself is
+compiled, so running coupled cases does not go through Python. The optional PDF
+documentation and report targets may need additional local tools.
 
 The DSMC/IAC build:
 
@@ -105,7 +106,7 @@ The DSMC/IAC build:
 - symlinks the IAC bridge command files into that overlay;
 - generates the overlay `Makefile.package`;
 - runs DSMC's normal `make <machine>` build there;
-- writes `build-dsmc/bin/dsmc-iac`.
+- builds the compiled launcher `build-dsmc/bin/dsmc-iac`.
 
 The default DSMC machine target is `mpi`. Override it with:
 
