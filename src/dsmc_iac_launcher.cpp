@@ -9,6 +9,7 @@
 #endif
 
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <iostream>
@@ -43,6 +44,35 @@ bool is_compact_line(const std::string &line) {
 
 void print_usage_error(const std::string &message) {
   std::cerr << "dsmc-iac: " << message << '\n';
+}
+
+int env_int(const char *name) {
+  const char *value = std::getenv(name);
+  if (value == nullptr || *value == '\0') {
+    return 0;
+  }
+  char *end = nullptr;
+  const long parsed = std::strtol(value, &end, 10);
+  if (end == value || parsed <= 0) {
+    return 0;
+  }
+  return static_cast<int>(parsed);
+}
+
+bool is_mpi_parallel_launch() {
+  const char *size_vars[] = {
+      "OMPI_COMM_WORLD_SIZE",
+      "PMI_SIZE",
+      "PMIX_SIZE",
+      "MPI_LOCALNRANKS",
+      "SLURM_NTASKS",
+  };
+  for (const char *name : size_vars) {
+    if (env_int(name) > 1) {
+      return true;
+    }
+  }
+  return false;
 }
 
 std::vector<char *> make_exec_argv(const std::string &exe, const std::vector<std::string> &args) {
@@ -191,7 +221,7 @@ int main(int argc, char **argv) {
     setenv("IAC_COLOR", "auto", 1);
   }
 
-  if (verbose || has_screen) {
+  if (verbose || has_screen || is_mpi_parallel_launch()) {
     return run_direct(exe, forwarded);
   }
   return run_quiet(exe, forwarded);
