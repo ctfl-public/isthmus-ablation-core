@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 
 project(isthmus_ablation_core LANGUAGES CXX)
 
+include(CheckLibraryExists)
+
 function(iac_first_existing_dir out_var)
   foreach(candidate IN LISTS ARGN)
     if(candidate AND EXISTS "${candidate}")
@@ -126,6 +128,10 @@ if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT)
   target_compile_definitions(dsmc-iac PRIVATE
     IAC_DSMC_EXECUTABLE_PATH="${IAC_DSMC_OVERLAY_EXECUTABLE}"
   )
+  check_library_exists(util forkpty "" IAC_DSMC_LAUNCHER_NEEDS_UTIL)
+  if(IAC_DSMC_LAUNCHER_NEEDS_UTIL)
+    target_link_libraries(dsmc-iac PRIVATE util)
+  endif()
 endif()
 
 set(IAC_DSMC_REQUIRED_MASS_FLUX_FILES
