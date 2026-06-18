@@ -37,7 +37,17 @@ mkdir -p "${outdir}" "${rowdir}" logs
 echo "[IAC sweep] row ${row_index}: ${case_name}"
 echo "[IAC sweep] tiff=${tiff} temp=${temp} vx=${vx} ablation_time=${ablation_time}"
 
-srun -n "${SLURM_NTASKS}" "${dsmc_iac}" --iac-color off -in in.dsmc-co-converge-sweep \
+if [ -n "${MPI_LAUNCHER:-}" ]; then
+  # Intentionally split so users can pass, e.g., MPI_LAUNCHER="mpirun -np 128".
+  # shellcheck disable=SC2086
+  set -- ${MPI_LAUNCHER}
+elif command -v mpirun >/dev/null 2>&1; then
+  set -- mpirun -np "${SLURM_NTASKS}"
+else
+  set -- srun -n "${SLURM_NTASKS}"
+fi
+
+"$@" "${dsmc_iac}" --iac-color off -in in.dsmc-co-converge-sweep \
   -var tiff "${tiff}" \
   -var temp "${temp}" \
   -var vx "${vx}" \

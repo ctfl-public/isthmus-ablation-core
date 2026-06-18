@@ -35,6 +35,14 @@ scripts:
 MAX_RUNNING=4 NTASKS=128 PARTITION=normal ACCOUNT=coa_sjpo228_uksr ./submit-mcc-sweep.sh
 ```
 
+Each row runs inside its SLURM allocation with `mpirun -np $SLURM_NTASKS` by
+default. This matches MCC's OpenMPI setup more reliably than launching the
+OpenMPI executable directly with `srun`. To override the launcher:
+
+```bash
+MPI_LAUNCHER="mpirun -np 128" ./submit-mcc-sweep.sh
+```
+
 Each row writes an independent file in `results/rows/`. The gather job merges
 those row files into `results/summary.csv`, so parallel jobs never append to one
 shared table.
