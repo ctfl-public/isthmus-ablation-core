@@ -118,6 +118,32 @@ if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT)
       "Optional DSMC/SPARTA executable for coupled tests" FORCE)
 endif()
 
+set(IAC_DSMC_REQUIRED_MASS_FLUX_FILES
+  src/compute_react_surf_mass_flux.cpp
+  src/compute_react_surf_mass_flux.h
+  src/compute_react_boundary_mass_flux.cpp
+  src/compute_react_boundary_mass_flux.h
+)
+if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT)
+  set(IAC_DSMC_MISSING_MASS_FLUX_FILES)
+  foreach(_iac_dsmc_required_file IN LISTS IAC_DSMC_REQUIRED_MASS_FLUX_FILES)
+    if(NOT EXISTS "${DSMC_ROOT}/${_iac_dsmc_required_file}")
+      list(APPEND IAC_DSMC_MISSING_MASS_FLUX_FILES
+        "${DSMC_ROOT}/${_iac_dsmc_required_file}")
+    endif()
+  endforeach()
+  if(IAC_DSMC_MISSING_MASS_FLUX_FILES)
+    string(REPLACE ";" "\n  " _iac_dsmc_missing_message
+           "${IAC_DSMC_MISSING_MASS_FLUX_FILES}")
+    message(FATAL_ERROR
+      "DSMC/IAC linked builds require DSMC direct reaction mass-flux support.\n"
+      "Update DSMC to a branch containing compute react/surf/mass/flux and "
+      "compute react/boundary/mass/flux, or configure standalone with "
+      "IAC_DSMC_USE_OVERLAY=OFF.\n"
+      "Missing files:\n  ${_iac_dsmc_missing_message}")
+  endif()
+endif()
+
 set(IAC_DSMC_OVERLAY_ISTHMUS_INCLUDE_ARGS)
 if(IAC_ISTHMUS_INCLUDE_DIRS)
   foreach(_iac_isthmus_include IN LISTS IAC_ISTHMUS_INCLUDE_DIRS)
@@ -349,28 +375,24 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
     tests/inputs/dsmc-sphere-flux/in.dsmc-sphere-flux.verify
   )
 
-  if(EXISTS "${DSMC_ROOT}/src/compute_react_surf_mass_flux.cpp")
-    iac_add_dsmc_input_test_serial(
-      dsmc-mass-flux-explicit-verification
-      tests/inputs/dsmc-sphere-mass-flux/in.dsmc-mass-flux-explicit.verify
-    )
-    iac_add_dsmc_input_test_serial(
-      dsmc-converge-verification
-      tests/inputs/dsmc-sphere-mass-flux/in.dsmc-converge.verify
-    )
-    iac_add_dsmc_input_test_serial(
-      dsmc-mass-flux-ablation-verification
-      tests/inputs/dsmc-sphere-mass-flux/in.dsmc-mass-flux-ablation.verify
-    )
-    set_tests_properties(
-      dsmc-mass-flux-explicit-verification
-      dsmc-converge-verification
-      dsmc-mass-flux-ablation-verification
-      PROPERTIES ENVIRONMENT "OMPI_MCA_btl=self"
-    )
-  else()
-    message(STATUS "DSMC direct mass-flux tests: skipped because compute_react_surf_mass_flux.cpp was not found")
-  endif()
+  iac_add_dsmc_input_test_serial(
+    dsmc-mass-flux-explicit-verification
+    tests/inputs/dsmc-sphere-mass-flux/in.dsmc-mass-flux-explicit.verify
+  )
+  iac_add_dsmc_input_test_serial(
+    dsmc-converge-verification
+    tests/inputs/dsmc-sphere-mass-flux/in.dsmc-converge.verify
+  )
+  iac_add_dsmc_input_test_serial(
+    dsmc-mass-flux-ablation-verification
+    tests/inputs/dsmc-sphere-mass-flux/in.dsmc-mass-flux-ablation.verify
+  )
+  set_tests_properties(
+    dsmc-mass-flux-explicit-verification
+    dsmc-converge-verification
+    dsmc-mass-flux-ablation-verification
+    PROPERTIES ENVIRONMENT "OMPI_MCA_btl=self"
+  )
 
   add_test(
     NAME dsmc-sphere-kinetic-convergence
@@ -406,22 +428,20 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
       TIMEOUT 90
     )
 
-    if(EXISTS "${DSMC_ROOT}/src/compute_react_surf_mass_flux.cpp")
-      add_test(
-        NAME pregen-tiff-carbon-recession-dsmc-co-converge-verification
-        COMMAND ${CMAKE_COMMAND}
-                -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
-                -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
-                -DBINARY_DIR=${CMAKE_BINARY_DIR}
-                -DCARBON_TIFF=${IAC_CARBON_SAMPLE_TIFF}
-                -P ${CMAKE_SOURCE_DIR}/tests/cmake/run-pregen-tiff-carbon-converge.cmake
-      )
-      set_tests_properties(pregen-tiff-carbon-recession-dsmc-co-converge-verification PROPERTIES
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        TIMEOUT 30
-        ENVIRONMENT "OMPI_MCA_btl=self"
-      )
-    endif()
+    add_test(
+      NAME pregen-tiff-carbon-recession-dsmc-co-converge-verification
+      COMMAND ${CMAKE_COMMAND}
+              -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
+              -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
+              -DBINARY_DIR=${CMAKE_BINARY_DIR}
+              -DCARBON_TIFF=${IAC_CARBON_SAMPLE_TIFF}
+              -P ${CMAKE_SOURCE_DIR}/tests/cmake/run-pregen-tiff-carbon-converge.cmake
+    )
+    set_tests_properties(pregen-tiff-carbon-recession-dsmc-co-converge-verification PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      TIMEOUT 30
+      ENVIRONMENT "OMPI_MCA_btl=self"
+    )
   endif()
 
 endif()

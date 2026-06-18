@@ -95,7 +95,7 @@ cd examples/dsmc-sphere-mass-flux
 
 ## Verification Tests
 
-When the DSMC source tree has `compute_react_surf_mass_flux.cpp`, CTest adds
+DSMC-linked builds require `compute react/surf/mass/flux`, so CTest always adds
 three fixed-sphere checks:
 
 ```bash

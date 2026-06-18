@@ -44,6 +44,17 @@ make mpi
 make test-dsmc
 ```
 
+DSMC-linked builds require a DSMC checkout with direct reaction mass-flux
+support:
+
+```text
+src/compute_react_surf_mass_flux.{h,cpp}
+src/compute_react_boundary_mass_flux.{h,cpp}
+```
+
+If those files are missing, configuration stops before the overlay build. Use
+standalone mode when you only need `ia-core` without DSMC coupling.
+
 The top-level `make` targets provide a SPARTA-style front end while CMake still
 handles dependency discovery and test registration underneath. The common DSMC
 machine targets are:

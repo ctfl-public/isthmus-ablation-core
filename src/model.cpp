@@ -338,15 +338,25 @@ void Model::set_timestep_from_triangle_fluxes(const std::string &surface_name,
   }
 
   std::vector<double> voxel_mass_rates(voxels_.size(), 0.0);
+  std::size_t positive_flux_triangles = 0;
+  std::size_t positive_flux_with_owners = 0;
+  std::size_t positive_flux_with_active_owners = 0;
+  double positive_flux_sum = 0.0;
+  double max_positive_flux = 0.0;
   for (std::size_t i = 0; i < surface.triangles.size(); ++i) {
     const double mass_flux = mass_fluxes[i];
     if (mass_flux <= 0.0) {
       continue;
     }
+    ++positive_flux_triangles;
+    positive_flux_sum += mass_flux;
+    max_positive_flux = std::max(max_positive_flux, mass_flux);
     const auto &triangle = surface.triangles[i];
     if (triangle.area <= 0.0 || triangle.voxel_ids.empty()) {
       continue;
     }
+    ++positive_flux_with_owners;
+    bool has_active_owner = false;
     const double mass_rate = mass_flux * triangle.area;
     for (std::size_t j = 0; j < triangle.voxel_ids.size() && j < triangle.fractions.size(); ++j) {
       const std::size_t voxel_id = triangle.voxel_ids[j];
@@ -356,8 +366,12 @@ void Model::set_timestep_from_triangle_fluxes(const std::string &surface_name,
       }
       const auto &voxel = voxels_[voxel_id];
       if (voxel.active && !voxel.fixed && voxel.remaining_mass > 0.0) {
+        has_active_owner = true;
         voxel_mass_rates[voxel_id] += mass_rate * fraction;
       }
+    }
+    if (has_active_owner) {
+      ++positive_flux_with_active_owners;
     }
   }
   double max_voxel_mass_rate = 0.0;
@@ -365,7 +379,14 @@ void Model::set_timestep_from_triangle_fluxes(const std::string &surface_name,
     max_voxel_mass_rate = std::max(max_voxel_mass_rate, rate);
   }
   if (max_voxel_mass_rate <= 0.0) {
-    throw RuntimeError("surface flux mass/courant found no positive mapped flux");
+    std::ostringstream message;
+    message << "surface flux mass/courant found no positive mapped flux"
+            << " (positive-triangles=" << positive_flux_triangles
+            << ", positive-with-owners=" << positive_flux_with_owners
+            << ", positive-with-active-owners=" << positive_flux_with_active_owners
+            << ", positive-flux-sum=" << std::setprecision(8) << positive_flux_sum
+            << ", max-positive-flux=" << max_positive_flux << ")";
+    throw RuntimeError(message.str());
   }
 
   const double dx = voxel_dx();

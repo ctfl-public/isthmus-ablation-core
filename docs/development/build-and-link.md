@@ -67,6 +67,19 @@ CMake package under `build/` or `build-wsl/`. Users can also set
 `ISTHMUS_CPP_DIR` or `isthmus_cpp_DIR` directly to the directory containing
 `isthmus_cppConfig.cmake`.
 
+DSMC-linked overlay builds also require direct reaction mass-flux support in the
+DSMC checkout:
+
+```text
+src/compute_react_surf_mass_flux.{h,cpp}
+src/compute_react_boundary_mass_flux.{h,cpp}
+```
+
+CMake fails during configuration if these files are missing. This is
+intentional: the coupled chemistry/remesh tests depend on DSMC reporting
+per-surface mass flux directly, and silently skipping those tests can hide
+integration regressions.
+
 ## Recommended DSMC/IAC Build
 
 One-time shell setup:

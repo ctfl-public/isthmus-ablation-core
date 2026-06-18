@@ -165,8 +165,8 @@ executable:
 cmake -E chdir build-dsmc ctest -R pregen-tiff-carbon-recession-dsmc-co-verification --output-on-failure
 ```
 
-When the configured DSMC source tree includes `compute react/surf/mass/flux`,
-an additional compact chemistry example is available. This case uses
+DSMC-linked builds require `compute react/surf/mass/flux`, so the compact
+chemistry/remesh example is always part of the DSMC test suite. This case uses
 `dsmc_converge` to sample DSMC mass flux before each voxel update:
 
 ```bash
