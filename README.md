@@ -29,12 +29,38 @@ repeat through physical time.
 
 Manual PDF: [docs/isthmus-ablation-core-manual.pdf](docs/isthmus-ablation-core-manual.pdf)
 
+## Table Of Contents
+
+- [What It Does](#what-it-does)
+- [Why It Exists](#why-it-exists)
+- [Coupled Workflow](#coupled-workflow)
+- [Input Style](#input-style)
+- [Modes](#modes)
+- [Quick Start](#quick-start)
+- [Standalone Mode](#standalone-mode)
+- [Examples](#examples)
+- [Documentation](#documentation)
+- [Paths](#paths)
+
+## More
+
+- [ISTHMUS native library](https://github.com/ctfl-public/isthmus)
+- [SPARTA DSMC code](https://github.com/sparta/sparta)
+- [HERMES microstructure workflow](https://github.com/ctfl-public/hermes)
+- [Manual PDF](docs/isthmus-ablation-core-manual.pdf)
+- [Getting started](docs/getting-started.md)
+- [Command reference](docs/commands/index.md)
+- [Examples](docs/examples/pregen-tiff-carbon-recession.md)
+- [MCC array-sweep example](examples/mcc-carbon-array-sweep/README.md)
+
 ## What It Does
 
 - Evolves voxelized solids under surface-driven mass loss.
 - Uses ISTHMUS to bridge voxel solids and triangle surface meshes.
-- Couples to DSMC/SPARTA for rarefied gas chemistry, surface reactions, and MPI
-  particle transport.
+- Couples directly to [SPARTA](https://github.com/sparta/sparta) for rarefied
+  gas chemistry, surface reactions, and MPI particle transport.
+- Reads SPARTA-style command files so standalone and DSMC-hosted cases share a
+  familiar input language.
 - Supports standalone verification cases with prescribed fluxes and exact
   expectations.
 - Runs TIFF-derived carbon recession cases, including converged DSMC mass-flux
@@ -43,7 +69,7 @@ Manual PDF: [docs/isthmus-ablation-core-manual.pdf](docs/isthmus-ablation-core-m
 
 ## Why It Exists
 
-Ablating materials do not just lose mass; they change the geometry seen by the
+Ablating materials do not just lose mass. They change the geometry seen by the
 gas. For porous or rough carbon-like solids, that moving boundary is the
 problem. This repository supplies the solid-state memory and surface/voxel
 coupling needed to let DSMC drive geometry change in a controlled, testable way.
@@ -59,6 +85,21 @@ coupling needed to let DSMC drive geometry change in a controlled, testable way.
 6. Repeat until the requested physical ablation time or recession state is
    reached.
 
+## Input Style
+
+Cases are written as compact command files modeled after
+[SPARTA](https://github.com/sparta/sparta) input scripts. The same file can mix
+native SPARTA commands such as `create_grid`, `species`, `mixture`,
+`create_particles`, `fix`, and `run` with IAC commands such as `voxel_create`,
+`isthmus_surface`, `surf_flux`, `voxel_ablate`, and `iac_run`.
+
+This keeps coupled workflows readable for SPARTA users while adding the
+solid-state commands needed for evolving voxel geometries. See the
+[language overview](docs/commands/language.md), [voxel commands](docs/commands/voxel.md),
+[surface commands](docs/commands/surface.md), and
+[grid/fluid output commands](docs/commands/grid-write-vtu.md) for the command
+families.
+
 ## Modes
 
 In standalone mode, `ia-core` runs lightweight SPARTA-style input files with no
@@ -66,8 +107,10 @@ gas domain. This is ideal for testing voxel recession, ISTHMUS mapping, TIFF
 import, carryover policies, and exact solutions.
 
 In DSMC-hosted mode, the same core library is compiled into a private
-DSMC/SPARTA overlay. SPARTA owns particles, collisions, chemistry, MPI, and
-surface tallies while this repository owns the evolving voxel solid.
+DSMC/SPARTA overlay. The build links IAC directly into
+[SPARTA](https://github.com/sparta/sparta), so SPARTA owns particles,
+collisions, chemistry, MPI, and surface tallies while this repository owns the
+evolving voxel solid.
 
 ## Quick Start
 
