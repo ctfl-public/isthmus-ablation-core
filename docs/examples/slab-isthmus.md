@@ -11,7 +11,7 @@ examples/slab-isthmus-ablation/in.slab-isthmus-finite
 It runs:
 
 ```text
-isthmus_surface skin voxels solid buffer 3 map yes
+isthmus_surface skin voxels solid buffer 3 iso 0.45 map yes
 surf_flux skin source q1 select normal nx -1.0 ny 0.0 nz 0.0 min-cos 0.5
 voxel_ablate solid surface skin policy local delete yes
 ```

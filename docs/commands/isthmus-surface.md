@@ -6,13 +6,13 @@ voxels.
 ## Syntax
 
 ```text
-isthmus_surface <surface-id> voxels <model> [buffer <N>] [resolution <R|A:B|voxel>] [weighting yes|no] [map yes|no] [crop real|no]
+isthmus_surface <surface-id> voxels <model> [buffer <N>] [resolution <R|A:B|voxel>] [iso <value>] [weighting yes|no] [map yes|no] [crop real|no]
 ```
 
 ## Example
 
 ```text
-isthmus_surface skin voxels solid buffer 3 map yes
+isthmus_surface skin voxels solid buffer 3 iso 0.45 map yes
 isthmus_surface skin voxels solid buffer 3 map yes crop real
 isthmus_surface skin voxels solid buffer 3 resolution 2:1 map yes
 ```
@@ -38,6 +38,12 @@ twice the voxel spacing. Numeric values are accepted as shorthand, so
 `resolution 2` is equivalent to `resolution 2:1`. Larger values are coarser and
 usually need a larger `buffer` because each marching cell spans more voxel
 layers.
+
+`iso` sets the marching-cubes isovalue used by ISTHMUS. The default is `0.5`,
+which extracts the middle of the scalar transition between solid and empty
+space. Values must be between `0` and `1`. Lower values move the reconstructed
+surface outward into the transition band, while higher values move it inward.
+The aliases `isovalue`, `iso_value`, and `iso-value` are also accepted.
 
 `weighting` controls ISTHMUS depth-based corner weighting. The default is
 `weighting yes`, matching native ISTHMUS behavior. Use `weighting no` only when

@@ -218,6 +218,18 @@ double parse_ratio(const std::string &value, int line_number, const std::string 
   return numerator / denominator;
 }
 
+std::unordered_map<std::string, std::string>::const_iterator
+find_first_key(const std::unordered_map<std::string, std::string> &values,
+               const std::vector<std::string> &keys) {
+  for (const auto &key : keys) {
+    const auto found = values.find(key);
+    if (found != values.end()) {
+      return found;
+    }
+  }
+  return values.end();
+}
+
 int parse_int(const std::string &value, int line_number) {
   try {
     std::size_t used = 0;
@@ -538,6 +550,11 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
       if (resolution != values.end()) {
         command_entry.isthmus_surface.resolution =
             parse_ratio(resolution->second, line_number, "isthmus surface resolution");
+      }
+      const auto iso_value =
+          find_first_key(values, {"iso", "isovalue", "iso_value", "iso-value"});
+      if (iso_value != values.end()) {
+        command_entry.isthmus_surface.iso_value = parse_double(iso_value->second, line_number);
       }
       const auto weighting = values.find("weighting");
       if (weighting != values.end()) {

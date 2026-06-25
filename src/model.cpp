@@ -693,6 +693,9 @@ void Model::validate_isthmus_surface(const IsthmusSurfaceCommand &surface) const
   if (surface.resolution <= 0.0) {
     throw RuntimeError("isthmus surface resolution must be positive");
   }
+  if (surface.iso_value <= 0.0 || surface.iso_value >= 1.0) {
+    throw RuntimeError("isthmus surface iso value must be between 0 and 1");
+  }
 }
 
 void Model::validate_surface_flux(const SurfaceFluxCommand &flux) const {
@@ -984,7 +987,7 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
   domain.dimension = isthmus::Dimension::D3;
   domain.voxel_size = dx;
   domain.weighting = surface.weighting;
-  domain.iso_value = 0.5;
+  domain.iso_value = surface.iso_value;
   for (std::size_t d = 0; d < 3; ++d) {
     domain.limits[0][d] = lo[d] - (static_cast<double>(surface.buffer) + 0.5) * dx;
     domain.limits[1][d] = hi[d] + (static_cast<double>(surface.buffer) + 0.5) * dx;
@@ -1017,7 +1020,7 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
   if (options.verbose) {
     std::cout << "[IAC] generating ISTHMUS surface '" << surface.name << "' from "
               << records.size() << " surface voxels, resolution " << surface.resolution
-              << ", buffer " << surface.buffer << ", map "
+              << ", iso " << surface.iso_value << ", buffer " << surface.buffer << ", map "
               << (surface.map ? "yes" : "no") << '\n';
   }
 

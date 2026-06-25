@@ -87,6 +87,7 @@ struct IsthmusSurfaceCommand {
   std::string voxels;
   int buffer = 1;
   double resolution = 1.0;
+  double iso_value = 0.5;
   bool weighting = true;
   bool map = true;
   bool crop_real = false;

@@ -55,6 +55,15 @@ const char *value_after(int narg, char **arg, const char *key) {
   return nullptr;
 }
 
+const char *first_value_after(int narg, char **arg, const std::vector<const char *> &keys) {
+  for (const char *key : keys) {
+    if (const char *value = value_after(narg, arg, key)) {
+      return value;
+    }
+  }
+  return nullptr;
+}
+
 void forward_isthmus(SPARTA *sparta, const char *subcommand, int narg, char **arg) {
   std::vector<char *> forwarded;
   forwarded.reserve(static_cast<std::size_t>(narg) + 1);
@@ -93,11 +102,17 @@ void Isthmus::command(int narg, char **arg) {
   const char *map = value_after(narg - 2, arg + 2, "map");
   const char *crop = value_after(narg - 2, arg + 2, "crop");
   const char *resolution = value_after(narg - 2, arg + 2, "resolution");
+  const char *iso_value =
+      first_value_after(narg - 2, arg + 2, {"iso", "isovalue", "iso_value", "iso-value"});
   if (buffer) {
     surface.buffer = std::atoi(buffer);
   }
   if (resolution) {
     surface.resolution = parse_ratio(resolution, error);
+  }
+  if (iso_value) {
+    surface.iso_value =
+        parse_positive_double(iso_value, error, "isthmus surface iso value must be positive");
   }
   if (weighting) {
     surface.weighting = parse_bool(weighting);
