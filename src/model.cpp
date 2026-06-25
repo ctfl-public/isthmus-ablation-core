@@ -4,9 +4,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <limits>
 #include <set>
 #include <sstream>
@@ -39,6 +41,15 @@ const std::vector<std::string> &default_stats_columns() {
   static const std::vector<std::string> columns{
       "step", "time", "nvox", "ndel", "mass", "mf", "vf", "front", "rad"};
   return columns;
+}
+
+bool env_flag_enabled(const char *name) {
+  const char *value = std::getenv(name);
+  if (value == nullptr || *value == '\0') {
+    return false;
+  }
+  const std::string text(value);
+  return text != "0" && text != "false" && text != "off" && text != "no";
 }
 
 std::string canonical_quantity(const std::string &quantity) {
@@ -1001,9 +1012,25 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
   isthmus::RunOptions options;
   options.build_surface = true;
   options.build_flux_association = surface.map;
+  options.verbose = env_flag_enabled("IAC_ISTHMUS_VERBOSE");
+
+  if (options.verbose) {
+    std::cout << "[IAC] generating ISTHMUS surface '" << surface.name << "' from "
+              << records.size() << " surface voxels, resolution " << surface.resolution
+              << ", buffer " << surface.buffer << ", map "
+              << (surface.map ? "yes" : "no") << '\n';
+  }
 
   const isthmus::MarchingWindows marching;
   const auto result = marching.run(domain, voxel_set, options);
+  if (options.verbose) {
+    std::cout << "[IAC] generated ISTHMUS surface '" << surface.name << "' with "
+              << result.surface_mesh.triangles.size() << " triangles";
+    if (surface.map) {
+      std::cout << " and " << result.surface_voxels.size() << " mapped surface voxels";
+    }
+    std::cout << '\n';
+  }
 
   SurfaceState state;
   state.name = surface.name;

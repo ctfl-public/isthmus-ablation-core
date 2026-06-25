@@ -176,11 +176,14 @@ The launcher quiets native SPARTA screen output by default so coupled runs show
 the compact IAC bridge summaries in the terminal while full SPARTA output still
 goes to the log file when logging is enabled. If DSMC/SPARTA exits with an
 error, the launcher prints the captured quiet screen output so failures are not
-silent. Add `--iac-dsmc-verbose` to restore native SPARTA screen output:
+silent. Add `--verbose` or `-V` to restore native SPARTA screen output and show
+ISTHMUS surface-generation progress:
 
 ```bash
-build-dsmc/bin/dsmc-iac --iac-dsmc-verbose -in examples/.../in.case
+build-dsmc/bin/dsmc-iac --verbose -in examples/.../in.case
 ```
+
+The older `--iac-dsmc-verbose` spelling is still accepted for existing scripts.
 
 The launcher also accepts `--iac-color auto|on|off`. The default is `auto`,
 which colors compact `[IAC]` lines green and `[SPA]` lines blue only when stdout

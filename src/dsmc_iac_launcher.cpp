@@ -187,7 +187,7 @@ int main(int argc, char **argv) {
 
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
-    if (arg == "--iac-dsmc-verbose") {
+    if (arg == "--verbose" || arg == "-V" || arg == "--iac-dsmc-verbose") {
       verbose = true;
       continue;
     }
@@ -219,6 +219,9 @@ int main(int argc, char **argv) {
     setenv("IAC_COLOR", color.c_str(), 1);
   } else if (getenv("IAC_COLOR") == nullptr) {
     setenv("IAC_COLOR", "auto", 1);
+  }
+  if (verbose) {
+    setenv("IAC_ISTHMUS_VERBOSE", "1", 1);
   }
 
   if (verbose || has_screen || is_mpi_parallel_launch()) {
