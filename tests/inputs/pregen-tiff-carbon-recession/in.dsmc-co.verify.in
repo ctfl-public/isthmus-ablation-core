@@ -32,6 +32,9 @@ surf_modify         all collide 1 react ox
 
 compute             rco react/surf all ox
 fix                 rco ave/surf all 1 100 100 c_rco[*] ave one
+compute             gas thermal/grid all air temp press
+compute             frac grid all species massfrac
+fix                 gasave ave/grid all 1 100 100 c_gas[*] c_frac[*] ave one
 
 create_particles    air n 0 twopass
 fix                 inlet emit/face air xhi twopass
@@ -57,6 +60,8 @@ remove_surf         all
 isthmus_surface     skin voxels solid buffer 2 weighting no map yes
 surf_install        skin particle none type 1
 surf_modify         all collide 1 react ox
+unfix               gasave
+fix                 gasave ave/grid all 1 100 100 c_gas[*] c_frac[*] ave one
 
 jump                SELF coupled-loop
 
