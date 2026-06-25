@@ -17,7 +17,7 @@ mixture             gas temp @temperature@ vstream 0.0 0.0 0.0
 
 voxel_material      carbon density @solid_density@ molar-mass @solid_molar_mass@ formula C
 voxel_create        solid sphere diameter 1.0e-3 resolution @resolution@ material carbon
-isthmus_surface     skin voxels solid buffer 1 weighting no map yes
+isthmus_surface     skin voxels solid buffer 3 map yes
 surf_install        skin particle none type 1
 
 surf_collide        1 diffuse @temperature@ 1.0
@@ -44,7 +44,7 @@ voxel_ablate        solid surface skin policy carryover/normal delete yes
 iac_run             1
 
 remove_surf         all
-isthmus_surface     skin voxels solid buffer 1 weighting no map yes
+isthmus_surface     skin voxels solid buffer 3 map yes
 surf_install        skin particle none type 1
 surf_modify         all collide 1
 

@@ -4,6 +4,7 @@ units               si
 
 variable            refinement equal 20
 variable            mcres equal 1
+variable            mcbuffer equal 3
 variable            steps equal 5
 
 voxel_material      carbon density 1800.0
@@ -17,11 +18,11 @@ iac_stats_style     step time nvox ndel mass mf vf rad
 
 variable            i loop ${steps}
 label               ablate-loop
-isthmus_surface     skin voxels solid buffer ${mcres} resolution ${mcres}:1 weighting no map yes
+isthmus_surface     skin voxels solid buffer ${mcbuffer} resolution ${mcres}:1 map yes
 surf_flux           skin source q1 select all
 voxel_ablate        solid surface skin policy carryover/normal delete yes
 iac_run             1
 next                i
 jump                SELF ablate-loop
 
-convergence         rad exact "rad0 - q1*time/rho" tolerance 100.0 percent norm final vary refinement 1 2 10 vary mcres 10 5 1 vary steps 5 5 5 order 0.2 3.0 monotonic no
+convergence         rad exact "rad0 - q1*time/rho" tolerance 100.0 percent norm final vary refinement 1 2 10 vary mcres 10 5 1 vary mcbuffer 30 15 3 vary steps 5 5 5 order 0.2 3.0 monotonic no

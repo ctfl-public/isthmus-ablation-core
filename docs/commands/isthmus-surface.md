@@ -12,9 +12,9 @@ isthmus_surface <surface-id> voxels <model> [buffer <N>] [resolution <R|A:B|voxe
 ## Example
 
 ```text
-isthmus_surface skin voxels solid buffer 1 weighting no map yes
-isthmus_surface skin voxels solid buffer 1 weighting no map yes crop real
-isthmus_surface skin voxels solid buffer 2 resolution 2:1 weighting no map yes
+isthmus_surface skin voxels solid buffer 3 map yes
+isthmus_surface skin voxels solid buffer 3 map yes crop real
+isthmus_surface skin voxels solid buffer 3 resolution 2:1 map yes
 ```
 
 ## Description
@@ -38,6 +38,10 @@ twice the voxel spacing. Numeric values are accepted as shorthand, so
 `resolution 2` is equivalent to `resolution 2:1`. Larger values are coarser and
 usually need a larger `buffer` because each marching cell spans more voxel
 layers.
+
+`weighting` controls ISTHMUS depth-based corner weighting. The default is
+`weighting yes`, matching native ISTHMUS behavior. Use `weighting no` only when
+you need the older unweighted reconstruction for comparison.
 
 `crop real` removes triangles whose centroids are outside the real voxel domain
 after ghost voxels are added. Use it when ghost voxels are only a boundary

@@ -21,7 +21,7 @@ surf_dump           skin skin vtp 1 output/sphere-isthmus-kinetic/surface_*.vtp
 
 label               ablate-loop
   iac_limit         time ${ablation_time}
-  isthmus_surface   skin voxels solid buffer 1 weighting no map yes
+  isthmus_surface   skin voxels solid buffer 3 map yes
   surf_flux         skin kinetic/theory pressure 50.0 temperature 5000.0 &
                       mole-fraction 0.21 molecular-mass 5.313e-26 reaction-prob 1.0 &
                       solid-mass-per-hit 1.3011869411625376e-23 select all

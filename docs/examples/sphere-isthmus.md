@@ -19,7 +19,7 @@ examples/sphere-isthmus-ablation/in.sphere-isthmus-normal
 The core loop is:
 
 ```text
-isthmus_surface skin voxels solid buffer 1 weighting no map yes
+isthmus_surface skin voxels solid buffer 3 map yes
 surf_flux skin source q1 select all
 voxel_ablate solid surface skin policy carryover/normal delete yes
 iac_run 1

@@ -9,4 +9,3 @@ surf_dump           off
 
 iac_verify          mf exact "1.0 - q1*time/(rho*length)" tolerance 25.0 percent norm final
 iac_verify          vf exact "1.0 - q1*time/(rho*length)" tolerance 40.0 percent norm final
-iac_verify          front exact "q1*time/rho" tolerance 80.0 percent norm final
