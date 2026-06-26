@@ -972,6 +972,7 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
     return;
   }
 
+#ifndef IAC_ISTHMUS_RUN_OPTIONS_DOMAIN
   std::array<double, 3> lo{{records.front().x, records.front().y, records.front().z}};
   std::array<double, 3> hi = lo;
   for (const auto &record : records) {
@@ -999,6 +1000,7 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
                           static_cast<double>(domain.cell_counts[d]) * marching_dx *
                               (1.0 + 1.0e-10);
   }
+#endif
   set_diagnostic("isthmus-surface-resolution", surface.resolution);
   set_diagnostic("isthmus-marching-cell-size", marching_dx);
 
@@ -1013,6 +1015,13 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
   }
 
   isthmus::RunOptions options;
+#ifdef IAC_ISTHMUS_RUN_OPTIONS_DOMAIN
+  options.dimension = isthmus::Dimension::D3;
+  options.voxel_size = dx;
+  options.marching_voxel_ratio = surface.resolution;
+  options.weighting = surface.weighting;
+  options.iso_value = surface.iso_value;
+#endif
   options.build_surface = true;
   options.build_flux_association = surface.map;
   options.verbose = env_flag_enabled("IAC_ISTHMUS_VERBOSE");
@@ -1020,12 +1029,21 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
   if (options.verbose) {
     std::cout << "[IAC] generating ISTHMUS surface '" << surface.name << "' from "
               << records.size() << " surface voxels, resolution " << surface.resolution
-              << ", iso " << surface.iso_value << ", buffer " << surface.buffer << ", map "
-              << (surface.map ? "yes" : "no") << '\n';
+              << ", iso " << surface.iso_value;
+#ifdef IAC_ISTHMUS_RUN_OPTIONS_DOMAIN
+    std::cout << ", buffer internal";
+#else
+    std::cout << ", buffer " << surface.buffer;
+#endif
+    std::cout << ", map " << (surface.map ? "yes" : "no") << '\n';
   }
 
   const isthmus::MarchingWindows marching;
+#ifdef IAC_ISTHMUS_RUN_OPTIONS_DOMAIN
+  const auto result = marching.run(voxel_set, options);
+#else
   const auto result = marching.run(domain, voxel_set, options);
+#endif
   if (options.verbose) {
     std::cout << "[IAC] generated ISTHMUS surface '" << surface.name << "' with "
               << result.surface_mesh.triangles.size() << " triangles";

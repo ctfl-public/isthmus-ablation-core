@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(isthmus_ablation_core LANGUAGES CXX)
 
 include(CheckLibraryExists)
+include(CheckCXXSourceCompiles)
 
 function(iac_first_existing_dir out_var)
   foreach(candidate IN LISTS ARGN)
@@ -57,6 +58,43 @@ get_target_property(IAC_ISTHMUS_INCLUDE_DIRS isthmus_cpp::isthmus_cpp INTERFACE_
 get_target_property(IAC_ISTHMUS_LIBRARY isthmus_cpp::isthmus_cpp IMPORTED_LOCATION)
 if(NOT IAC_ISTHMUS_LIBRARY)
   get_target_property(IAC_ISTHMUS_LIBRARY isthmus_cpp::isthmus_cpp IMPORTED_LOCATION_NOCONFIG)
+endif()
+
+set(_iac_try_compile_target_type_was_defined FALSE)
+if(DEFINED CMAKE_TRY_COMPILE_TARGET_TYPE)
+  set(_iac_try_compile_target_type_was_defined TRUE)
+  set(_iac_try_compile_target_type "${CMAKE_TRY_COMPILE_TARGET_TYPE}")
+endif()
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+set(CMAKE_REQUIRED_INCLUDES ${IAC_ISTHMUS_INCLUDE_DIRS})
+check_cxx_source_compiles([=[
+  #include <isthmus/marching_windows.hpp>
+
+  int main() {
+    isthmus::RunOptions options;
+    options.dimension = isthmus::Dimension::D3;
+    options.voxel_size = 1.0;
+    options.weighting = true;
+    options.iso_value = 0.5;
+    options.marching_voxel_ratio = 1.0;
+    isthmus::VoxelSet voxels;
+    isthmus::MarchingWindows marching;
+    auto result = marching.run(voxels, options);
+    (void)result;
+    return 0;
+  }
+]=] IAC_ISTHMUS_HAS_RUN_OPTIONS_DOMAIN)
+set(CMAKE_REQUIRED_INCLUDES)
+if(_iac_try_compile_target_type_was_defined)
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE "${_iac_try_compile_target_type}")
+else()
+  unset(CMAKE_TRY_COMPILE_TARGET_TYPE)
+endif()
+if(IAC_ISTHMUS_HAS_RUN_OPTIONS_DOMAIN)
+  target_compile_definitions(isthmus_ablation_core PRIVATE IAC_ISTHMUS_RUN_OPTIONS_DOMAIN=1)
+  message(STATUS "ISTHMUS API: RunOptions-derived marching domain")
+else()
+  message(STATUS "ISTHMUS API: explicit DomainConfig marching domain")
 endif()
 
 if(MSVC)

@@ -14,7 +14,7 @@ isthmus_surface <surface-id> voxels <model> [buffer <N>] [resolution <R|A:B|voxe
 ```text
 isthmus_surface skin voxels solid buffer 3 iso 0.45 map yes
 isthmus_surface skin voxels solid buffer 3 map yes crop real
-isthmus_surface skin voxels solid buffer 3 resolution 2:1 map yes
+isthmus_surface skin voxels solid buffer 3 resolution 1.6 iso 0.6 map yes
 ```
 
 ## Description
@@ -29,7 +29,9 @@ send triangle mass loss back to voxels.
 
 `buffer` adds empty voxel layers around the active voxel bounding box before
 marching cubes. This helps ISTHMUS generate a closed surface as the solid
-shrinks.
+shrinks. Newer ISTHMUS builds derive this padding internally; in that mode IAC
+still accepts `buffer` for input compatibility, but ISTHMUS owns the final
+marching domain.
 
 `resolution` controls the marching-cubes grid spacing relative to the voxel
 spacing. The default is `voxel`, equivalent to `1:1`, meaning one marching cell
