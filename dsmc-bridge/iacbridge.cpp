@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -248,6 +249,20 @@ bool terminal_color_enabled(FILE *stream) {
     return true;
   }
   return stream_is_terminal(stream);
+}
+
+bool distributed_surface_install_enabled(SPARTA *sparta) {
+  const char *mode = std::getenv("IAC_DSMC_DISTRIBUTED_SURFACE");
+  if (mode) {
+    const std::string value = mode;
+    if (value == "off" || value == "0" || value == "false" || value == "no") {
+      return false;
+    }
+    if (value == "on" || value == "1" || value == "true" || value == "yes") {
+      return true;
+    }
+  }
+  return sparta->comm->nprocs > 1;
 }
 
 std::string colorize_console_text(const std::string &text) {
@@ -584,12 +599,31 @@ void print_sparta_stats(SPARTA *sparta) {
 }
 
 void generate_surface(SPARTA *sparta, const iac::IsthmusSurfaceCommand &surface) {
+  const bool distributed_install = distributed_surface_install_enabled(sparta);
+  int count = 0;
   if (owns_model(sparta)) {
     auto &m = model(sparta);
     m.generate_surface(surface);
     surface_cache[surface.name] = m.surface_triangles(surface.name);
+    if (surface_cache[surface.name].size() >
+        static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+      throw std::runtime_error("IAC generated too many triangles for MPI surface metadata");
+    }
+    count = static_cast<int>(surface_cache[surface.name].size());
   }
-  broadcast_surface_cache(sparta, surface.name);
+
+  if (distributed_install) {
+    MPI_Bcast(&count, 1, MPI_INT, 0, sparta->world);
+    if (count <= 0) {
+      throw std::runtime_error("IAC generated surface is empty");
+    }
+  } else {
+    broadcast_surface_cache(sparta, surface.name);
+    const auto found = surface_cache.find(surface.name);
+    if (found == surface_cache.end() || found->second.empty()) {
+      throw std::runtime_error("IAC generated surface is empty");
+    }
+  }
 }
 
 const std::vector<iac::Model::PublicSurfaceTriangle> &
@@ -615,28 +649,54 @@ void install_surface(SPARTA *sparta, const char *surface_id, int partflag, int t
     error->all(FLERR, "surface install requires removing existing surfaces first");
   }
 
-  const auto &triangles = surface_triangles(sparta, surface_id);
-  if (triangles.empty()) {
-    error->all(FLERR, "surface install found no triangles for requested surface");
-  }
   if (sparta->domain->dimension != 3) {
     error->all(FLERR, "surface install currently supports 3d triangle surfaces only");
   }
 
-  const std::size_t total_triangles = triangles.size();
   const bigint nsurf_old = surf->nsurf;
   const int nsurf_old_mine = surf->distributed ? surf->nown : surf->nlocal;
   surf->exist = 1;
   surf->implicit = 0;
-  surf->distributed = 0;
-  for (std::size_t i = 0; i < total_triangles; ++i) {
-    const auto &src = triangles[i];
-    double p1[3] = {src.a[0], src.a[1], src.a[2]};
-    double p2[3] = {src.b[0], src.b[1], src.b[2]};
-    double p3[3] = {src.c[0], src.c[1], src.c[2]};
-    surf->add_tri(static_cast<surfint>(i + 1), type, p1, p2, p3);
+
+  const bool distributed_install = distributed_surface_install_enabled(sparta);
+  if (distributed_install) {
+    surf->distributed = 1;
+
+    std::vector<Surf::Tri> contributed;
+    if (owns_model(sparta)) {
+      const auto &triangles = surface_triangles(sparta, surface_id);
+      contributed.resize(triangles.size());
+      for (std::size_t i = 0; i < triangles.size(); ++i) {
+        const auto &src = triangles[i];
+        auto &tri = contributed[i];
+        tri.id = static_cast<surfint>(i + 1);
+        tri.type = type;
+        tri.mask = 1;
+        tri.isc = tri.isr = -1;
+        std::copy(src.a.begin(), src.a.end(), tri.p1);
+        std::copy(src.b.begin(), src.b.end(), tri.p2);
+        std::copy(src.c.begin(), src.c.end(), tri.p3);
+        tri.norm[0] = tri.norm[1] = tri.norm[2] = 0.0;
+        tri.transparent = 0;
+      }
+    }
+    surf->add_surfs(0, static_cast<int>(contributed.size()), nullptr,
+                    contributed.empty() ? nullptr : contributed.data(), 0, nullptr, nullptr);
+  } else {
+    const auto &triangles = surface_triangles(sparta, surface_id);
+    if (triangles.empty()) {
+      error->all(FLERR, "surface install found no triangles for requested surface");
+    }
+    surf->distributed = 0;
+    for (std::size_t i = 0; i < triangles.size(); ++i) {
+      const auto &src = triangles[i];
+      double p1[3] = {src.a[0], src.a[1], src.a[2]};
+      double p2[3] = {src.b[0], src.b[1], src.b[2]};
+      double p3[3] = {src.c[0], src.c[1], src.c[2]};
+      surf->add_tri(static_cast<surfint>(i + 1), type, p1, p2, p3);
+    }
+    surf->nsurf = static_cast<bigint>(triangles.size());
   }
-  surf->nsurf = static_cast<bigint>(total_triangles);
 
   surf->output_extent(nsurf_old_mine);
   surf->compute_tri_normal(nsurf_old_mine);

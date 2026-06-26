@@ -25,6 +25,11 @@ BRIDGE_FILES = {
     "voxel.h",
 }
 
+PATCHED_DSMC_FILES = {
+    "compute_react_surf.cpp",
+    "compute_react_surf_mass_flux.cpp",
+}
+
 
 SKIP_PREFIXES = ("Obj_", "Obj_shared_")
 SKIP_NAMES = {
@@ -108,6 +113,25 @@ def patch_machine_makefiles(overlay_src: Path, include_flags: List[str], libs: L
         path.write_text("\n".join(patched) + "\n")
 
 
+def patch_collective_safe_react_surface_computes(overlay_src: Path) -> None:
+    replacements = [
+        (
+            "if (!(lines[i].mask & groupbit)) return;",
+            "if (!(lines[i].mask & groupbit)) continue;",
+        ),
+        (
+            "if (!(tris[i].mask & groupbit)) return;",
+            "if (!(tris[i].mask & groupbit)) continue;",
+        ),
+    ]
+    for name in PATCHED_DSMC_FILES:
+        path = overlay_src / name
+        text = path.read_text()
+        for old, new in replacements:
+            text = text.replace(old, new)
+        path.write_text(text)
+
+
 def write_package(
     overlay_src: Path,
     iac_include: Path,
@@ -188,8 +212,12 @@ def main() -> int:
             continue
         if item.name == "MAKE" and item.is_dir():
             copy_directory(item.resolve(), args.overlay_src / item.name)
+        elif item.name in PATCHED_DSMC_FILES:
+            shutil.copy2(item.resolve(), args.overlay_src / item.name)
         else:
             symlink_or_copy(item.resolve(), args.overlay_src / item.name)
+
+    patch_collective_safe_react_surface_computes(args.overlay_src)
 
     for name in sorted(BRIDGE_FILES):
         source = args.bridge_dir / name
