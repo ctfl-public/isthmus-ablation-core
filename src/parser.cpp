@@ -18,6 +18,36 @@ std::string source_error(const std::filesystem::path &path, int line_number,
   return path.string() + ":" + std::to_string(line_number) + ": " + message;
 }
 
+std::string parse_tiff_axes(const std::string &axes, int line_number) {
+  if (axes.size() != 3) {
+    throw InputError(line_error(line_number, "voxel create tiff axes must contain three letters"));
+  }
+  bool seen_x = false;
+  bool seen_y = false;
+  bool seen_z = false;
+  for (const char axis : axes) {
+    if (axis == 'x') {
+      if (seen_x) {
+        throw InputError(line_error(line_number, "voxel create tiff axes must not repeat x"));
+      }
+      seen_x = true;
+    } else if (axis == 'y') {
+      if (seen_y) {
+        throw InputError(line_error(line_number, "voxel create tiff axes must not repeat y"));
+      }
+      seen_y = true;
+    } else if (axis == 'z') {
+      if (seen_z) {
+        throw InputError(line_error(line_number, "voxel create tiff axes must not repeat z"));
+      }
+      seen_z = true;
+    } else {
+      throw InputError(line_error(line_number, "voxel create tiff axes must use only x, y, and z"));
+    }
+  }
+  return axes;
+}
+
 std::string strip_comment(const std::string &line) {
   bool in_quote = false;
   std::string out;
@@ -427,6 +457,10 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
           }
           if (oz != values.end()) {
             config.tiff.origin[2] = parse_double(oz->second, line_number);
+          }
+          const auto axes = values.find("axes");
+          if (axes != values.end()) {
+            config.tiff.axes = parse_tiff_axes(axes->second, line_number);
           }
         } else {
           throw InputError(line_error(

@@ -59,14 +59,20 @@ get_target_property(IAC_ISTHMUS_LIBRARY isthmus_cpp::isthmus_cpp IMPORTED_LOCATI
 if(NOT IAC_ISTHMUS_LIBRARY)
   get_target_property(IAC_ISTHMUS_LIBRARY isthmus_cpp::isthmus_cpp IMPORTED_LOCATION_NOCONFIG)
 endif()
+if((NOT IAC_ISTHMUS_LIBRARY OR IAC_ISTHMUS_LIBRARY MATCHES "-NOTFOUND$") AND
+   EXISTS "${ISTHMUS_ROOT}/libisthmus_cpp.a")
+  set(IAC_ISTHMUS_LIBRARY "${ISTHMUS_ROOT}/libisthmus_cpp.a")
+endif()
 
 set(_iac_try_compile_target_type_was_defined FALSE)
 if(DEFINED CMAKE_TRY_COMPILE_TARGET_TYPE)
   set(_iac_try_compile_target_type_was_defined TRUE)
   set(_iac_try_compile_target_type "${CMAKE_TRY_COMPILE_TARGET_TYPE}")
 endif()
+set(_iac_required_libraries "${CMAKE_REQUIRED_LIBRARIES}")
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 set(CMAKE_REQUIRED_INCLUDES ${IAC_ISTHMUS_INCLUDE_DIRS})
+unset(IAC_ISTHMUS_HAS_RUN_OPTIONS_DOMAIN CACHE)
 check_cxx_source_compiles([=[
   #include <isthmus/marching_windows.hpp>
 
@@ -84,7 +90,62 @@ check_cxx_source_compiles([=[
     return 0;
   }
 ]=] IAC_ISTHMUS_HAS_RUN_OPTIONS_DOMAIN)
+
+if(_iac_try_compile_target_type_was_defined)
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE "${_iac_try_compile_target_type}")
+else()
+  unset(CMAKE_TRY_COMPILE_TARGET_TYPE)
+endif()
+set(CMAKE_REQUIRED_LIBRARIES isthmus_cpp::isthmus_cpp)
+if(IAC_ISTHMUS_HAS_RUN_OPTIONS_DOMAIN)
+  unset(IAC_ISTHMUS_LINKS_RUN_OPTIONS_DOMAIN CACHE)
+  check_cxx_source_compiles([=[
+    #include <isthmus/marching_windows.hpp>
+
+    int main() {
+      isthmus::RunOptions options;
+      options.dimension = isthmus::Dimension::D3;
+      options.voxel_size = 1.0;
+      options.weighting = true;
+      options.iso_value = 0.5;
+      options.marching_voxel_ratio = 1.0;
+      isthmus::VoxelSet voxels;
+      isthmus::MarchingWindows marching;
+      auto result = marching.run(voxels, options);
+      (void)result;
+      return 0;
+    }
+  ]=] IAC_ISTHMUS_LINKS_RUN_OPTIONS_DOMAIN)
+  if(NOT IAC_ISTHMUS_LINKS_RUN_OPTIONS_DOMAIN)
+    message(FATAL_ERROR
+      "ISTHMUS headers expose the RunOptions-derived MarchingWindows API, "
+      "but the linked ISTHMUS library does not. Rebuild ISTHMUS after switching "
+      "branches, or point ISTHMUS_ROOT at a matching build directory.")
+  endif()
+else()
+  unset(IAC_ISTHMUS_LINKS_EXPLICIT_DOMAIN CACHE)
+  check_cxx_source_compiles([=[
+    #include <isthmus/marching_windows.hpp>
+
+    int main() {
+      isthmus::DomainConfig domain;
+      isthmus::VoxelSet voxels;
+      isthmus::RunOptions options;
+      isthmus::MarchingWindows marching;
+      auto result = marching.run(domain, voxels, options);
+      (void)result;
+      return 0;
+    }
+  ]=] IAC_ISTHMUS_LINKS_EXPLICIT_DOMAIN)
+  if(NOT IAC_ISTHMUS_LINKS_EXPLICIT_DOMAIN)
+    message(FATAL_ERROR
+      "ISTHMUS headers expose the explicit-DomainConfig MarchingWindows API, "
+      "but the linked ISTHMUS library does not. Rebuild ISTHMUS after switching "
+      "branches, or point ISTHMUS_ROOT at a matching build directory.")
+  endif()
+endif()
 set(CMAKE_REQUIRED_INCLUDES)
+set(CMAKE_REQUIRED_LIBRARIES "${_iac_required_libraries}")
 if(_iac_try_compile_target_type_was_defined)
   set(CMAKE_TRY_COMPILE_TARGET_TYPE "${_iac_try_compile_target_type}")
 else()
@@ -313,6 +374,28 @@ if(isthmus_cpp_FOUND)
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
   if(TARGET generated-fixtures)
+    set(IAC_TIFF_DEFAULT_AXES_TEST_INPUT
+        "${CMAKE_BINARY_DIR}/tests/inputs/tiff-axis/in.tiff-default-axes.verify")
+    configure_file(
+      ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-axis/in.tiff-default-axes.verify.in
+      ${IAC_TIFF_DEFAULT_AXES_TEST_INPUT}
+      @ONLY
+    )
+    add_test(
+      NAME tiff-default-axes-verification
+      COMMAND $<TARGET_FILE:ia-core> -in ${IAC_TIFF_DEFAULT_AXES_TEST_INPUT}
+    )
+    set(IAC_TIFF_LEGACY_AXES_TEST_INPUT
+        "${CMAKE_BINARY_DIR}/tests/inputs/tiff-axis/in.tiff-legacy-axes.verify")
+    configure_file(
+      ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-axis/in.tiff-legacy-axes.verify.in
+      ${IAC_TIFF_LEGACY_AXES_TEST_INPUT}
+      @ONLY
+    )
+    add_test(
+      NAME tiff-legacy-axes-verification
+      COMMAND $<TARGET_FILE:ia-core> -in ${IAC_TIFF_LEGACY_AXES_TEST_INPUT}
+    )
     set(IAC_CARBON_CONSTANT_TEST_INPUT
         "${CMAKE_BINARY_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.constant-flux.verify")
     configure_file(

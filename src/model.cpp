@@ -243,6 +243,48 @@ double triangle_area3(const std::array<double, 3> &a, const std::array<double, 3
   return 0.5 * norm3(cross3(subtract3(b, a), subtract3(c, a)));
 }
 
+int tiff_axis_component(char axis) {
+  if (axis == 'x') {
+    return 2;
+  }
+  if (axis == 'y') {
+    return 1;
+  }
+  if (axis == 'z') {
+    return 0;
+  }
+  throw RuntimeError("voxel create tiff axes must use only x, y, and z");
+}
+
+void validate_tiff_axes(const std::string &axes) {
+  if (axes.size() != 3) {
+    throw RuntimeError("voxel create tiff axes must contain three letters");
+  }
+  bool seen_x = false;
+  bool seen_y = false;
+  bool seen_z = false;
+  for (const char axis : axes) {
+    if (axis == 'x') {
+      if (seen_x) {
+        throw RuntimeError("voxel create tiff axes must not repeat x");
+      }
+      seen_x = true;
+    } else if (axis == 'y') {
+      if (seen_y) {
+        throw RuntimeError("voxel create tiff axes must not repeat y");
+      }
+      seen_y = true;
+    } else if (axis == 'z') {
+      if (seen_z) {
+        throw RuntimeError("voxel create tiff axes must not repeat z");
+      }
+      seen_z = true;
+    } else {
+      throw RuntimeError("voxel create tiff axes must use only x, y, and z");
+    }
+  }
+}
+
 } // namespace
 
 Model::Model(Config config) : config_(std::move(config)) {
@@ -498,6 +540,9 @@ void Model::validate_and_initialize() {
   } else {
     throw RuntimeError("voxel create requires a supported geometry");
   }
+  set_diagnostic("nx", static_cast<double>(grid_nx()));
+  set_diagnostic("ny", static_cast<double>(grid_ny()));
+  set_diagnostic("nz", static_cast<double>(grid_nz()));
   derive_timestep();
 }
 
@@ -572,6 +617,7 @@ void Model::initialize_tiff() {
   if (g.file.empty() || g.dx <= 0.0) {
     throw RuntimeError("voxel create tiff requires file and positive dx");
   }
+  validate_tiff_axes(g.axes);
 
   const auto active_voxels =
       isthmus::utilities::load_active_voxels_from_tiff(std::filesystem::path(g.file), g.dx);
@@ -584,9 +630,12 @@ void Model::initialize_tiff() {
   int max_iz = 0;
   std::set<std::array<int, 3>> active_indices;
   for (const auto &record : active_voxels.voxels) {
-    const int ix = static_cast<int>(std::llround(record.centroid[0] / g.dx));
-    const int iy = static_cast<int>(std::llround(record.centroid[1] / g.dx));
-    const int iz = static_cast<int>(std::llround(record.centroid[2] / g.dx));
+    const int ix =
+        static_cast<int>(std::llround(record.centroid[tiff_axis_component(g.axes[0])] / g.dx));
+    const int iy =
+        static_cast<int>(std::llround(record.centroid[tiff_axis_component(g.axes[1])] / g.dx));
+    const int iz =
+        static_cast<int>(std::llround(record.centroid[tiff_axis_component(g.axes[2])] / g.dx));
     if (ix < 0 || iy < 0 || iz < 0) {
       throw RuntimeError("voxel create tiff received negative voxel coordinates from ISTHMUS");
     }
@@ -1851,6 +1900,10 @@ void Model::verify() const {
     throw RuntimeError("cannot verify before run");
   }
   for (const auto &check : config_.checks) {
+    if (has_diagnostic(check.quantity)) {
+      verify_diagnostic(check);
+      continue;
+    }
     const double error = verification_error(check);
     if (!(error <= check.tolerance)) {
       throw RuntimeError(format_error(check.quantity, error, check.tolerance,
@@ -2078,6 +2131,9 @@ void Model::print_run_summary(std::ostream &out, const std::string &run_type) co
     const auto &g = config_.tiff;
     out << "#   geometry = tiff\n";
     out << "#   file = " << g.file << '\n';
+    out << "#   axes = " << g.axes << '\n';
+    out << "#   origin = [" << std::setprecision(8) << g.origin[0] << ", " << g.origin[1]
+        << ", " << g.origin[2] << "] m\n";
     out << "#   grid = " << g.nx << " x " << g.ny << " x " << g.nz << '\n';
     out << "#   dx = " << std::setprecision(8) << g.dx << " m\n";
   }

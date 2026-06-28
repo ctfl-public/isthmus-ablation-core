@@ -1,0 +1,16 @@
+units               si
+
+voxel_material      carbon density 1800.0
+voxel_create        solid tiff file @IAC_CARBON_SAMPLE_TIFF@ dx 2.5e-5 material carbon
+
+source              q0 constant 0.0 units kg/m2/s
+iac_timestep        1.0e-9
+iac_stats           1000000
+iac_stats_style     step time nvox mf
+
+voxel_ablate        solid source q0 policy local face xlo delete yes
+iac_run             1
+
+iac_verify          nx exact "24" tolerance 0.0 absolute norm final
+iac_verify          ny exact "24" tolerance 0.0 absolute norm final
+iac_verify          nz exact "10" tolerance 0.0 absolute norm final

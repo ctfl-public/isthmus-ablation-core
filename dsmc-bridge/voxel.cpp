@@ -137,6 +137,7 @@ void Voxel::command(int narg, char **arg) {
       const char *ox = value_after(narg - 3, arg + 3, "ox");
       const char *oy = value_after(narg - 3, arg + 3, "oy");
       const char *oz = value_after(narg - 3, arg + 3, "oz");
+      const char *axes = value_after(narg - 3, arg + 3, "axes");
       if (!file || !dx || !material) {
         error->all(FLERR, "voxel create tiff requires file, dx, and material");
       }
@@ -151,6 +152,9 @@ void Voxel::command(int narg, char **arg) {
       }
       if (oz) {
         cfg.tiff.origin[2] = std::atof(oz);
+      }
+      if (axes) {
+        cfg.tiff.axes = axes;
       }
     } else {
       error->all(FLERR, "voxel create style must be slab, sphere, or tiff");

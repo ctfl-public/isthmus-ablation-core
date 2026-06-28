@@ -43,6 +43,7 @@ struct TiffGeometry {
   double dx = 0.0;
   std::string material;
   std::array<double, 3> origin{{0.0, 0.0, 0.0}};
+  std::string axes = "xyz";
   int nx = 0;
   int ny = 0;
   int nz = 0;
