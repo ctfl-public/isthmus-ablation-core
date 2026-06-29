@@ -383,7 +383,8 @@ if(isthmus_cpp_FOUND)
     )
     add_test(
       NAME tiff-default-axes-verification
-      COMMAND $<TARGET_FILE:ia-core> -in ${IAC_TIFF_DEFAULT_AXES_TEST_INPUT}
+      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+              $<TARGET_FILE:ia-core> -in ${IAC_TIFF_DEFAULT_AXES_TEST_INPUT}
     )
     set(IAC_TIFF_LEGACY_AXES_TEST_INPUT
         "${CMAKE_BINARY_DIR}/tests/inputs/tiff-axis/in.tiff-legacy-axes.verify")
@@ -394,7 +395,8 @@ if(isthmus_cpp_FOUND)
     )
     add_test(
       NAME tiff-legacy-axes-verification
-      COMMAND $<TARGET_FILE:ia-core> -in ${IAC_TIFF_LEGACY_AXES_TEST_INPUT}
+      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+              $<TARGET_FILE:ia-core> -in ${IAC_TIFF_LEGACY_AXES_TEST_INPUT}
     )
     set(IAC_TIFF_CENTER_ORIGIN_TEST_INPUT
         "${CMAKE_BINARY_DIR}/tests/inputs/tiff-axis/in.tiff-center-origin.verify")
@@ -405,7 +407,8 @@ if(isthmus_cpp_FOUND)
     )
     add_test(
       NAME tiff-center-origin-verification
-      COMMAND $<TARGET_FILE:ia-core> -in ${IAC_TIFF_CENTER_ORIGIN_TEST_INPUT}
+      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+              $<TARGET_FILE:ia-core> -in ${IAC_TIFF_CENTER_ORIGIN_TEST_INPUT}
     )
     set(IAC_CARBON_CONSTANT_TEST_INPUT
         "${CMAKE_BINARY_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.constant-flux.verify")
@@ -416,7 +419,8 @@ if(isthmus_cpp_FOUND)
     )
     add_test(
       NAME pregen-tiff-carbon-recession-constant-flux-verification
-      COMMAND $<TARGET_FILE:ia-core> -in ${IAC_CARBON_CONSTANT_TEST_INPUT}
+      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+              $<TARGET_FILE:ia-core> -in ${IAC_CARBON_CONSTANT_TEST_INPUT}
     )
   endif()
 endif()
@@ -571,11 +575,11 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
     )
     add_test(
       NAME pregen-tiff-carbon-recession-dsmc-co-verification
-      COMMAND ${IAC_DSMC_EXECUTABLE} -log none
+      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+              ${IAC_DSMC_EXECUTABLE} -log none
               -in ${IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT}
     )
     set_tests_properties(pregen-tiff-carbon-recession-dsmc-co-verification PROPERTIES
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       TIMEOUT 90
     )
 

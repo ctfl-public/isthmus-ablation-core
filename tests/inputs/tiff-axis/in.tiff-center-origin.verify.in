@@ -1,7 +1,7 @@
 units               si
 
 voxel_material      carbon density 1800.0
-voxel_create        solid tiff file @IAC_CARBON_SAMPLE_TIFF@ dx 2.5e-5 material carbon origin center
+voxel_create        solid tiff file generated/carbon-sample.tif dx 2.5e-5 material carbon origin center
 
 source              q0 constant 0.0 units kg/m2/s
 iac_timestep        1.0e-9
