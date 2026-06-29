@@ -10,7 +10,7 @@ voxel_create <model> slab nx <nx> ny <ny> nz <nz> dx <dx> material <name>
 voxel_create <model> sphere diameter <D> dx <dx> material <name>
 voxel_create <model> sphere diameter <D> resolution <N> material <name>
 voxel_create <model> tiff file <path> dx <dx> material <name> \
-  [ox <x>] [oy <y>] [oz <z>] [axes <xyz|...>]
+  [ox <x>] [oy <y>] [oz <z>] [axes <xyz|...>] [origin <corner|center>]
 voxel_write_history <model> <path>
 ```
 
@@ -23,7 +23,7 @@ voxel_create solid sphere diameter 1.0e-3 dx 5.0e-5 material carbon
 voxel_create solid sphere diameter 1.0e-3 resolution 20 material carbon
 voxel_create solid tiff file examples/tiff-sphere/sphere-24.tif dx 5.0e-5 material carbon
 voxel_create solid tiff file slice.tiff dx 5.4934e-6 material carbon \
-  ox 0.0 oy -0.007935216 oz -2.472e-5 axes xyz
+  ox 0.0 oy -0.007935216 oz -2.472e-5 axes xyz origin center
 voxel_ghost solid axis y boundary infinite layers 1
 voxel_write_history solid output/dsmc-sphere-kinetic/history.csv
 ```
@@ -52,14 +52,19 @@ current shared utility supports a narrow uncompressed 8-bit grayscale stack
 convention, with voxels whose image value is `1` treated as active. By default,
 IAC interprets TIFF columns as `x`, rows as `y`, and image pages as `z`, which
 matches the usual `width x height x stack-depth` convention. `ox`, `oy`, and
-`oz` shift the lower voxel-corner origin in physical space, so the first voxel
-centroid sits at `origin + 0.5*dx` along each mapped axis.
+`oz` set the physical origin used to place the imported stack.
 
 `axes` customizes how TIFF stack axes map into the IAC/DSMC domain. The three
 letters name the TIFF axis used for IAC `x`, then IAC `y`, then IAC `z`.
 The default is `axes xyz`. The older IAC behavior was equivalent to `axes zyx`,
 where TIFF pages became IAC `x`, rows stayed IAC `y`, and columns became IAC
 `z`.
+
+`origin` controls how `ox`, `oy`, and `oz` are interpreted. The default is
+`origin center`, where the values identify the first voxel center or lattice
+point and the first voxel centroid sits at `origin`. Use `origin corner` when
+the values are lower voxel-corner coordinates; then the first voxel centroid
+sits at `origin + 0.5*dx`. `origin-mode` is accepted as an alias for `origin`.
 
 `voxel_ghost` configures ghost voxel images used during surface generation.
 The first supported boundary is `boundary infinite`, which extrapolates active

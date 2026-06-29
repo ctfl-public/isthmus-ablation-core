@@ -396,6 +396,17 @@ if(isthmus_cpp_FOUND)
       NAME tiff-legacy-axes-verification
       COMMAND $<TARGET_FILE:ia-core> -in ${IAC_TIFF_LEGACY_AXES_TEST_INPUT}
     )
+    set(IAC_TIFF_CENTER_ORIGIN_TEST_INPUT
+        "${CMAKE_BINARY_DIR}/tests/inputs/tiff-axis/in.tiff-center-origin.verify")
+    configure_file(
+      ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-axis/in.tiff-center-origin.verify.in
+      ${IAC_TIFF_CENTER_ORIGIN_TEST_INPUT}
+      @ONLY
+    )
+    add_test(
+      NAME tiff-center-origin-verification
+      COMMAND $<TARGET_FILE:ia-core> -in ${IAC_TIFF_CENTER_ORIGIN_TEST_INPUT}
+    )
     set(IAC_CARBON_CONSTANT_TEST_INPUT
         "${CMAKE_BINARY_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.constant-flux.verify")
     configure_file(

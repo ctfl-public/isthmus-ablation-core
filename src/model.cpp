@@ -285,6 +285,16 @@ void validate_tiff_axes(const std::string &axes) {
   }
 }
 
+void validate_tiff_origin_mode(const std::string &mode) {
+  if (mode != "corner" && mode != "center") {
+    throw RuntimeError("voxel create tiff origin must be corner or center");
+  }
+}
+
+double tiff_origin_centroid_offset(const TiffGeometry &geometry) {
+  return geometry.origin_mode == "center" ? 0.0 : 0.5;
+}
+
 } // namespace
 
 Model::Model(Config config) : config_(std::move(config)) {
@@ -540,9 +550,18 @@ void Model::validate_and_initialize() {
   } else {
     throw RuntimeError("voxel create requires a supported geometry");
   }
+  set_diagnostic("dx", voxel_dx());
   set_diagnostic("nx", static_cast<double>(grid_nx()));
   set_diagnostic("ny", static_cast<double>(grid_ny()));
   set_diagnostic("nz", static_cast<double>(grid_nz()));
+  const auto lo = real_domain_lo();
+  const auto hi = real_domain_hi();
+  set_diagnostic("xlo", lo[0]);
+  set_diagnostic("ylo", lo[1]);
+  set_diagnostic("zlo", lo[2]);
+  set_diagnostic("xhi", hi[0]);
+  set_diagnostic("yhi", hi[1]);
+  set_diagnostic("zhi", hi[2]);
   derive_timestep();
 }
 
@@ -618,6 +637,7 @@ void Model::initialize_tiff() {
     throw RuntimeError("voxel create tiff requires file and positive dx");
   }
   validate_tiff_axes(g.axes);
+  validate_tiff_origin_mode(g.origin_mode);
 
   const auto active_voxels =
       isthmus::utilities::load_active_voxels_from_tiff(std::filesystem::path(g.file), g.dx);
@@ -651,6 +671,7 @@ void Model::initialize_tiff() {
 
   voxels_.clear();
   voxels_.reserve(static_cast<std::size_t>(g.nx) * g.ny * g.nz);
+  const double centroid_offset = tiff_origin_centroid_offset(g);
   std::size_t id = 0;
   for (int ix = 0; ix < g.nx; ++ix) {
     for (int iy = 0; iy < g.ny; ++iy) {
@@ -660,9 +681,12 @@ void Model::initialize_tiff() {
                                 ix,
                                 iy,
                                 iz,
-                                g.origin[0] + (static_cast<double>(ix) + 0.5) * g.dx,
-                                g.origin[1] + (static_cast<double>(iy) + 0.5) * g.dx,
-                                g.origin[2] + (static_cast<double>(iz) + 0.5) * g.dx,
+                                g.origin[0] +
+                                    (static_cast<double>(ix) + centroid_offset) * g.dx,
+                                g.origin[1] +
+                                    (static_cast<double>(iy) + centroid_offset) * g.dx,
+                                g.origin[2] +
+                                    (static_cast<double>(iz) + centroid_offset) * g.dx,
                                 active ? voxel_mass_ : 0.0,
                                 active,
                                 false});
@@ -2133,7 +2157,7 @@ void Model::print_run_summary(std::ostream &out, const std::string &run_type) co
     out << "#   file = " << g.file << '\n';
     out << "#   axes = " << g.axes << '\n';
     out << "#   origin = [" << std::setprecision(8) << g.origin[0] << ", " << g.origin[1]
-        << ", " << g.origin[2] << "] m\n";
+        << ", " << g.origin[2] << "] m (" << g.origin_mode << ")\n";
     out << "#   grid = " << g.nx << " x " << g.ny << " x " << g.nz << '\n';
     out << "#   dx = " << std::setprecision(8) << g.dx << " m\n";
   }
@@ -2243,7 +2267,12 @@ std::array<double, 3> Model::real_domain_lo() const {
     return {{0.0, 0.0, 0.0}};
   }
   if (config_.geometry == GeometryKind::Tiff) {
-    return config_.tiff.origin;
+    const auto &g = config_.tiff;
+    if (g.origin_mode == "center") {
+      return {{g.origin[0] - 0.5 * g.dx, g.origin[1] - 0.5 * g.dx,
+               g.origin[2] - 0.5 * g.dx}};
+    }
+    return g.origin;
   }
 
   const double dx = voxel_dx();
@@ -2275,9 +2304,10 @@ std::array<double, 3> Model::real_domain_hi() const {
   }
   if (config_.geometry == GeometryKind::Tiff) {
     const auto &g = config_.tiff;
-    return {{g.origin[0] + static_cast<double>(g.nx) * g.dx,
-             g.origin[1] + static_cast<double>(g.ny) * g.dx,
-             g.origin[2] + static_cast<double>(g.nz) * g.dx}};
+    const double hi_offset = g.origin_mode == "center" ? -0.5 : 0.0;
+    return {{g.origin[0] + (static_cast<double>(g.nx) + hi_offset) * g.dx,
+             g.origin[1] + (static_cast<double>(g.ny) + hi_offset) * g.dx,
+             g.origin[2] + (static_cast<double>(g.nz) + hi_offset) * g.dx}};
   }
 
   const double dx = voxel_dx();

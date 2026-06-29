@@ -18,7 +18,7 @@ mixture             air CO frac 0.0
 mixture             air temp 8000.0 vstream -1000.0 0.0 0.0
 
 voxel_material      carbon density 1800.0 molar-mass 0.0120107 formula C
-voxel_create        solid tiff file @IAC_CARBON_SAMPLE_TIFF@ dx 2.5e-5 material carbon axes zyx
+voxel_create        solid tiff file @IAC_CARBON_SAMPLE_TIFF@ dx 2.5e-5 material carbon axes zyx origin corner
 voxel_ghost         solid axis y boundary infinite layers 1
 voxel_ghost         solid axis z boundary infinite layers 1
 voxel_ghost         solid axis x side lo boundary infinite layers 1

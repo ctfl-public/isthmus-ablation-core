@@ -54,7 +54,7 @@ exposed pitted `x-hi` surface with ISTHMUS, applies a constant mass flux along
 `+x`, and ablates with normal-directed carryover:
 
 ```text
-voxel_create        solid tiff file carbon-sample.tif dx 2.5e-5 material carbon axes zyx
+voxel_create        solid tiff file carbon-sample.tif dx 2.5e-5 material carbon axes zyx origin corner
 voxel_ghost         solid axis y boundary infinite layers 1
 voxel_ghost         solid axis z boundary infinite layers 1
 voxel_ghost         solid axis x side lo boundary infinite layers 1
@@ -64,8 +64,10 @@ voxel_ablate        solid surface skin policy carryover/normal delete yes
 ```
 
 The sample uses `axes zyx` because this example treats TIFF pages as the
-streamwise `x` direction. Most production stacks should use the default
-`axes xyz`, where image columns are `x`, rows are `y`, and pages are `z`.
+streamwise `x` direction, and `origin corner` because the generated fixture and
+verification data were calibrated with lower-corner placement. Most production
+stacks should use the defaults, where image columns are `x`, rows are `y`,
+pages are `z`, and `ox`/`oy`/`oz` identify the first voxel center.
 
 The example writes real voxels and ghost voxels as separate VTU series. The
 ghost files use `select ghosts`, so ParaView can show the mirror-image ghost

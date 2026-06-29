@@ -44,6 +44,7 @@ struct TiffGeometry {
   std::string material;
   std::array<double, 3> origin{{0.0, 0.0, 0.0}};
   std::string axes = "xyz";
+  std::string origin_mode = "center";
   int nx = 0;
   int ny = 0;
   int nz = 0;

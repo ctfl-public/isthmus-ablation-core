@@ -48,6 +48,14 @@ std::string parse_tiff_axes(const std::string &axes, int line_number) {
   return axes;
 }
 
+std::string parse_tiff_origin_mode(const std::string &mode, int line_number) {
+  if (mode == "corner" || mode == "center") {
+    return mode;
+  }
+  throw InputError(line_error(line_number,
+                              "voxel create tiff origin must be corner or center"));
+}
+
 std::string strip_comment(const std::string &line) {
   bool in_quote = false;
   std::string out;
@@ -461,6 +469,18 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
           const auto axes = values.find("axes");
           if (axes != values.end()) {
             config.tiff.axes = parse_tiff_axes(axes->second, line_number);
+          }
+          const auto origin = values.find("origin");
+          const auto origin_mode = values.find("origin-mode");
+          if (origin != values.end() && origin_mode != values.end()) {
+            throw InputError(line_error(
+                line_number, "voxel create tiff accepts either origin or origin-mode, not both"));
+          }
+          if (origin != values.end()) {
+            config.tiff.origin_mode = parse_tiff_origin_mode(origin->second, line_number);
+          }
+          if (origin_mode != values.end()) {
+            config.tiff.origin_mode = parse_tiff_origin_mode(origin_mode->second, line_number);
           }
         } else {
           throw InputError(line_error(

@@ -1,7 +1,7 @@
 units               si
 
 voxel_material      carbon density 1800.0
-voxel_create        solid tiff file @IAC_CARBON_SAMPLE_TIFF@ dx 2.5e-5 material carbon axes zyx
+voxel_create        solid tiff file @IAC_CARBON_SAMPLE_TIFF@ dx 2.5e-5 material carbon axes zyx origin corner
 
 source              q0 constant 0.0 units kg/m2/s
 iac_timestep        1.0e-9
@@ -14,3 +14,5 @@ iac_run             1
 iac_verify          nx exact "10" tolerance 0.0 absolute norm final
 iac_verify          ny exact "24" tolerance 0.0 absolute norm final
 iac_verify          nz exact "24" tolerance 0.0 absolute norm final
+iac_verify          xlo exact "0.0" tolerance 1.0e-15 absolute norm final
+iac_verify          xhi exact "nx * dx" tolerance 1.0e-15 absolute norm final
