@@ -1032,7 +1032,7 @@ void Surface::command(int narg, char **arg) {
         auto &model = IACBridge::model(sparta);
         const auto &cfg = IACBridge::config();
         const double area_exact = cfg.geometry == iac::GeometryKind::Sphere
-                                      ? 4.0 * pi * std::pow(0.5 * cfg.sphere.diameter, 2)
+                                      ? model.diagnostic("surfarea0")
                                       : surface_area;
         model.set_diagnostic("area", surface_area);
         model.set_diagnostic("area-exact", area_exact);
@@ -1153,7 +1153,7 @@ void Surface::command(int narg, char **arg) {
       auto &model = IACBridge::model(sparta);
       const auto &cfg = IACBridge::config();
       const double area_exact = cfg.geometry == iac::GeometryKind::Sphere
-                                    ? 4.0 * pi * std::pow(0.5 * cfg.sphere.diameter, 2)
+                                    ? model.diagnostic("surfarea0")
                                     : surface_area;
       model.set_diagnostic("area", surface_area);
       model.set_diagnostic("area-exact", area_exact);

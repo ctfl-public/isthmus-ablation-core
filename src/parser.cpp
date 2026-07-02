@@ -1,5 +1,6 @@
 #include "isthmus_ablation/parser.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -402,33 +403,67 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
       const auto &subcommand = tokens[1];
       if (subcommand == "material") {
         require_size(tokens, 5, line_number);
-        config.material.name = tokens[2];
+        Material material;
+        material.name = tokens[2];
         const auto values = parse_pairs(tokens, 3, line_number);
-        config.material.density =
-            parse_double(required(values, "density", line_number), line_number);
+        material.density = parse_double(required(values, "density", line_number), line_number);
+        const auto id = values.find("id");
+        if (id != values.end()) {
+          material.id = parse_int(id->second, line_number);
+        } else {
+          material.id = static_cast<int>(config.materials.size()) + 1;
+        }
         const auto molar_mass = values.find("molar-mass");
         if (molar_mass != values.end()) {
-          config.material.molar_mass = parse_double(molar_mass->second, line_number);
+          material.molar_mass = parse_double(molar_mass->second, line_number);
         }
         const auto formula = values.find("formula");
         if (formula != values.end()) {
-          config.material.formula = formula->second;
+          material.formula = formula->second;
+        }
+        auto existing = std::find_if(config.materials.begin(), config.materials.end(),
+                                     [&](const Material &entry) {
+                                       return entry.name == material.name || entry.id == material.id;
+                                     });
+        if (existing != config.materials.end()) {
+          *existing = material;
+        } else {
+          config.materials.push_back(material);
+        }
+        if (config.material.name.empty()) {
+          config.material = material;
         }
       } else if (subcommand == "create") {
         require_size(tokens, 5, line_number);
         config.voxel_name = tokens[2];
+        VoxelCreate create;
+        create.voxel_name = tokens[2];
         const auto &kind = tokens[3];
         const auto values = parse_pairs(tokens, 4, line_number);
         if (kind == "slab") {
+          create.geometry = GeometryKind::Slab;
+          create.slab.nx = parse_int(required(values, "nx", line_number), line_number);
+          create.slab.ny = parse_int(required(values, "ny", line_number), line_number);
+          create.slab.nz = parse_int(required(values, "nz", line_number), line_number);
+          create.slab.dx = parse_double(required(values, "dx", line_number), line_number);
+          create.slab.material = required(values, "material", line_number);
+          const auto ox = values.find("ox");
+          const auto oy = values.find("oy");
+          const auto oz = values.find("oz");
+          if (ox != values.end()) {
+            create.slab.origin[0] = parse_double(ox->second, line_number);
+          }
+          if (oy != values.end()) {
+            create.slab.origin[1] = parse_double(oy->second, line_number);
+          }
+          if (oz != values.end()) {
+            create.slab.origin[2] = parse_double(oz->second, line_number);
+          }
           config.geometry = GeometryKind::Slab;
-          config.slab.nx = parse_int(required(values, "nx", line_number), line_number);
-          config.slab.ny = parse_int(required(values, "ny", line_number), line_number);
-          config.slab.nz = parse_int(required(values, "nz", line_number), line_number);
-          config.slab.dx = parse_double(required(values, "dx", line_number), line_number);
-          config.slab.material = required(values, "material", line_number);
+          config.slab = create.slab;
         } else if (kind == "sphere") {
-          config.geometry = GeometryKind::Sphere;
-          config.sphere.diameter =
+          create.geometry = GeometryKind::Sphere;
+          create.sphere.diameter =
               parse_double(required(values, "diameter", line_number), line_number);
           const auto dx = values.find("dx");
           const auto resolution = values.find("resolution");
@@ -437,38 +472,67 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
                 line_number, "voxel create sphere requires exactly one of dx or resolution"));
           }
           if (dx != values.end()) {
-            config.sphere.dx = parse_double(dx->second, line_number);
-            config.sphere.resolution = 0;
+            create.sphere.dx = parse_double(dx->second, line_number);
+            create.sphere.resolution = 0;
           } else {
-            config.sphere.resolution = parse_int(resolution->second, line_number);
-            if (config.sphere.resolution <= 0) {
+            create.sphere.resolution = parse_int(resolution->second, line_number);
+            if (create.sphere.resolution <= 0) {
               throw InputError(line_error(line_number,
                                           "voxel create sphere resolution must be positive"));
             }
-            config.sphere.dx =
-                config.sphere.diameter / static_cast<double>(config.sphere.resolution);
+            create.sphere.dx =
+                create.sphere.diameter / static_cast<double>(create.sphere.resolution);
           }
-          config.sphere.material = required(values, "material", line_number);
+          create.sphere.material = required(values, "material", line_number);
+          const auto cx = values.find("cx");
+          const auto cy = values.find("cy");
+          const auto cz = values.find("cz");
+          if (cx != values.end()) {
+            create.sphere.center[0] = parse_double(cx->second, line_number);
+          }
+          if (cy != values.end()) {
+            create.sphere.center[1] = parse_double(cy->second, line_number);
+          }
+          if (cz != values.end()) {
+            create.sphere.center[2] = parse_double(cz->second, line_number);
+          }
+          config.geometry = GeometryKind::Sphere;
+          config.sphere = create.sphere;
         } else if (kind == "tiff") {
-          config.geometry = GeometryKind::Tiff;
-          config.tiff.file = required(values, "file", line_number);
-          config.tiff.dx = parse_double(required(values, "dx", line_number), line_number);
-          config.tiff.material = required(values, "material", line_number);
+          create.geometry = GeometryKind::Tiff;
+          create.tiff.file = required(values, "file", line_number);
+          create.tiff.dx = parse_double(required(values, "dx", line_number), line_number);
+          const auto material = values.find("material");
+          const auto materials = values.find("materials");
+          if (material == values.end() && materials == values.end()) {
+            throw InputError(line_error(
+                line_number, "voxel create tiff requires material <name> or materials labels"));
+          }
+          if (material != values.end()) {
+            create.tiff.material = material->second;
+          }
+          if (materials != values.end()) {
+            if (materials->second != "labels") {
+              throw InputError(
+                  line_error(line_number, "voxel create tiff materials must be labels"));
+            }
+            create.tiff.material_labels = true;
+          }
           const auto ox = values.find("ox");
           const auto oy = values.find("oy");
           const auto oz = values.find("oz");
           if (ox != values.end()) {
-            config.tiff.origin[0] = parse_double(ox->second, line_number);
+            create.tiff.origin[0] = parse_double(ox->second, line_number);
           }
           if (oy != values.end()) {
-            config.tiff.origin[1] = parse_double(oy->second, line_number);
+            create.tiff.origin[1] = parse_double(oy->second, line_number);
           }
           if (oz != values.end()) {
-            config.tiff.origin[2] = parse_double(oz->second, line_number);
+            create.tiff.origin[2] = parse_double(oz->second, line_number);
           }
           const auto axes = values.find("axes");
           if (axes != values.end()) {
-            config.tiff.axes = parse_tiff_axes(axes->second, line_number);
+            create.tiff.axes = parse_tiff_axes(axes->second, line_number);
           }
           const auto origin = values.find("origin");
           const auto origin_mode = values.find("origin-mode");
@@ -477,15 +541,18 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
                 line_number, "voxel create tiff accepts either origin or origin-mode, not both"));
           }
           if (origin != values.end()) {
-            config.tiff.origin_mode = parse_tiff_origin_mode(origin->second, line_number);
+            create.tiff.origin_mode = parse_tiff_origin_mode(origin->second, line_number);
           }
           if (origin_mode != values.end()) {
-            config.tiff.origin_mode = parse_tiff_origin_mode(origin_mode->second, line_number);
+            create.tiff.origin_mode = parse_tiff_origin_mode(origin_mode->second, line_number);
           }
+          config.geometry = GeometryKind::Tiff;
+          config.tiff = create.tiff;
         } else {
           throw InputError(line_error(
               line_number, "voxel create geometry must be slab, sphere, or tiff"));
         }
+        config.creates.push_back(std::move(create));
       } else if (subcommand == "dump") {
         if (tokens.size() == 3 && tokens[2] == "off") {
           config.dumps.clear();
@@ -520,7 +587,8 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
           dump.scalar = scalar->second;
           if (dump.scalar != "mf" && dump.scalar != "mass" && dump.scalar != "active" &&
               dump.scalar != "fixed" && dump.scalar != "id" && dump.scalar != "ix" &&
-              dump.scalar != "iy" && dump.scalar != "iz" && dump.scalar != "ghost") {
+              dump.scalar != "iy" && dump.scalar != "iz" && dump.scalar != "ghost" &&
+              dump.scalar != "material-id" && dump.scalar != "density") {
             throw InputError(line_error(line_number, "unknown voxel dump scalar '" +
                                                      dump.scalar + "'"));
           }

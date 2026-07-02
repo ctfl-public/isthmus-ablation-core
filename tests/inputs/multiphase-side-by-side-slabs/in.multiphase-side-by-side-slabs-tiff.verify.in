@@ -1,0 +1,36 @@
+# Shared standalone/DSMC-hosted verification input.
+# This file should run with ia-core and build-dsmc/bin/dsmc-iac.
+
+units               si
+
+voxel_material      mat1 id 1 density 1000.0
+voxel_material      mat2 id 2 density 500.0
+
+voxel_create        solid tiff file @IAC_MULTIPHASE_SLAB_TIFF@ dx 1.0e-6 materials labels origin corner
+
+source              q1 constant 1.0 units kg/m2/s
+iac_timestep        mass/courant 0.5 source q1
+variable            ablation_time equal 1.0e-3
+variable            keep internal 1
+
+iac_stats           1
+iac_stats_style     step time nvox ndel mass mf vf front
+
+voxel_dump          off
+
+label               ablate-loop
+  iac_limit         time ${ablation_time}
+  isthmus_surface   skin voxels solid buffer 3 map yes
+  surf_flux         skin source q1 select normal nx -1.0 ny 0.0 nz 0.0 min-cos 0.5
+  voxel_ablate      solid surface skin policy local delete yes
+  iac_run           1
+  iac_continue      time ${ablation_time} variable keep
+  if                "${keep} > 0" then "jump SELF ablate-loop"
+
+iac_verify          mf exact "0.6436439664102276" tolerance 1.0e-12 absolute norm final
+iac_verify          vf exact "0.625" tolerance 1.0e-12 absolute norm final
+iac_verify          mf:1 exact "0.7154659496153414" tolerance 1.0e-12 absolute norm final
+iac_verify          vf:1 exact "0.75" tolerance 1.0e-12 absolute norm final
+iac_verify          mf:2 exact "0.5" tolerance 1.0e-12 absolute norm final
+iac_verify          vf:2 exact "0.5" tolerance 1.0e-12 absolute norm final
+iac_verify          front exact "dx" tolerance 1.0e-12 absolute norm final

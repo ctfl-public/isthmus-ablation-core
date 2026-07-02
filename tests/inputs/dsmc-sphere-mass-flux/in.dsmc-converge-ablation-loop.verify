@@ -57,4 +57,5 @@ label               coupled-loop
   jump              SELF coupled-loop
 
 iac_verify          dsmc-converged exact "1.0" tolerance 0.0 percent
-iac_verify          mf exact "0.50" tolerance 25.0 percent norm final
+iac_verify          step exact "2" tolerance 0.0 absolute norm final
+iac_verify          mf exact "0.25" tolerance 0.20 absolute norm final

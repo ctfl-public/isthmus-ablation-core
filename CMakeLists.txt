@@ -180,6 +180,7 @@ find_program(IAC_MAKE_EXECUTABLE NAMES make gmake)
 if(Python3_Interpreter_FOUND)
   set(IAC_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
   set(IAC_CARBON_SAMPLE_TIFF "${IAC_GENERATED_DIR}/carbon-sample.tif")
+  set(IAC_MULTIPHASE_SLAB_TIFF "${IAC_GENERATED_DIR}/multiphase-slab-labels.tif")
   add_custom_command(
     OUTPUT ${IAC_CARBON_SAMPLE_TIFF}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${IAC_GENERATED_DIR}
@@ -188,7 +189,18 @@ if(Python3_Interpreter_FOUND)
     DEPENDS ${CMAKE_SOURCE_DIR}/tools/make-carbon-sample-tiff.py
     COMMENT "Generating deterministic carbon-sample TIFF fixture"
   )
-  add_custom_target(generated-fixtures ALL DEPENDS ${IAC_CARBON_SAMPLE_TIFF})
+  add_custom_command(
+    OUTPUT ${IAC_MULTIPHASE_SLAB_TIFF}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${IAC_GENERATED_DIR}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/make-multiphase-slab-tiff.py
+            --width 4 --height 4 --depth 2 --out ${IAC_MULTIPHASE_SLAB_TIFF}
+    DEPENDS ${CMAKE_SOURCE_DIR}/tools/make-multiphase-slab-tiff.py
+    COMMENT "Generating deterministic multiphase slab TIFF fixture"
+  )
+  add_custom_target(generated-fixtures ALL DEPENDS
+    ${IAC_CARBON_SAMPLE_TIFF}
+    ${IAC_MULTIPHASE_SLAB_TIFF}
+  )
 endif()
 
 set(DSMC_ROOT "" CACHE PATH "Optional root directory of a DSMC/SPARTA source checkout")
@@ -337,6 +349,11 @@ add_test(
   COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-direct-ablation/in.slab-direct-yhi.verify
 )
 
+add_test(
+  NAME multiphase-side-by-side-slabs-verification
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs.verify
+)
+
 if(isthmus_cpp_FOUND)
   add_test(
     NAME slab-isthmus-finite-surface-verification
@@ -422,6 +439,18 @@ if(isthmus_cpp_FOUND)
       COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
               $<TARGET_FILE:ia-core> -in ${IAC_CARBON_CONSTANT_TEST_INPUT}
     )
+    set(IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT
+        "${CMAKE_BINARY_DIR}/tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs-tiff.verify")
+    configure_file(
+      ${CMAKE_SOURCE_DIR}/tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs-tiff.verify.in
+      ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
+      @ONLY
+    )
+    add_test(
+      NAME multiphase-side-by-side-slabs-tiff-verification
+      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+              $<TARGET_FILE:ia-core> -in ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
+    )
   endif()
 endif()
 
@@ -491,6 +520,10 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
   iac_add_hosted_input_test(
     slab-direct-yhi-verification
     tests/inputs/slab-direct-ablation/in.slab-direct-yhi.verify
+  )
+  iac_add_hosted_input_test(
+    multiphase-side-by-side-slabs-verification
+    tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs.verify
   )
   iac_add_hosted_input_test(
     slab-isthmus-finite-surface-verification
@@ -564,6 +597,22 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
   )
 
   if(TARGET generated-fixtures)
+    add_test(
+      NAME hosted-multiphase-side-by-side-slabs-tiff-verification
+      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+              ${IAC_DSMC_EXECUTABLE} -log none
+              -in ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
+    )
+    if(IAC_ENABLE_MPI_TESTS AND IAC_MPIEXEC_EXECUTABLE)
+      add_test(
+        NAME hosted-mpi-multiphase-side-by-side-slabs-tiff-verification
+        COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+                ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
+                ${IAC_DSMC_EXECUTABLE} -log none
+                -in ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
+      )
+    endif()
+
     set(SOURCE_DIR ${CMAKE_SOURCE_DIR})
     set(BINARY_DIR ${CMAKE_BINARY_DIR})
     set(IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT

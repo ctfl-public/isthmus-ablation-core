@@ -18,6 +18,7 @@ struct RuntimeError : std::runtime_error {
 
 struct Material {
   std::string name;
+  int id = 0;
   double density = 0.0;
   double molar_mass = 0.0;
   std::string formula;
@@ -29,6 +30,7 @@ struct SlabGeometry {
   int nz = 0;
   double dx = 0.0;
   std::string material;
+  std::array<double, 3> origin{{0.0, 0.0, 0.0}};
 };
 
 struct SphereGeometry {
@@ -36,12 +38,14 @@ struct SphereGeometry {
   double dx = 0.0;
   int resolution = 0;
   std::string material;
+  std::array<double, 3> center{{0.0, 0.0, 0.0}};
 };
 
 struct TiffGeometry {
   std::string file;
   double dx = 0.0;
   std::string material;
+  bool material_labels = false;
   std::array<double, 3> origin{{0.0, 0.0, 0.0}};
   std::string axes = "xyz";
   std::string origin_mode = "center";
@@ -55,6 +59,14 @@ enum class GeometryKind {
   Slab,
   Sphere,
   Tiff,
+};
+
+struct VoxelCreate {
+  std::string voxel_name;
+  GeometryKind geometry = GeometryKind::None;
+  SlabGeometry slab;
+  SphereGeometry sphere;
+  TiffGeometry tiff;
 };
 
 struct ConstantSource {
@@ -200,6 +212,8 @@ struct Config {
   std::string voxel_name;
   GeometryKind geometry = GeometryKind::None;
   Material material;
+  std::vector<Material> materials;
+  std::vector<VoxelCreate> creates;
   SlabGeometry slab;
   SphereGeometry sphere;
   TiffGeometry tiff;
@@ -224,6 +238,7 @@ struct Voxel {
   double y = 0.0;
   double z = 0.0;
   double remaining_mass = 0.0;
+  std::size_t material_index = 0;
   bool active = true;
   bool fixed = false;
 };

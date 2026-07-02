@@ -103,8 +103,15 @@ private:
   std::unordered_map<std::string, double> diagnostics_;
   std::vector<HistoryRow> history_;
   double voxel_mass_ = 0.0;
+  double dx_ = 0.0;
+  int grid_nx_ = 0;
+  int grid_ny_ = 0;
+  int grid_nz_ = 0;
+  GeometryKind active_geometry_ = GeometryKind::None;
   double initial_mass_ = 0.0;
   int initial_active_voxels_ = 0;
+  std::vector<double> initial_material_mass_;
+  std::vector<int> initial_material_voxels_;
   double dt_ = 0.0;
   int current_step_ = 0;
   double current_time_ = 0.0;
@@ -115,9 +122,11 @@ private:
   bool step_open_ = false;
 
   void validate_and_initialize();
+  void initialize_creates();
   void initialize_slab();
   void initialize_sphere();
   void initialize_tiff();
+  void record_initial_material_state();
   void derive_timestep();
   void validate_ablation(const AblationCommand &ablate, const std::string &context) const;
   void validate_isthmus_surface(const IsthmusSurfaceCommand &surface) const;
@@ -146,6 +155,19 @@ private:
   void print_header(std::ostream &out) const;
   void print_row(std::ostream &out, const HistoryRow &row) const;
 
+  const Material &material_for_name(const std::string &name) const;
+  const Material &material_for_id(int id) const;
+  const Material &voxel_material(const Voxel &voxel) const;
+  double voxel_full_mass(const Voxel &voxel) const;
+  double voxel_full_mass(std::size_t voxel_id) const;
+  double representative_voxel_mass() const;
+  double minimum_active_voxel_mass() const;
+  double material_remaining_mass(int material_id) const;
+  int material_active_voxels(int material_id) const;
+  double material_initial_mass(int material_id) const;
+  int material_initial_voxels(int material_id) const;
+  double history_quantity_value(const HistoryRow &row, const std::string &quantity) const;
+  void set_primary_material_if_needed();
   std::size_t index(int ix, int iy, int iz) const;
   double voxel_dx() const;
   int grid_nx() const;

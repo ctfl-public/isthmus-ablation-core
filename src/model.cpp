@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <set>
 #include <sstream>
 #include <unordered_map>
@@ -333,7 +334,7 @@ void Model::set_timestep_from_source_courant(double courant, const std::string &
   if (config_.source.value <= 0.0) {
     throw RuntimeError("mass/courant timestep requires a positive source");
   }
-  set_timestep(courant * config_.material.density * voxel_dx() / config_.source.value);
+  set_timestep(courant * minimum_active_voxel_mass() / (config_.source.value * voxel_dx() * voxel_dx()));
 }
 
 void Model::reset_run_state() {
@@ -454,7 +455,7 @@ void Model::set_timestep_from_triangle_fluxes(const std::string &surface_name,
 
   const double dx = voxel_dx();
   const double equivalent_face_flux = max_voxel_mass_rate / (dx * dx);
-  const double dt = courant * voxel_mass_ / max_voxel_mass_rate;
+  const double dt = courant * minimum_active_voxel_mass() / max_voxel_mass_rate;
   set_diagnostic("surface-mass-courant", courant);
   set_diagnostic("surface-max-face-flux", equivalent_face_flux);
   set_diagnostic("surface-max-mvox-rate", max_voxel_mass_rate);
@@ -483,6 +484,125 @@ void Model::advance_steps(int steps, std::ostream *stats) {
   run_steps(RunConfig{false, 0.0, steps}, stats);
 }
 
+const Material &Model::material_for_name(const std::string &name) const {
+  auto found = std::find_if(config_.materials.begin(), config_.materials.end(),
+                            [&](const Material &material) { return material.name == name; });
+  if (found == config_.materials.end()) {
+    throw RuntimeError("unknown material '" + name + "'");
+  }
+  return *found;
+}
+
+const Material &Model::material_for_id(int id) const {
+  auto found = std::find_if(config_.materials.begin(), config_.materials.end(),
+                            [&](const Material &material) { return material.id == id; });
+  if (found == config_.materials.end()) {
+    throw RuntimeError("unknown material id '" + std::to_string(id) + "'");
+  }
+  return *found;
+}
+
+const Material &Model::voxel_material(const Voxel &voxel) const {
+  if (voxel.material_index >= config_.materials.size()) {
+    throw RuntimeError("voxel references invalid material index");
+  }
+  return config_.materials[voxel.material_index];
+}
+
+double Model::voxel_full_mass(const Voxel &voxel) const {
+  return voxel_material(voxel).density * std::pow(voxel_dx(), 3);
+}
+
+double Model::voxel_full_mass(std::size_t voxel_id) const {
+  if (voxel_id >= voxels_.size()) {
+    return 0.0;
+  }
+  return voxel_full_mass(voxels_[voxel_id]);
+}
+
+double Model::representative_voxel_mass() const {
+  if (voxel_mass_ > 0.0) {
+    return voxel_mass_;
+  }
+  return config_.materials.empty() ? 0.0 : config_.materials.front().density * std::pow(voxel_dx(), 3);
+}
+
+double Model::minimum_active_voxel_mass() const {
+  double result = std::numeric_limits<double>::infinity();
+  for (const auto &voxel : voxels_) {
+    if (voxel.active && voxel.remaining_mass > 0.0) {
+      result = std::min(result, voxel_full_mass(voxel));
+    }
+  }
+  return std::isfinite(result) ? result : representative_voxel_mass();
+}
+
+double Model::material_remaining_mass(int material_id) const {
+  double mass = 0.0;
+  for (const auto &voxel : voxels_) {
+    if (voxel_material(voxel).id == material_id) {
+      mass += voxel.remaining_mass;
+    }
+  }
+  return mass;
+}
+
+int Model::material_active_voxels(int material_id) const {
+  int count = 0;
+  for (const auto &voxel : voxels_) {
+    if (voxel.active && voxel_material(voxel).id == material_id) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+double Model::material_initial_mass(int material_id) const {
+  const auto &material = material_for_id(material_id);
+  const auto index = static_cast<std::size_t>(&material - config_.materials.data());
+  return index < initial_material_mass_.size() ? initial_material_mass_[index] : 0.0;
+}
+
+int Model::material_initial_voxels(int material_id) const {
+  const auto &material = material_for_id(material_id);
+  const auto index = static_cast<std::size_t>(&material - config_.materials.data());
+  return index < initial_material_voxels_.size() ? initial_material_voxels_[index] : 0;
+}
+
+double Model::history_quantity_value(const HistoryRow &row, const std::string &quantity) const {
+  const auto material_suffix = quantity.find(':');
+  if (material_suffix != std::string::npos) {
+    const std::string prefix = quantity.substr(0, material_suffix);
+    const int material_id = std::stoi(quantity.substr(material_suffix + 1));
+    if (prefix == "mf") {
+      const double initial = material_initial_mass(material_id);
+      return initial > 0.0 ? material_remaining_mass(material_id) / initial : 0.0;
+    }
+    if (prefix == "vf") {
+      const int initial = material_initial_voxels(material_id);
+      return initial > 0 ? static_cast<double>(material_active_voxels(material_id)) /
+                               static_cast<double>(initial)
+                         : 0.0;
+    }
+  }
+  return history_value(row, quantity);
+}
+
+void Model::set_primary_material_if_needed() {
+  if (config_.materials.empty()) {
+    if (config_.material.name.empty() || config_.material.density <= 0.0) {
+      throw RuntimeError("voxel material requires a positive density");
+    }
+    if (config_.material.id == 0) {
+      config_.material.id = 1;
+    }
+    config_.materials.push_back(config_.material);
+  }
+  if (config_.material.name.empty()) {
+    config_.material = config_.materials.front();
+  }
+}
+
 void Model::validate_and_initialize() {
   if (config_.units != "si") {
     throw RuntimeError("only 'units si' is currently supported");
@@ -490,19 +610,11 @@ void Model::validate_and_initialize() {
   if (config_.voxel_name.empty()) {
     throw RuntimeError("missing voxel model; expected 'voxel_create <name> ...'");
   }
-  if (config_.material.name.empty() || config_.material.density <= 0.0) {
-    throw RuntimeError("voxel material requires a positive density");
-  }
-  std::string geometry_material;
-  if (config_.geometry == GeometryKind::Slab) {
-    geometry_material = config_.slab.material;
-  } else if (config_.geometry == GeometryKind::Sphere) {
-    geometry_material = config_.sphere.material;
-  } else if (config_.geometry == GeometryKind::Tiff) {
-    geometry_material = config_.tiff.material;
-  }
-  if (geometry_material != config_.material.name) {
-    throw RuntimeError("voxel create references unknown material '" + geometry_material + "'");
+  set_primary_material_if_needed();
+  for (const auto &material : config_.materials) {
+    if (material.name.empty() || material.id <= 0 || material.density <= 0.0) {
+      throw RuntimeError("voxel material requires a name, positive id, and positive density");
+    }
   }
   if (config_.source.name.empty() || config_.source.value < 0.0) {
     throw RuntimeError("source constant requires a nonnegative value");
@@ -535,7 +647,9 @@ void Model::validate_and_initialize() {
     throw RuntimeError("input must contain a voxel ablate command");
   }
 
-  if (config_.geometry == GeometryKind::Slab) {
+  if (!config_.creates.empty()) {
+    initialize_creates();
+  } else if (config_.geometry == GeometryKind::Slab) {
     voxel_mass_ = config_.material.density * std::pow(config_.slab.dx, 3);
     initialize_slab();
   } else if (config_.geometry == GeometryKind::Sphere) {
@@ -565,11 +679,234 @@ void Model::validate_and_initialize() {
   derive_timestep();
 }
 
+void Model::initialize_creates() {
+  struct PendingVoxel {
+    int gx = 0;
+    int gy = 0;
+    int gz = 0;
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
+    std::size_t material_index = 0;
+  };
+
+  const auto material_index_for_name = [&](const std::string &name) {
+    const auto &material = material_for_name(name);
+    return static_cast<std::size_t>(&material - config_.materials.data());
+  };
+  const auto material_index_for_id = [&](int id) {
+    const auto &material = material_for_id(id);
+    return static_cast<std::size_t>(&material - config_.materials.data());
+  };
+  const auto require_dx = [&](double dx) {
+    if (dx <= 0.0) {
+      throw RuntimeError("voxel create requires positive dx");
+    }
+    if (dx_ <= 0.0) {
+      dx_ = dx;
+    } else if (std::abs(dx - dx_) > std::max(1.0, std::abs(dx_)) * 1.0e-12) {
+      throw RuntimeError("composable voxel_create requires all shapes to use the same dx");
+    }
+  };
+
+  std::map<std::array<int, 3>, PendingVoxel> active;
+  active_geometry_ = config_.creates.size() == 1 ? config_.creates.front().geometry
+                                                 : GeometryKind::Slab;
+
+  for (auto &create : config_.creates) {
+    if (create.voxel_name != config_.voxel_name) {
+      throw RuntimeError("all voxel_create commands must use the same voxel model name");
+    }
+    if (create.geometry == GeometryKind::Slab) {
+      const auto &g = create.slab;
+      if (g.nx <= 0 || g.ny <= 0 || g.nz <= 0 || g.dx <= 0.0) {
+        throw RuntimeError("voxel create slab requires positive nx, ny, nz, and dx");
+      }
+      require_dx(g.dx);
+      const auto material_index = material_index_for_name(g.material);
+      const int ox = static_cast<int>(std::llround(g.origin[0] / dx_));
+      const int oy = static_cast<int>(std::llround(g.origin[1] / dx_));
+      const int oz = static_cast<int>(std::llround(g.origin[2] / dx_));
+      for (int ix = 0; ix < g.nx; ++ix) {
+        for (int iy = 0; iy < g.ny; ++iy) {
+          for (int iz = 0; iz < g.nz; ++iz) {
+            const int gx = ox + ix;
+            const int gy = oy + iy;
+            const int gz = oz + iz;
+            active[{gx, gy, gz}] = PendingVoxel{
+                gx, gy, gz,
+                g.origin[0] + (static_cast<double>(ix) + 0.5) * dx_,
+                g.origin[1] + (static_cast<double>(iy) + 0.5) * dx_,
+                g.origin[2] + (static_cast<double>(iz) + 0.5) * dx_,
+                material_index};
+          }
+        }
+      }
+    } else if (create.geometry == GeometryKind::Sphere) {
+      auto &g = create.sphere;
+      if (g.diameter <= 0.0) {
+        throw RuntimeError("voxel create sphere requires positive diameter");
+      }
+      if (g.dx <= 0.0 && g.resolution > 0) {
+        g.dx = g.diameter / static_cast<double>(g.resolution);
+      }
+      require_dx(g.dx);
+      const auto material_index = material_index_for_name(g.material);
+      const double radius = 0.5 * g.diameter;
+      const int n = static_cast<int>(std::ceil(g.diameter / dx_));
+      const double origin = -0.5 * static_cast<double>(n) * dx_;
+      for (int ix = 0; ix < n; ++ix) {
+        for (int iy = 0; iy < n; ++iy) {
+          for (int iz = 0; iz < n; ++iz) {
+            const double local_x = origin + (static_cast<double>(ix) + 0.5) * dx_;
+            const double local_y = origin + (static_cast<double>(iy) + 0.5) * dx_;
+            const double local_z = origin + (static_cast<double>(iz) + 0.5) * dx_;
+            if (local_x * local_x + local_y * local_y + local_z * local_z > radius * radius) {
+              continue;
+            }
+            const double x = g.center[0] + local_x;
+            const double y = g.center[1] + local_y;
+            const double z = g.center[2] + local_z;
+            const int gx = static_cast<int>(std::llround((x - 0.5 * dx_) / dx_));
+            const int gy = static_cast<int>(std::llround((y - 0.5 * dx_) / dx_));
+            const int gz = static_cast<int>(std::llround((z - 0.5 * dx_) / dx_));
+            active[{gx, gy, gz}] = PendingVoxel{gx, gy, gz, x, y, z, material_index};
+          }
+        }
+      }
+    } else if (create.geometry == GeometryKind::Tiff) {
+      auto &g = create.tiff;
+      if (g.file.empty() || g.dx <= 0.0) {
+        throw RuntimeError("voxel create tiff requires file and positive dx");
+      }
+      validate_tiff_axes(g.axes);
+      validate_tiff_origin_mode(g.origin_mode);
+      require_dx(g.dx);
+      const double centroid_offset = tiff_origin_centroid_offset(g);
+      if (g.material_labels) {
+        const auto labeled =
+            isthmus::utilities::load_labeled_voxels_from_tiff(std::filesystem::path(g.file), dx_);
+        if (labeled.voxels.voxels.empty()) {
+          throw RuntimeError("voxel create tiff produced no active voxels");
+        }
+        g.nx = static_cast<int>(labeled.dims[2]);
+        g.ny = static_cast<int>(labeled.dims[1]);
+        g.nz = static_cast<int>(labeled.dims[0]);
+        for (const auto &record : labeled.voxels.voxels) {
+          const int ix = static_cast<int>(
+              std::llround(record.centroid[tiff_axis_component(g.axes[0])] / dx_));
+          const int iy = static_cast<int>(
+              std::llround(record.centroid[tiff_axis_component(g.axes[1])] / dx_));
+          const int iz = static_cast<int>(
+              std::llround(record.centroid[tiff_axis_component(g.axes[2])] / dx_));
+          const int label = record.material_tag ? std::stoi(*record.material_tag) : 0;
+          const auto material_index = material_index_for_id(label);
+          active[{ix, iy, iz}] = PendingVoxel{
+              ix, iy, iz,
+              g.origin[0] + (static_cast<double>(ix) + centroid_offset) * dx_,
+              g.origin[1] + (static_cast<double>(iy) + centroid_offset) * dx_,
+              g.origin[2] + (static_cast<double>(iz) + centroid_offset) * dx_,
+              material_index};
+        }
+      } else {
+        const auto material_index = material_index_for_name(g.material);
+        const auto active_voxels =
+            isthmus::utilities::load_active_voxels_from_tiff(std::filesystem::path(g.file), dx_);
+        if (active_voxels.voxels.empty()) {
+          throw RuntimeError("voxel create tiff produced no active voxels");
+        }
+        int max_ix = 0;
+        int max_iy = 0;
+        int max_iz = 0;
+        for (const auto &record : active_voxels.voxels) {
+          const int ix = static_cast<int>(
+              std::llround(record.centroid[tiff_axis_component(g.axes[0])] / dx_));
+          const int iy = static_cast<int>(
+              std::llround(record.centroid[tiff_axis_component(g.axes[1])] / dx_));
+          const int iz = static_cast<int>(
+              std::llround(record.centroid[tiff_axis_component(g.axes[2])] / dx_));
+          max_ix = std::max(max_ix, ix);
+          max_iy = std::max(max_iy, iy);
+          max_iz = std::max(max_iz, iz);
+          active[{ix, iy, iz}] = PendingVoxel{
+              ix, iy, iz,
+              g.origin[0] + (static_cast<double>(ix) + centroid_offset) * dx_,
+              g.origin[1] + (static_cast<double>(iy) + centroid_offset) * dx_,
+              g.origin[2] + (static_cast<double>(iz) + centroid_offset) * dx_,
+              material_index};
+        }
+        g.nx = max_ix + 1;
+        g.ny = max_iy + 1;
+        g.nz = max_iz + 1;
+      }
+      config_.tiff = g;
+    }
+  }
+
+  if (active.empty()) {
+    throw RuntimeError("voxel create produced no active voxels");
+  }
+
+  std::array<int, 3> lo = active.begin()->first;
+  std::array<int, 3> hi = active.begin()->first;
+  for (const auto &[key, voxel] : active) {
+    (void)voxel;
+    for (int d = 0; d < 3; ++d) {
+      lo[d] = std::min(lo[d], key[d]);
+      hi[d] = std::max(hi[d], key[d]);
+    }
+  }
+  grid_nx_ = hi[0] - lo[0] + 1;
+  grid_ny_ = hi[1] - lo[1] + 1;
+  grid_nz_ = hi[2] - lo[2] + 1;
+
+  voxels_.clear();
+  voxels_.reserve(static_cast<std::size_t>(grid_nx_) * grid_ny_ * grid_nz_);
+  std::size_t id = 0;
+  for (int ix = 0; ix < grid_nx_; ++ix) {
+    for (int iy = 0; iy < grid_ny_; ++iy) {
+      for (int iz = 0; iz < grid_nz_; ++iz) {
+        const std::array<int, 3> key{{lo[0] + ix, lo[1] + iy, lo[2] + iz}};
+        const auto found = active.find(key);
+        if (found == active.end()) {
+          voxels_.push_back(Voxel{id++, ix, iy, iz,
+                                  (static_cast<double>(key[0]) + 0.5) * dx_,
+                                  (static_cast<double>(key[1]) + 0.5) * dx_,
+                                  (static_cast<double>(key[2]) + 0.5) * dx_,
+                                  0.0, 0, false, false});
+          continue;
+        }
+        const auto &pending = found->second;
+        Voxel voxel{id++, ix, iy, iz, pending.x, pending.y, pending.z, 0.0,
+                    pending.material_index, true, false};
+        voxel.remaining_mass = voxel_full_mass(voxel);
+        voxels_.push_back(voxel);
+      }
+    }
+  }
+
+  voxel_mass_ = representative_voxel_mass();
+  initial_mass_ = remaining_mass();
+  initial_active_voxels_ = active_voxel_count();
+  record_initial_material_state();
+  if (initial_active_voxels_ <= 0) {
+    throw RuntimeError("voxel create produced no active voxels");
+  }
+}
+
 void Model::initialize_slab() {
   const auto &g = config_.slab;
   if (g.nx <= 0 || g.ny <= 0 || g.nz <= 0 || g.dx <= 0.0) {
     throw RuntimeError("voxel create slab requires positive nx, ny, nz, and dx");
   }
+  dx_ = g.dx;
+  grid_nx_ = g.nx;
+  grid_ny_ = g.ny;
+  grid_nz_ = g.nz;
+  active_geometry_ = GeometryKind::Slab;
+  const auto &material = material_for_name(g.material);
+  const auto material_index = static_cast<std::size_t>(&material - config_.materials.data());
+  voxel_mass_ = material.density * std::pow(g.dx, 3);
 
   voxels_.clear();
   voxels_.reserve(static_cast<std::size_t>(g.nx) * g.ny * g.nz);
@@ -585,14 +922,16 @@ void Model::initialize_slab() {
                                 (static_cast<double>(iy) + 0.5) * g.dx,
                                 (static_cast<double>(iz) + 0.5) * g.dx,
                                 voxel_mass_,
+                                material_index,
                                 true,
                                 false});
       }
     }
   }
 
-  initial_mass_ = voxel_mass_ * static_cast<double>(voxels_.size());
+  initial_mass_ = remaining_mass();
   initial_active_voxels_ = static_cast<int>(voxels_.size());
+  record_initial_material_state();
 }
 
 void Model::initialize_sphere() {
@@ -606,6 +945,14 @@ void Model::initialize_sphere() {
   if (n <= 0) {
     throw RuntimeError("voxel create sphere generated an empty grid");
   }
+  dx_ = g.dx;
+  grid_nx_ = n;
+  grid_ny_ = n;
+  grid_nz_ = n;
+  active_geometry_ = GeometryKind::Sphere;
+  const auto &material = material_for_name(g.material);
+  const auto material_index = static_cast<std::size_t>(&material - config_.materials.data());
+  voxel_mass_ = material.density * std::pow(g.dx, 3);
   const double origin = -0.5 * static_cast<double>(n) * g.dx;
 
   voxels_.clear();
@@ -619,13 +966,14 @@ void Model::initialize_sphere() {
         const double z = origin + (static_cast<double>(iz) + 0.5) * g.dx;
         const bool active = x * x + y * y + z * z <= radius * radius;
         voxels_.push_back(Voxel{id++, ix, iy, iz, x, y, z,
-                                active ? voxel_mass_ : 0.0, active, false});
+                                active ? voxel_mass_ : 0.0, material_index, active, false});
       }
     }
   }
 
   initial_mass_ = remaining_mass();
   initial_active_voxels_ = active_voxel_count();
+  record_initial_material_state();
   if (initial_active_voxels_ <= 0) {
     throw RuntimeError("voxel create sphere produced no active voxels");
   }
@@ -668,6 +1016,14 @@ void Model::initialize_tiff() {
   g.nx = max_ix + 1;
   g.ny = max_iy + 1;
   g.nz = max_iz + 1;
+  dx_ = g.dx;
+  grid_nx_ = g.nx;
+  grid_ny_ = g.ny;
+  grid_nz_ = g.nz;
+  active_geometry_ = GeometryKind::Tiff;
+  const auto &material = material_for_name(g.material);
+  const auto material_index = static_cast<std::size_t>(&material - config_.materials.data());
+  voxel_mass_ = material.density * std::pow(g.dx, 3);
 
   voxels_.clear();
   voxels_.reserve(static_cast<std::size_t>(g.nx) * g.ny * g.nz);
@@ -688,6 +1044,7 @@ void Model::initialize_tiff() {
                                 g.origin[2] +
                                     (static_cast<double>(iz) + centroid_offset) * g.dx,
                                 active ? voxel_mass_ : 0.0,
+                                material_index,
                                 active,
                                 false});
       }
@@ -696,8 +1053,24 @@ void Model::initialize_tiff() {
 
   initial_mass_ = remaining_mass();
   initial_active_voxels_ = active_voxel_count();
+  record_initial_material_state();
   if (initial_active_voxels_ <= 0) {
     throw RuntimeError("voxel create tiff produced no active voxels");
+  }
+}
+
+void Model::record_initial_material_state() {
+  initial_material_mass_.assign(config_.materials.size(), 0.0);
+  initial_material_voxels_.assign(config_.materials.size(), 0);
+  for (const auto &voxel : voxels_) {
+    if (!voxel.active) {
+      continue;
+    }
+    if (voxel.material_index >= config_.materials.size()) {
+      throw RuntimeError("voxel references invalid material index");
+    }
+    initial_material_mass_[voxel.material_index] += voxel.remaining_mass;
+    initial_material_voxels_[voxel.material_index] += 1;
   }
 }
 
@@ -722,7 +1095,8 @@ void Model::derive_timestep() {
   }
 
   const double safe_dt =
-      config_.timestep.courant * config_.material.density * voxel_dx() / config_.source.value;
+      config_.timestep.courant * minimum_active_voxel_mass() /
+      (config_.source.value * voxel_dx() * voxel_dx());
   dt_ = safe_dt;
 }
 
@@ -970,8 +1344,11 @@ void Model::open_step() {
 }
 
 void Model::advance_local_slab(const AblationCommand &ablate) {
-  const auto &g = config_.slab;
-  const double face_area = g.dx * g.dx;
+  const int nx = grid_nx();
+  const int ny = grid_ny();
+  const int nz = grid_nz();
+  const double dx = voxel_dx();
+  const double face_area = dx * dx;
   const auto ablate_voxel = [&](int ix, int iy, int iz) {
     double requested = config_.source.value * face_area * dt_;
     requested_mass_step_ += requested;
@@ -981,7 +1358,7 @@ void Model::advance_local_slab(const AblationCommand &ablate) {
     applied_mass_step_ += removed;
     applied_mass_total_ += removed;
     requested -= removed;
-    if (voxel.remaining_mass <= voxel_mass_ * kEpsilon) {
+    if (voxel.remaining_mass <= voxel_full_mass(voxel) * kEpsilon) {
       voxel.remaining_mass = 0.0;
       if (ablate.delete_empty) {
         voxel.active = false;
@@ -993,10 +1370,10 @@ void Model::advance_local_slab(const AblationCommand &ablate) {
   };
 
   if (ablate.face == "xlo" || ablate.face == "xhi") {
-    for (int iy = 0; iy < g.ny; ++iy) {
-      for (int iz = 0; iz < g.nz; ++iz) {
-        for (int offset = 0; offset < g.nx; ++offset) {
-          const int ix = ablate.face == "xlo" ? offset : g.nx - 1 - offset;
+    for (int iy = 0; iy < ny; ++iy) {
+      for (int iz = 0; iz < nz; ++iz) {
+        for (int offset = 0; offset < nx; ++offset) {
+          const int ix = ablate.face == "xlo" ? offset : nx - 1 - offset;
           if (voxels_[index(ix, iy, iz)].active) {
             ablate_voxel(ix, iy, iz);
             break;
@@ -1005,10 +1382,10 @@ void Model::advance_local_slab(const AblationCommand &ablate) {
       }
     }
   } else if (ablate.face == "ylo" || ablate.face == "yhi") {
-    for (int ix = 0; ix < g.nx; ++ix) {
-      for (int iz = 0; iz < g.nz; ++iz) {
-        for (int offset = 0; offset < g.ny; ++offset) {
-          const int iy = ablate.face == "ylo" ? offset : g.ny - 1 - offset;
+    for (int ix = 0; ix < nx; ++ix) {
+      for (int iz = 0; iz < nz; ++iz) {
+        for (int offset = 0; offset < ny; ++offset) {
+          const int iy = ablate.face == "ylo" ? offset : ny - 1 - offset;
           if (voxels_[index(ix, iy, iz)].active) {
             ablate_voxel(ix, iy, iz);
             break;
@@ -1017,10 +1394,10 @@ void Model::advance_local_slab(const AblationCommand &ablate) {
       }
     }
   } else {
-    for (int ix = 0; ix < g.nx; ++ix) {
-      for (int iy = 0; iy < g.ny; ++iy) {
-        for (int offset = 0; offset < g.nz; ++offset) {
-          const int iz = ablate.face == "zlo" ? offset : g.nz - 1 - offset;
+    for (int ix = 0; ix < nx; ++ix) {
+      for (int iy = 0; iy < ny; ++iy) {
+        for (int offset = 0; offset < nz; ++offset) {
+          const int iz = ablate.face == "zlo" ? offset : nz - 1 - offset;
           if (voxels_[index(ix, iy, iz)].active) {
             ablate_voxel(ix, iy, iz);
             break;
@@ -1063,8 +1440,8 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
   domain.weighting = surface.weighting;
   domain.iso_value = surface.iso_value;
   for (std::size_t d = 0; d < 3; ++d) {
-    domain.limits[0][d] = lo[d] - (static_cast<double>(surface.buffer) + 0.5) * dx;
-    domain.limits[1][d] = hi[d] + (static_cast<double>(surface.buffer) + 0.5) * dx;
+    domain.limits[0][d] = lo[d] - static_cast<double>(surface.buffer) * dx;
+    domain.limits[1][d] = hi[d] + static_cast<double>(surface.buffer) * dx;
     domain.cell_counts[d] =
         static_cast<std::size_t>(std::max(1.0, std::ceil((domain.limits[1][d] -
                                                           domain.limits[0][d]) /
@@ -1083,7 +1460,7 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
     isthmus::VoxelRecord record;
     record.centroid = {{surface_voxel.x, surface_voxel.y, surface_voxel.z}};
     record.original_id = surface_voxel.voxel->id;
-    record.material_tag = config_.material.name;
+    record.material_tag = voxel_material(*surface_voxel.voxel).name;
     voxel_set.voxels.push_back(std::move(record));
   }
 
@@ -1160,6 +1537,27 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
       triangle.fractions = element.scalar_fractions;
     }
     state.triangles.push_back(std::move(triangle));
+  }
+
+  double surface_area = 0.0;
+  for (const auto &triangle : state.triangles) {
+    surface_area += triangle.area;
+  }
+  set_diagnostic("surface-area", surface_area);
+  set_diagnostic("surfarea", surface_area);
+  if (active_geometry_ == GeometryKind::Sphere) {
+    const double pi = std::acos(-1.0);
+    const double surface_radius = surface_area > 0.0 ? std::sqrt(surface_area / (4.0 * pi)) : 0.0;
+    set_diagnostic("surface-radius", surface_radius);
+    set_diagnostic("surfrad", surface_radius);
+    if (!has_diagnostic("surfarea0")) {
+      set_diagnostic("surface-area0", surface_area);
+      set_diagnostic("surfarea0", surface_area);
+      set_diagnostic("surface-radius0", surface_radius);
+      set_diagnostic("surfrad0", surface_radius);
+      set_diagnostic("surface-diameter0", 2.0 * surface_radius);
+      set_diagnostic("surfdiam0", 2.0 * surface_radius);
+    }
   }
 
   surfaces_[surface.name] = std::move(state);
@@ -1358,7 +1756,7 @@ void Model::apply_surface_local_increments(const std::vector<double> &mass_incre
     applied_mass_step_ += removed;
     applied_mass_total_ += removed;
     requested -= removed;
-    if (voxel.remaining_mass <= voxel_mass_ * kEpsilon) {
+    if (voxel.remaining_mass <= voxel_full_mass(voxel) * kEpsilon) {
       voxel.remaining_mass = 0.0;
       if (ablate.delete_empty) {
         voxel.active = false;
@@ -1380,7 +1778,7 @@ void Model::apply_surface_normal_carryover(const std::vector<double> &mass_incre
     const auto &voxel = voxels_[i];
     if (voxel.active && voxel.remaining_mass > 0.0 && !voxel.fixed) {
       keep[i] = true;
-      removed[i] = voxel_mass_ - voxel.remaining_mass;
+      removed[i] = voxel_full_mass(voxel) - voxel.remaining_mass;
     }
   }
 
@@ -1396,7 +1794,7 @@ void Model::apply_surface_normal_carryover(const std::vector<double> &mass_incre
       continue;
     }
     removed[i] += increment;
-    if (removed[i] >= voxel_mass_ * (1.0 - kEpsilon)) {
+    if (removed[i] >= voxel_full_mass(i) * (1.0 - kEpsilon)) {
       queue.push_back(i);
     }
   }
@@ -1418,12 +1816,13 @@ void Model::apply_surface_normal_carryover(const std::vector<double> &mass_incre
     const std::size_t i = queue.back();
     queue.pop_back();
     if (i >= voxels_.size() || processed[i] || !keep[i] ||
-        removed[i] < voxel_mass_ * (1.0 - kEpsilon)) {
+        removed[i] < voxel_full_mass(i) * (1.0 - kEpsilon)) {
       continue;
     }
     processed[i] = true;
-    const double excess = std::max(removed[i] - voxel_mass_, 0.0);
-    removed[i] = voxel_mass_;
+    const double full_mass = voxel_full_mass(i);
+    const double excess = std::max(removed[i] - full_mass, 0.0);
+    removed[i] = full_mass;
     keep[i] = false;
     if (excess <= 0.0) {
       continue;
@@ -1478,7 +1877,7 @@ void Model::apply_surface_normal_carryover(const std::vector<double> &mass_incre
     for (std::size_t k = 0; k < candidates.size(); ++k) {
       const std::size_t j = candidates[k];
       removed[j] += excess * weights[k] / weight_sum;
-      if (removed[j] >= voxel_mass_ * (1.0 - kEpsilon) && !processed[j]) {
+      if (removed[j] >= voxel_full_mass(j) * (1.0 - kEpsilon) && !processed[j]) {
         queue.push_back(j);
       }
     }
@@ -1490,13 +1889,13 @@ void Model::apply_surface_normal_carryover(const std::vector<double> &mass_incre
       continue;
     }
     const double old_mass = voxel.remaining_mass;
-    voxel.remaining_mass = std::max(voxel_mass_ - removed[i], 0.0);
+    voxel.remaining_mass = std::max(voxel_full_mass(voxel) - removed[i], 0.0);
     if (old_mass > voxel.remaining_mass) {
       const double removed_now = old_mass - voxel.remaining_mass;
       applied_mass_step_ += removed_now;
       applied_mass_total_ += removed_now;
     }
-    if (!keep[i] || voxel.remaining_mass <= voxel_mass_ * kEpsilon) {
+    if (!keep[i] || voxel.remaining_mass <= voxel_full_mass(voxel) * kEpsilon) {
       voxel.remaining_mass = 0.0;
       if (ablate.delete_empty) {
         voxel.active = false;
@@ -1513,7 +1912,7 @@ HistoryRow Model::make_history_row(int step, double time) const {
   const double remaining = remaining_mass();
   const int front = front_ix();
   const double discrete_front =
-      config_.geometry == GeometryKind::Sphere
+      active_geometry_ == GeometryKind::Sphere
           ? 0.0
           : (front < 0 ? static_cast<double>(grid_nx()) * voxel_dx()
                        : static_cast<double>(front) * voxel_dx());
@@ -1587,7 +1986,8 @@ void Model::write_voxels_vtu(const std::string &path, const std::string &select,
   const std::string canonical_scalar = canonical_quantity(scalar);
   if (canonical_scalar != "mf" && canonical_scalar != "mass" && scalar != "active" &&
       scalar != "fixed" && scalar != "id" && scalar != "ix" && scalar != "iy" &&
-      scalar != "iz" && scalar != "ghost") {
+      scalar != "iz" && scalar != "ghost" && scalar != "material-id" &&
+      scalar != "density") {
     throw RuntimeError("unknown voxel write-vtu scalar '" + scalar + "'");
   }
   VoxelDump dump;
@@ -1702,8 +2102,8 @@ void Model::write_vtu(const VoxelDump &dump, int step) const {
   out << "        <DataArray type=\"Float64\" Name=\"mf\" format=\"ascii\">\n";
   for (const auto &record : selected) {
     const auto *voxel = record.voxel;
-    out << "          " << (voxel_mass_ > 0.0 ? voxel->remaining_mass / voxel_mass_ : 0.0)
-        << '\n';
+    const double full_mass = voxel_full_mass(*voxel);
+    out << "          " << (full_mass > 0.0 ? voxel->remaining_mass / full_mass : 0.0) << '\n';
   }
   out << "        </DataArray>\n";
   out << "        <DataArray type=\"Float64\" Name=\"mass\" format=\"ascii\">\n";
@@ -1714,6 +2114,16 @@ void Model::write_vtu(const VoxelDump &dump, int step) const {
   out << "        <DataArray type=\"Int64\" Name=\"id\" format=\"ascii\">\n";
   for (const auto &record : selected) {
     out << "          " << record.voxel->id << '\n';
+  }
+  out << "        </DataArray>\n";
+  out << "        <DataArray type=\"Int32\" Name=\"material-id\" format=\"ascii\">\n";
+  for (const auto &record : selected) {
+    out << "          " << voxel_material(*record.voxel).id << '\n';
+  }
+  out << "        </DataArray>\n";
+  out << "        <DataArray type=\"Float64\" Name=\"density\" format=\"ascii\">\n";
+  for (const auto &record : selected) {
+    out << "          " << voxel_material(*record.voxel).density << '\n';
   }
   out << "        </DataArray>\n";
   out << "        <DataArray type=\"Int32\" Name=\"ix\" format=\"ascii\">\n";
@@ -1867,15 +2277,15 @@ void Model::write_verification_csv(const std::string &path) const {
     const std::string quantity = normalize_quantity(check.quantity);
     for (const auto &row : history_) {
       const double dx = voxel_dx();
-      const double length = config_.geometry == GeometryKind::Sphere
+      const double length = active_geometry_ == GeometryKind::Sphere
                                 ? config_.sphere.diameter
                                 : static_cast<double>(grid_nx()) * dx;
-      const double area = config_.geometry == GeometryKind::Sphere
+      const double area = active_geometry_ == GeometryKind::Sphere
                               ? 4.0 * std::acos(-1.0) * row.radius * row.radius
                               : static_cast<double>(grid_ny()) * static_cast<double>(grid_nz()) *
                                     dx * dx;
       const double initial_radius =
-          config_.geometry == GeometryKind::Sphere ? 0.5 * config_.sphere.diameter : 0.0;
+          active_geometry_ == GeometryKind::Sphere ? 0.5 * config_.sphere.diameter : 0.0;
       std::unordered_map<std::string, double> variables{
           {"step", static_cast<double>(row.step)},
           {"time", row.time},
@@ -1893,7 +2303,7 @@ void Model::write_verification_csv(const std::string &path) const {
           {"rad", row.radius},
           {"area", area},
           {"mass0", initial_mass_},
-          {"mvox", voxel_mass_},
+          {"mvox", representative_voxel_mass()},
           {"nvox0", static_cast<double>(initial_active_voxels_)},
           {"nvox", static_cast<double>(row.active_voxels)},
           {"ndel", static_cast<double>(row.deleted_voxels)},
@@ -1907,7 +2317,16 @@ void Model::write_verification_csv(const std::string &path) const {
           {config_.source.name, config_.source.value},
           {"source:" + config_.source.name, config_.source.value},
       };
-      const double actual = history_value(row, quantity);
+      for (const auto &material : config_.materials) {
+        const std::string suffix = ":" + std::to_string(material.id);
+        variables["rho" + suffix] = material.density;
+        variables["density" + suffix] = material.density;
+        variables["mvox" + suffix] = material.density * std::pow(dx, 3);
+        variables["mass0" + suffix] = material_initial_mass(material.id);
+        variables["nvox0" + suffix] = static_cast<double>(material_initial_voxels(material.id));
+      }
+      variables.insert(diagnostics_.begin(), diagnostics_.end());
+      const double actual = history_quantity_value(row, quantity);
       const double exact = evaluate_expression(check.expression, variables);
       const double error = ::iac::verification_error(actual, exact, check);
       out << csv_escape(check.quantity) << ',' << csv_escape(check.expression) << ','
@@ -1946,15 +2365,15 @@ double Model::verification_error(const VerificationCheck &check) const {
   int count = 0;
   const auto evaluate_row = [&](const HistoryRow &row) {
     const double dx = voxel_dx();
-    const double length = config_.geometry == GeometryKind::Sphere
+    const double length = active_geometry_ == GeometryKind::Sphere
                               ? config_.sphere.diameter
                               : static_cast<double>(grid_nx()) * dx;
-    const double area = config_.geometry == GeometryKind::Sphere
+    const double area = active_geometry_ == GeometryKind::Sphere
                             ? 4.0 * std::acos(-1.0) * row.radius * row.radius
                             : static_cast<double>(grid_ny()) * static_cast<double>(grid_nz()) *
                                   dx * dx;
     const double initial_radius =
-        config_.geometry == GeometryKind::Sphere ? 0.5 * config_.sphere.diameter : 0.0;
+        active_geometry_ == GeometryKind::Sphere ? 0.5 * config_.sphere.diameter : 0.0;
     std::unordered_map<std::string, double> variables{
         {"step", static_cast<double>(row.step)},
         {"time", row.time},
@@ -1972,7 +2391,7 @@ double Model::verification_error(const VerificationCheck &check) const {
         {"rad", row.radius},
         {"area", area},
         {"mass0", initial_mass_},
-        {"mvox", voxel_mass_},
+        {"mvox", representative_voxel_mass()},
         {"nvox0", static_cast<double>(initial_active_voxels_)},
         {"nvox", static_cast<double>(row.active_voxels)},
         {"ndel", static_cast<double>(row.deleted_voxels)},
@@ -1986,7 +2405,16 @@ double Model::verification_error(const VerificationCheck &check) const {
         {config_.source.name, config_.source.value},
         {"source:" + config_.source.name, config_.source.value},
     };
-    const double actual = history_value(row, quantity);
+    for (const auto &material : config_.materials) {
+      const std::string suffix = ":" + std::to_string(material.id);
+      variables["rho" + suffix] = material.density;
+      variables["density" + suffix] = material.density;
+      variables["mvox" + suffix] = material.density * std::pow(dx, 3);
+      variables["mass0" + suffix] = material_initial_mass(material.id);
+      variables["nvox0" + suffix] = static_cast<double>(material_initial_voxels(material.id));
+    }
+    variables.insert(diagnostics_.begin(), diagnostics_.end());
+    const double actual = history_quantity_value(row, quantity);
     const double exact = evaluate_expression(check.expression, variables);
     return ::iac::verification_error(actual, exact, check);
   };
@@ -2040,12 +2468,20 @@ double Model::diagnostic_verification_error(const VerificationCheck &check) cons
   variables["step"] = static_cast<double>(current_step_);
   variables["rho"] = config_.material.density;
   variables["density"] = config_.material.density;
-  if (config_.geometry == GeometryKind::Sphere) {
+  for (const auto &material : config_.materials) {
+    const std::string suffix = ":" + std::to_string(material.id);
+    variables["rho" + suffix] = material.density;
+    variables["density" + suffix] = material.density;
+    variables["mvox" + suffix] = material.density * std::pow(voxel_dx(), 3);
+    variables["mass0" + suffix] = material_initial_mass(material.id);
+    variables["nvox0" + suffix] = static_cast<double>(material_initial_voxels(material.id));
+  }
+  if (active_geometry_ == GeometryKind::Sphere) {
     variables["diameter"] = config_.sphere.diameter;
     variables["rad0"] = 0.5 * config_.sphere.diameter;
   }
   variables["mass0"] = initial_mass_;
-  variables["mvox"] = voxel_mass_;
+  variables["mvox"] = representative_voxel_mass();
   variables["nvox0"] = static_cast<double>(initial_active_voxels_);
   if (!history_.empty()) {
     const auto &row = history_.back();
@@ -2139,31 +2575,38 @@ void Model::print_run_summary(std::ostream &out, const std::string &run_type) co
   out << "# " << run_type << '\n';
   out << "# run configuration\n";
   out << "#   voxel model = " << config_.voxel_name << '\n';
-  if (config_.geometry == GeometryKind::Slab) {
-    const auto &g = config_.slab;
+  if (config_.creates.size() > 1) {
+    out << "#   geometry = composite\n";
+    out << "#   create commands = " << config_.creates.size() << '\n';
+    out << "#   grid = " << grid_nx() << " x " << grid_ny() << " x " << grid_nz() << '\n';
+    out << "#   dx = " << std::setprecision(8) << voxel_dx() << " m\n";
+  } else if (active_geometry_ == GeometryKind::Slab) {
     out << "#   geometry = slab\n";
-    out << "#   grid = " << g.nx << " x " << g.ny << " x " << g.nz << '\n';
-    out << "#   dx = " << std::setprecision(8) << g.dx << " m\n";
-  } else if (config_.geometry == GeometryKind::Sphere) {
+    out << "#   grid = " << grid_nx() << " x " << grid_ny() << " x " << grid_nz() << '\n';
+    out << "#   dx = " << std::setprecision(8) << voxel_dx() << " m\n";
+  } else if (active_geometry_ == GeometryKind::Sphere) {
     out << "#   geometry = sphere\n";
     out << "#   diameter = " << std::setprecision(8) << config_.sphere.diameter << " m\n";
     if (config_.sphere.resolution > 0) {
       out << "#   resolution = " << config_.sphere.resolution << " voxels across diameter\n";
     }
     out << "#   dx = " << config_.sphere.dx << " m\n";
-  } else if (config_.geometry == GeometryKind::Tiff) {
+  } else if (active_geometry_ == GeometryKind::Tiff) {
     const auto &g = config_.tiff;
     out << "#   geometry = tiff\n";
     out << "#   file = " << g.file << '\n';
     out << "#   axes = " << g.axes << '\n';
     out << "#   origin = [" << std::setprecision(8) << g.origin[0] << ", " << g.origin[1]
         << ", " << g.origin[2] << "] m (" << g.origin_mode << ")\n";
-    out << "#   grid = " << g.nx << " x " << g.ny << " x " << g.nz << '\n';
-    out << "#   dx = " << std::setprecision(8) << g.dx << " m\n";
+    out << "#   grid = " << grid_nx() << " x " << grid_ny() << " x " << grid_nz() << '\n';
+    out << "#   dx = " << std::setprecision(8) << voxel_dx() << " m\n";
   }
-  out << "#   material = " << config_.material.name << '\n';
-  out << "#   density = " << config_.material.density << " kg/m^3\n";
-  out << "#   voxel mass = " << voxel_mass_ << " kg\n";
+  out << "#   materials = " << config_.materials.size() << '\n';
+  for (const auto &material : config_.materials) {
+    out << "#     id " << material.id << " " << material.name << " density "
+        << material.density << " kg/m^3\n";
+  }
+  out << "#   representative voxel mass = " << representative_voxel_mass() << " kg\n";
   out << "#   initial active voxels = " << initial_active_voxels_ << '\n';
   out << "#   initial mass = " << initial_mass_ << " kg\n";
   out << "#   source = " << config_.source.name << " constant " << config_.source.value;
@@ -2211,50 +2654,23 @@ std::size_t Model::index(int ix, int iy, int iz) const {
 }
 
 double Model::voxel_dx() const {
-  if (config_.geometry == GeometryKind::Slab) {
-    return config_.slab.dx;
-  }
-  if (config_.geometry == GeometryKind::Sphere) {
-    return config_.sphere.dx;
-  }
-  if (config_.geometry == GeometryKind::Tiff) {
-    return config_.tiff.dx;
-  }
-  return 0.0;
+  return dx_;
 }
 
 int Model::grid_nx() const {
-  if (config_.geometry == GeometryKind::Slab) {
-    return config_.slab.nx;
-  }
-  if (config_.geometry == GeometryKind::Sphere) {
-    return static_cast<int>(std::ceil(config_.sphere.diameter / config_.sphere.dx));
-  }
-  return config_.tiff.nx;
+  return grid_nx_;
 }
 
 int Model::grid_ny() const {
-  if (config_.geometry == GeometryKind::Slab) {
-    return config_.slab.ny;
-  }
-  if (config_.geometry == GeometryKind::Tiff) {
-    return config_.tiff.ny;
-  }
-  return grid_nx();
+  return grid_ny_;
 }
 
 int Model::grid_nz() const {
-  if (config_.geometry == GeometryKind::Slab) {
-    return config_.slab.nz;
-  }
-  if (config_.geometry == GeometryKind::Tiff) {
-    return config_.tiff.nz;
-  }
-  return grid_nx();
+  return grid_nz_;
 }
 
 std::array<double, 3> Model::carryover_center() const {
-  if (config_.geometry == GeometryKind::Sphere) {
+  if (active_geometry_ == GeometryKind::Sphere && config_.creates.size() <= 1) {
     return {{0.0, 0.0, 0.0}};
   }
   const auto lo = real_domain_lo();
@@ -2263,18 +2679,6 @@ std::array<double, 3> Model::carryover_center() const {
 }
 
 std::array<double, 3> Model::real_domain_lo() const {
-  if (config_.geometry == GeometryKind::Slab) {
-    return {{0.0, 0.0, 0.0}};
-  }
-  if (config_.geometry == GeometryKind::Tiff) {
-    const auto &g = config_.tiff;
-    if (g.origin_mode == "center") {
-      return {{g.origin[0] - 0.5 * g.dx, g.origin[1] - 0.5 * g.dx,
-               g.origin[2] - 0.5 * g.dx}};
-    }
-    return g.origin;
-  }
-
   const double dx = voxel_dx();
   std::array<double, 3> lo{{0.0, 0.0, 0.0}};
   bool initialized = false;
@@ -2297,19 +2701,6 @@ std::array<double, 3> Model::real_domain_lo() const {
 }
 
 std::array<double, 3> Model::real_domain_hi() const {
-  if (config_.geometry == GeometryKind::Slab) {
-    const auto &g = config_.slab;
-    return {{static_cast<double>(g.nx) * g.dx, static_cast<double>(g.ny) * g.dx,
-             static_cast<double>(g.nz) * g.dx}};
-  }
-  if (config_.geometry == GeometryKind::Tiff) {
-    const auto &g = config_.tiff;
-    const double hi_offset = g.origin_mode == "center" ? -0.5 : 0.0;
-    return {{g.origin[0] + (static_cast<double>(g.nx) + hi_offset) * g.dx,
-             g.origin[1] + (static_cast<double>(g.ny) + hi_offset) * g.dx,
-             g.origin[2] + (static_cast<double>(g.nz) + hi_offset) * g.dx}};
-  }
-
   const double dx = voxel_dx();
   std::array<double, 3> hi{{0.0, 0.0, 0.0}};
   bool initialized = false;
@@ -2359,7 +2750,7 @@ int Model::front_ix() const {
 }
 
 double Model::inferred_radius() const {
-  if (config_.geometry != GeometryKind::Sphere) {
+  if (active_geometry_ != GeometryKind::Sphere) {
     return 0.0;
   }
   const double mass = remaining_mass();

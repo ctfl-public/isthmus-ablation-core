@@ -5,6 +5,7 @@
 #include "iacbridge.h"
 #include "update.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
@@ -83,15 +84,30 @@ void Voxel::command(int narg, char **arg) {
     if (!density) {
       error->all(FLERR, "voxel material requires density");
     }
-    cfg.material.name = arg[1];
-    cfg.material.density = std::atof(density);
+    iac::Material material;
+    material.name = arg[1];
+    material.density = std::atof(density);
+    const char *id = value_after(narg - 2, arg + 2, "id");
+    material.id = id ? std::atoi(id) : static_cast<int>(cfg.materials.size()) + 1;
     const char *molar_mass = value_after(narg - 2, arg + 2, "molar-mass");
     const char *formula = value_after(narg - 2, arg + 2, "formula");
     if (molar_mass) {
-      cfg.material.molar_mass = std::atof(molar_mass);
+      material.molar_mass = std::atof(molar_mass);
     }
     if (formula) {
-      cfg.material.formula = formula;
+      material.formula = formula;
+    }
+    auto existing = std::find_if(cfg.materials.begin(), cfg.materials.end(),
+                                 [&](const iac::Material &entry) {
+                                   return entry.name == material.name || entry.id == material.id;
+                                 });
+    if (existing != cfg.materials.end()) {
+      *existing = material;
+    } else {
+      cfg.materials.push_back(material);
+    }
+    if (cfg.material.name.empty()) {
+      cfg.material = material;
     }
     IACBridge::reset_model();
     return;
@@ -102,20 +118,30 @@ void Voxel::command(int narg, char **arg) {
       error->all(FLERR, "Illegal voxel create command");
     }
     cfg.voxel_name = arg[1];
+    iac::VoxelCreate create;
+    create.voxel_name = arg[1];
     if (std::strcmp(arg[2], "sphere") == 0) {
-      cfg.geometry = iac::GeometryKind::Sphere;
+      create.geometry = iac::GeometryKind::Sphere;
       const char *diameter = value_after(narg - 3, arg + 3, "diameter");
       const char *resolution = value_after(narg - 3, arg + 3, "resolution");
       const char *material = value_after(narg - 3, arg + 3, "material");
       if (!diameter || !resolution || !material) {
         error->all(FLERR, "voxel create sphere requires diameter, resolution, and material");
       }
-      cfg.sphere.diameter = std::atof(diameter);
-      cfg.sphere.resolution = std::atoi(resolution);
-      cfg.sphere.dx = cfg.sphere.diameter / static_cast<double>(cfg.sphere.resolution);
-      cfg.sphere.material = material;
+      create.sphere.diameter = std::atof(diameter);
+      create.sphere.resolution = std::atoi(resolution);
+      create.sphere.dx = create.sphere.diameter / static_cast<double>(create.sphere.resolution);
+      create.sphere.material = material;
+      const char *cx = value_after(narg - 3, arg + 3, "cx");
+      const char *cy = value_after(narg - 3, arg + 3, "cy");
+      const char *cz = value_after(narg - 3, arg + 3, "cz");
+      if (cx) create.sphere.center[0] = std::atof(cx);
+      if (cy) create.sphere.center[1] = std::atof(cy);
+      if (cz) create.sphere.center[2] = std::atof(cz);
+      cfg.geometry = iac::GeometryKind::Sphere;
+      cfg.sphere = create.sphere;
     } else if (std::strcmp(arg[2], "slab") == 0) {
-      cfg.geometry = iac::GeometryKind::Slab;
+      create.geometry = iac::GeometryKind::Slab;
       const char *nx = value_after(narg - 3, arg + 3, "nx");
       const char *ny = value_after(narg - 3, arg + 3, "ny");
       const char *nz = value_after(narg - 3, arg + 3, "nz");
@@ -124,52 +150,72 @@ void Voxel::command(int narg, char **arg) {
       if (!nx || !ny || !nz || !dx || !material) {
         error->all(FLERR, "voxel create slab requires nx, ny, nz, dx, and material");
       }
-      cfg.slab.nx = std::atoi(nx);
-      cfg.slab.ny = std::atoi(ny);
-      cfg.slab.nz = std::atoi(nz);
-      cfg.slab.dx = std::atof(dx);
-      cfg.slab.material = material;
+      create.slab.nx = std::atoi(nx);
+      create.slab.ny = std::atoi(ny);
+      create.slab.nz = std::atoi(nz);
+      create.slab.dx = std::atof(dx);
+      create.slab.material = material;
+      const char *ox = value_after(narg - 3, arg + 3, "ox");
+      const char *oy = value_after(narg - 3, arg + 3, "oy");
+      const char *oz = value_after(narg - 3, arg + 3, "oz");
+      if (ox) create.slab.origin[0] = std::atof(ox);
+      if (oy) create.slab.origin[1] = std::atof(oy);
+      if (oz) create.slab.origin[2] = std::atof(oz);
+      cfg.geometry = iac::GeometryKind::Slab;
+      cfg.slab = create.slab;
     } else if (std::strcmp(arg[2], "tiff") == 0) {
-      cfg.geometry = iac::GeometryKind::Tiff;
+      create.geometry = iac::GeometryKind::Tiff;
       const char *file = value_after(narg - 3, arg + 3, "file");
       const char *dx = value_after(narg - 3, arg + 3, "dx");
       const char *material = value_after(narg - 3, arg + 3, "material");
+      const char *materials = value_after(narg - 3, arg + 3, "materials");
       const char *ox = value_after(narg - 3, arg + 3, "ox");
       const char *oy = value_after(narg - 3, arg + 3, "oy");
       const char *oz = value_after(narg - 3, arg + 3, "oz");
       const char *axes = value_after(narg - 3, arg + 3, "axes");
       const char *origin = value_after(narg - 3, arg + 3, "origin");
       const char *origin_mode = value_after(narg - 3, arg + 3, "origin-mode");
-      if (!file || !dx || !material) {
-        error->all(FLERR, "voxel create tiff requires file, dx, and material");
+      if (!file || !dx || (!material && !materials)) {
+        error->all(FLERR, "voxel create tiff requires file, dx, and material or materials labels");
+      }
+      if (materials && std::strcmp(materials, "labels") != 0) {
+        error->all(FLERR, "voxel create tiff materials must be labels");
       }
       if (origin && origin_mode) {
         error->all(FLERR, "voxel create tiff accepts either origin or origin-mode, not both");
       }
-      cfg.tiff.file = file;
-      cfg.tiff.dx = std::atof(dx);
-      cfg.tiff.material = material;
+      create.tiff.file = file;
+      create.tiff.dx = std::atof(dx);
+      if (material) {
+        create.tiff.material = material;
+      }
+      if (materials) {
+        create.tiff.material_labels = true;
+      }
       if (ox) {
-        cfg.tiff.origin[0] = std::atof(ox);
+        create.tiff.origin[0] = std::atof(ox);
       }
       if (oy) {
-        cfg.tiff.origin[1] = std::atof(oy);
+        create.tiff.origin[1] = std::atof(oy);
       }
       if (oz) {
-        cfg.tiff.origin[2] = std::atof(oz);
+        create.tiff.origin[2] = std::atof(oz);
       }
       if (axes) {
-        cfg.tiff.axes = axes;
+        create.tiff.axes = axes;
       }
       if (origin) {
-        cfg.tiff.origin_mode = origin;
+        create.tiff.origin_mode = origin;
       }
       if (origin_mode) {
-        cfg.tiff.origin_mode = origin_mode;
+        create.tiff.origin_mode = origin_mode;
       }
+      cfg.geometry = iac::GeometryKind::Tiff;
+      cfg.tiff = create.tiff;
     } else {
       error->all(FLERR, "voxel create style must be slab, sphere, or tiff");
     }
+    cfg.creates.push_back(std::move(create));
     cfg.timestep.kind = iac::TimestepKind::Explicit;
     cfg.timestep.value = update->dt > 0.0 ? update->dt : 1.0;
     IACBridge::reset_model();
