@@ -31,7 +31,7 @@ voxel_dump          ghost solid vtu 1 output/pregen-tiff-carbon-recession/conver
                       select ghosts scalar mf
 surf_dump           skin skin vtp 1 output/pregen-tiff-carbon-recession/converge-surface_*.vtp
 
-isthmus_surface     skin voxels solid buffer 3 map yes
+isthmus_surface     skin voxels solid  map yes
 surf_install        skin particle none type 1
 surf_write_vtp      skin output/pregen-tiff-carbon-recession/converge-surface_*.vtp
 
@@ -71,7 +71,7 @@ label               coupled-loop
   if                "${keep} == 0" then "jump SELF done"
 
   remove_surf       all
-  isthmus_surface   skin voxels solid buffer 3 map yes
+  isthmus_surface   skin voxels solid  map yes
   surf_install      skin particle none type 1
   surf_modify       all collide 1 react ox
 

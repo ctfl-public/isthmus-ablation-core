@@ -25,7 +25,7 @@ surf_dump           skin skin vtp 1 output/pregen-tiff-carbon-recession/constant
 
 label               ablate-loop
   iac_limit         time ${ablation_time}
-  isthmus_surface   skin voxels solid buffer 3 resolution 1.6 iso 0.6 map yes
+  isthmus_surface   skin voxels solid  resolution 1.6 iso 0.6 map yes
   surf_flux         skin source qtop select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
   voxel_ablate      solid surface skin policy carryover/normal delete yes
   iac_run           1

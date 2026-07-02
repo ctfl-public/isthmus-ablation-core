@@ -21,7 +21,7 @@ collide             vss air examples/dsmc-sphere-mass-flux/air-react-to-flux.vss
 
 voxel_material      carbon density 1800.0 molar-mass 0.0120107 formula C
 voxel_create        solid sphere diameter 1.0e-3 resolution 10 material carbon
-isthmus_surface     skin voxels solid buffer 3 map yes
+isthmus_surface     skin voxels solid  map yes
 surf_install        skin particle none type 1
 
 surf_collide        1 diffuse 5000.0 1.0

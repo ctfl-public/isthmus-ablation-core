@@ -6,15 +6,15 @@ voxels.
 ## Syntax
 
 ```text
-isthmus_surface <surface-id> voxels <model> [buffer <N>] [resolution <R|A:B|voxel>] [iso <value>] [weighting yes|no] [map yes|no] [crop real|no]
+isthmus_surface <surface-id> voxels <model> [resolution <R|A:B|voxel>] [iso <value>] [weighting yes|no] [map yes|no] [crop real|no]
 ```
 
 ## Example
 
 ```text
-isthmus_surface skin voxels solid buffer 3 iso 0.45 map yes
-isthmus_surface skin voxels solid buffer 3 map yes crop real
-isthmus_surface skin voxels solid buffer 3 resolution 1.6 iso 0.6 map yes
+isthmus_surface skin voxels solid iso 0.45 map yes
+isthmus_surface skin voxels solid map yes crop real
+isthmus_surface skin voxels solid resolution 1.6 iso 0.6 map yes
 ```
 
 ## Description
@@ -27,19 +27,15 @@ triangle-to-voxel ownership fractions.
 `voxel_ablate <model> surface <surface-id>` needs those ownership fractions to
 send triangle mass loss back to voxels.
 
-`buffer` adds empty voxel layers around the active voxel bounding box before
-marching cubes. This helps ISTHMUS generate a closed surface as the solid
-shrinks. Newer ISTHMUS builds derive this padding internally; in that mode IAC
-still accepts `buffer` for input compatibility, but ISTHMUS owns the final
-marching domain.
+`buffer` is a legacy option accepted for input compatibility. Newer ISTHMUS
+builds derive the required marching-domain padding internally, so new inputs
+should omit it and use `iso` when an inward or outward surface shift is needed.
 
 `resolution` controls the marching-cubes grid spacing relative to the voxel
 spacing. The default is `voxel`, equivalent to `1:1`, meaning one marching cell
 per voxel width. A value such as `2:1` makes the marching-cubes cell spacing
 twice the voxel spacing. Numeric values are accepted as shorthand, so
-`resolution 2` is equivalent to `resolution 2:1`. Larger values are coarser and
-usually need a larger `buffer` because each marching cell spans more voxel
-layers.
+`resolution 2` is equivalent to `resolution 2:1`. Larger values are coarser.
 
 `iso` sets the marching-cubes isovalue used by ISTHMUS. The default is `0.5`,
 which extracts the middle of the scalar transition between solid and empty

@@ -24,7 +24,7 @@ surf_dump           skin skin vtp 1 output/slab-isthmus-ghost/surface_*.vtp
 
 label               ablate-loop
   iac_limit         time ${ablation_time}
-  isthmus_surface   skin voxels solid buffer 3 map yes
+  isthmus_surface   skin voxels solid  map yes
   surf_flux         skin source q1 select normal nx -1.0 ny 0.0 nz 0.0 min-cos 0.5
   voxel_ablate      solid surface skin policy local delete yes
   iac_run           1

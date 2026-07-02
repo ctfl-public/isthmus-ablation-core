@@ -49,7 +49,7 @@ iac_run 1
 A surface-coupled loop is:
 
 ```text
-isthmus_surface skin voxels solid buffer 3 map yes
+isthmus_surface skin voxels solid map yes
 surf_flux skin source q1 select all
 voxel_ablate solid surface skin policy carryover/normal delete yes
 iac_run 1

@@ -58,7 +58,7 @@ voxel_create        solid tiff file carbon-sample.tif dx 2.5e-5 material carbon 
 voxel_ghost         solid axis y boundary infinite layers 1
 voxel_ghost         solid axis z boundary infinite layers 1
 voxel_ghost         solid axis x side lo boundary infinite layers 1
-isthmus_surface     skin voxels solid buffer 3 resolution 1.6 iso 0.6 map yes
+isthmus_surface     skin voxels solid resolution 1.6 iso 0.6 map yes
 surf_flux           skin source qtop select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
 voxel_ablate        solid surface skin policy carryover/normal delete yes
 ```
