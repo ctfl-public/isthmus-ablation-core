@@ -258,13 +258,19 @@ void set_internal_variable(Input *input, Error *error, const char *name, double 
 
 double reduce_surface_values(const std::vector<double> &values,
                              const std::vector<iac::Model::PublicSurfaceTriangle> &triangles,
-                             const std::string &mode, Error *error, const char *command) {
+                             const std::string &mode, const NormalSelector &selector,
+                             Error *error, const char *command) {
   if (values.size() != triangles.size()) {
     error->all(FLERR, (std::string(command) + " triangle count mismatch").c_str());
   }
   double sum = 0.0;
   double area_sum = 0.0;
+  std::size_t selected_count = 0;
   for (std::size_t i = 0; i < values.size(); ++i) {
+    if (!selected_by_normal(selector, triangles[i])) {
+      continue;
+    }
+    ++selected_count;
     const double area = triangles[i].area;
     area_sum += area;
     if (mode == "sum-area" || mode == "ave-area") {
@@ -276,7 +282,7 @@ double reduce_surface_values(const std::vector<double> &values,
     }
   }
   if (mode == "ave") {
-    return values.empty() ? 0.0 : sum / static_cast<double>(values.size());
+    return selected_count > 0 ? sum / static_cast<double>(selected_count) : 0.0;
   }
   if (mode == "ave-area") {
     return area_sum > 0.0 ? sum / area_sum : 0.0;
@@ -861,6 +867,8 @@ void Surface::command(int narg, char **arg) {
       error->all(FLERR, "dsmc_converge flux requires surface, fix, quantity mass-flux, every, reduce, rel, cv, window, and max-iter");
     }
     const int column = direct_mass_flux_column(npairs, pairs, error, "dsmc_converge flux");
+    const NormalSelector selector =
+        parse_optional_normal_selector(npairs, pairs, error, "dsmc_converge flux");
     const int every = std::atoi(every_value);
     const int window_size = std::atoi(window_value);
     const int max_iter = std::atoi(max_iter_value);
@@ -902,7 +910,7 @@ void Surface::command(int narg, char **arg) {
           if (triangles.size() != static_cast<std::size_t>(surf->nsurf)) {
             throw std::runtime_error("dsmc_converge flux triangle count does not match SPARTA surface count");
           }
-          current = reduce_surface_values(values, triangles, reduce_value, error,
+          current = reduce_surface_values(values, triangles, reduce_value, selector, error,
                                           "dsmc_converge flux");
         }
       } catch (const std::exception &ex) {

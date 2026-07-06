@@ -38,7 +38,8 @@ fix                 reservoir emit/face air all twopass
 stats_style         step cpu np nscoll nscheck
 stats               1
 dsmc_converge       flux skin fix mflux quantity mass-flux every 1 reduce sum-area &
-                    rel 2.0 cv 1.0 window 1 min-iter 1 max-iter 1
+                    rel 2.0 cv 1.0 window 1 min-iter 1 max-iter 1 &
+                    select normal nx 1.0 ny 0.0 nz 0.0 min-cos -1.0
 
 surf_measure_flux   skin dsmc/mass-flux fix mflux quantity mass-flux units flux &
                     expected kinetic/theory number-density 7.244e23 &

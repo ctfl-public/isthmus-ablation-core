@@ -51,7 +51,8 @@ label               coupled-loop
   fix               mflux ave/surf all 1 8 8 c_mflux[*] ave one
   dsmc_converge     flux skin fix mflux quantity mass-flux &
                       every 8 reduce sum-area &
-                      rel 0.35 cv 0.35 window 3 min-iter 3 max-iter 8
+                      rel 0.35 cv 0.35 window 3 min-iter 3 max-iter 8 &
+                      select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
 
   surf_flux         skin dsmc/mass-flux fix mflux quantity mass-flux &
                       units flux mass-courant 1.0 select normal &

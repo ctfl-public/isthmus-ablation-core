@@ -41,7 +41,8 @@ surf_measure_flux <surface-id> dsmc/mass-flux fix <fix-id> quantity mass-flux \
 
 dsmc_converge flux <surface-id> fix <fix-id> quantity mass-flux every <Nstep> \
   reduce <sum|ave|sum-area|ave-area> rel <tol> cv <tol> window <N> \
-  max-iter <N> [min-iter <N>] [passes <N>] [variable <name>]
+  max-iter <N> [min-iter <N>] [passes <N>] [variable <name>] \
+  [select all | select normal nx <x> ny <y> nz <z> [min-cos <c>]]
 
 surf_dump <dump-id> <surface-id> vtp <N> <path>
 surf_dump off
@@ -262,6 +263,11 @@ voxel_ablate solid surface skin policy carryover/normal delete yes
 iac_run 1
 iac_spa_stats
 ```
+
+For a DSMC column normalized as `kg/m2/s`, `sum-area` returns total mass loss
+rate in `kg/s` over the selected triangles, while `ave-area` returns the
+area-averaged mass flux in `kg/m2/s`. Add `select normal ...` when the
+convergence diagnostic should follow only one face of a reconstructed surface.
 
 The compact command is quiet during normal console output. Use `iac_spa_stats`
 after the IAC update to print the compact `[SPA]` gas stats row for the DSMC
