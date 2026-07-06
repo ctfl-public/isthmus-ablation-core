@@ -197,7 +197,7 @@ if(Python3_Interpreter_FOUND)
     DEPENDS ${CMAKE_SOURCE_DIR}/tools/make-multiphase-slab-tiff.py
     COMMENT "Generating deterministic multiphase slab TIFF fixture"
   )
-  add_custom_target(generated-fixtures ALL DEPENDS
+  add_custom_target(generated-fixtures DEPENDS
     ${IAC_CARBON_SAMPLE_TIFF}
     ${IAC_MULTIPHASE_SLAB_TIFF}
   )
@@ -283,10 +283,6 @@ set(IAC_DSMC_TARGET_DEPENDS ia-core dsmc-kinetic-convergence-check)
 if(TARGET dsmc-iac)
   list(APPEND IAC_DSMC_TARGET_DEPENDS dsmc-iac)
 endif()
-if(TARGET generated-fixtures)
-  list(APPEND IAC_DSMC_TARGET_DEPENDS generated-fixtures)
-endif()
-
 if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND Python3_Interpreter_FOUND AND IAC_MAKE_EXECUTABLE)
   add_custom_target(
     dsmc
@@ -338,6 +334,13 @@ else()
 endif()
 
 enable_testing()
+
+if(TARGET generated-fixtures)
+  add_test(
+    NAME generated-fixtures-build
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target generated-fixtures
+  )
+endif()
 
 add_test(
   NAME slab-direct-command-verification
@@ -403,6 +406,9 @@ if(isthmus_cpp_FOUND)
       COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
               $<TARGET_FILE:ia-core> -in ${IAC_TIFF_DEFAULT_AXES_TEST_INPUT}
     )
+    set_tests_properties(tiff-default-axes-verification PROPERTIES
+      DEPENDS generated-fixtures-build
+    )
     set(IAC_TIFF_LEGACY_AXES_TEST_INPUT
         "${CMAKE_BINARY_DIR}/tests/inputs/tiff-axis/in.tiff-legacy-axes.verify")
     configure_file(
@@ -414,6 +420,9 @@ if(isthmus_cpp_FOUND)
       NAME tiff-legacy-axes-verification
       COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
               $<TARGET_FILE:ia-core> -in ${IAC_TIFF_LEGACY_AXES_TEST_INPUT}
+    )
+    set_tests_properties(tiff-legacy-axes-verification PROPERTIES
+      DEPENDS generated-fixtures-build
     )
     set(IAC_TIFF_CENTER_ORIGIN_TEST_INPUT
         "${CMAKE_BINARY_DIR}/tests/inputs/tiff-axis/in.tiff-center-origin.verify")
@@ -427,6 +436,9 @@ if(isthmus_cpp_FOUND)
       COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
               $<TARGET_FILE:ia-core> -in ${IAC_TIFF_CENTER_ORIGIN_TEST_INPUT}
     )
+    set_tests_properties(tiff-center-origin-verification PROPERTIES
+      DEPENDS generated-fixtures-build
+    )
     set(IAC_CARBON_CONSTANT_TEST_INPUT
         "${CMAKE_BINARY_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.constant-flux.verify")
     configure_file(
@@ -439,6 +451,9 @@ if(isthmus_cpp_FOUND)
       COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
               $<TARGET_FILE:ia-core> -in ${IAC_CARBON_CONSTANT_TEST_INPUT}
     )
+    set_tests_properties(pregen-tiff-carbon-recession-constant-flux-verification PROPERTIES
+      DEPENDS generated-fixtures-build
+    )
     set(IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT
         "${CMAKE_BINARY_DIR}/tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs-tiff.verify")
     configure_file(
@@ -450,6 +465,9 @@ if(isthmus_cpp_FOUND)
       NAME multiphase-side-by-side-slabs-tiff-verification
       COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
               $<TARGET_FILE:ia-core> -in ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
+    )
+    set_tests_properties(multiphase-side-by-side-slabs-tiff-verification PROPERTIES
+      DEPENDS generated-fixtures-build
     )
   endif()
 endif()
@@ -603,6 +621,9 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
               ${IAC_DSMC_EXECUTABLE} -log none
               -in ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
     )
+    set_tests_properties(hosted-multiphase-side-by-side-slabs-tiff-verification PROPERTIES
+      DEPENDS generated-fixtures-build
+    )
     if(IAC_ENABLE_MPI_TESTS AND IAC_MPIEXEC_EXECUTABLE)
       add_test(
         NAME hosted-mpi-multiphase-side-by-side-slabs-tiff-verification
@@ -610,6 +631,9 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
                 ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
                 ${IAC_DSMC_EXECUTABLE} -log none
                 -in ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
+      )
+      set_tests_properties(hosted-mpi-multiphase-side-by-side-slabs-tiff-verification PROPERTIES
+        DEPENDS generated-fixtures-build
       )
     endif()
 
@@ -629,6 +653,7 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
               -in ${IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT}
     )
     set_tests_properties(pregen-tiff-carbon-recession-dsmc-co-verification PROPERTIES
+      DEPENDS generated-fixtures-build
       TIMEOUT 90
     )
 
@@ -642,6 +667,7 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
               -P ${CMAKE_SOURCE_DIR}/tests/cmake/run-pregen-tiff-carbon-converge.cmake
     )
     set_tests_properties(pregen-tiff-carbon-recession-dsmc-co-converge-verification PROPERTIES
+      DEPENDS generated-fixtures-build
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       TIMEOUT 30
       ENVIRONMENT "OMPI_MCA_btl=self"
