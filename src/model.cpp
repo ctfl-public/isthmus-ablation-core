@@ -246,13 +246,13 @@ double triangle_area3(const std::array<double, 3> &a, const std::array<double, 3
 
 int tiff_axis_component(char axis) {
   if (axis == 'x') {
-    return 2;
+    return 0;
   }
   if (axis == 'y') {
     return 1;
   }
   if (axis == 'z') {
-    return 0;
+    return 2;
   }
   throw RuntimeError("voxel create tiff axes must use only x, y, and z");
 }
@@ -789,9 +789,9 @@ void Model::initialize_creates() {
         if (labeled.voxels.voxels.empty()) {
           throw RuntimeError("voxel create tiff produced no active voxels");
         }
-        g.nx = static_cast<int>(labeled.dims[2]);
+        g.nx = static_cast<int>(labeled.dims[0]);
         g.ny = static_cast<int>(labeled.dims[1]);
-        g.nz = static_cast<int>(labeled.dims[0]);
+        g.nz = static_cast<int>(labeled.dims[2]);
         for (const auto &record : labeled.voxels.voxels) {
           const int ix = static_cast<int>(
               std::llround(record.centroid[tiff_axis_component(g.axes[0])] / dx_));
