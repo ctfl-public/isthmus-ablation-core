@@ -36,6 +36,7 @@ Manual PDF: [docs/isthmus-ablation-core-manual.pdf](docs/isthmus-ablation-core-m
 - [Coupled Workflow](#coupled-workflow)
 - [Input Style](#input-style)
 - [Modes](#modes)
+- [Requirements](#requirements)
 - [Quick Start](#quick-start)
 - [Standalone Mode](#standalone-mode)
 - [Examples](#examples)
@@ -112,14 +113,67 @@ DSMC/SPARTA overlay. The build links IAC directly into
 collisions, chemistry, MPI, and surface tallies while this repository owns the
 evolving voxel solid.
 
+## Requirements
+
+Normal builds and coupled DSMC/IAC runs do not require Python.
+
+For all builds:
+
+- A C++20 compiler.
+- CMake and `make`.
+- [ISTHMUS](https://github.com/ctfl-public/isthmus), the surface
+  reconstruction library used by IAC workflows.
+
+For standalone `ia-core` builds:
+
+- ISTHMUS is required for the supported standalone examples and tests that
+  reconstruct or use triangle surfaces.
+- Narrow direct-voxel developer cases can build without ISTHMUS, but that is
+  not the recommended setup.
+
+For DSMC/SPARTA-coupled builds:
+
+- A [SPARTA DSMC](https://github.com/sparta/sparta) checkout.
+- An ISTHMUS checkout or install.
+- A DSMC machine target supported by that checkout, such as `mpi`, `mac_mpi`,
+  or `serial`.
+- The DSMC checkout must include the direct reaction mass-flux computes:
+
+```text
+src/compute_react_surf_mass_flux.{h,cpp}
+src/compute_react_boundary_mass_flux.{h,cpp}
+```
+
+Python is optional. It is only used for helper targets that generate TIFF
+fixtures for TIFF import tests, plus documentation or report-generation tools.
+Those helpers use only the Python standard library; Python 3.6 or newer is
+intended to be enough for the generated TIFF fixture tests.
+
 ## Quick Start
 
-If DSMC and ISTHMUS are already installed, set their roots once:
+Clone or install the external codes first:
+
+```bash
+git clone https://github.com/ctfl-public/isthmus.git $HOME/isthmus
+git clone https://github.com/sparta/sparta.git $HOME/dsmc
+```
+
+Build the native ISTHMUS C++ library:
+
+```bash
+cmake -S $HOME/isthmus -B $HOME/isthmus/build
+cmake --build $HOME/isthmus/build -j
+```
+
+Then set the roots for the current shell:
 
 ```bash
 export DSMC_ROOT=$HOME/dsmc
 export ISTHMUS_ROOT=$HOME/isthmus
 ```
+
+To make those paths persistent, add the same exports to your shell startup
+file, such as `~/.bashrc`, `~/.bash_profile`, or `~/.zshrc`.
 
 Then build the private DSMC/IAC executable:
 
