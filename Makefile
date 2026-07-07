@@ -40,6 +40,9 @@ help:
 	@echo "  make test-standalone  Run standalone CTest suite"
 	@echo "  make test-dsmc        Run DSMC/IAC CTest suite"
 	@echo "  make test-dsmc-serial Run DSMC/IAC CTest suite without MPI-launched tests"
+	@echo "  make test-plan-standalone"
+	@echo "                        Show standalone configured/runnable/skipped tests"
+	@echo "  make test-plan-dsmc   Show DSMC/IAC configured/runnable/skipped tests"
 	@echo "  make test             Alias for test-dsmc"
 	@echo
 	@echo "  make check-standalone Build standalone and run standalone tests"
@@ -93,14 +96,25 @@ serial:
 mcc:
 	$(MAKE) dsmc DSMC_MACHINE=mpi
 
-.PHONY: test-standalone test-dsmc test-dsmc-serial test
-test-standalone:
+.PHONY: test-plan-standalone test-plan-dsmc test-standalone test-dsmc test-dsmc-serial test
+test-plan-standalone: configure-standalone
+	@cat $(BUILD_DIR)/test-summary.txt
+	$(CMAKE) -E chdir $(BUILD_DIR) $(CTEST) -N $(CTEST_ARGS)
+
+test-plan-dsmc: configure-dsmc
+	@cat $(DSMC_BUILD_DIR)/test-summary.txt
+	$(CMAKE) -E chdir $(DSMC_BUILD_DIR) $(CTEST) -N $(CTEST_ARGS)
+
+test-standalone: configure-standalone
+	@awk 'BEGIN { found=0; show=1 } /^Tests:/ { print ""; print "Skipped tests:"; show=0; next } show { print } /^SKIP/ { print; found=1 } END { if (!found) print "  none" }' $(BUILD_DIR)/test-summary.txt
 	$(CMAKE) -E chdir $(BUILD_DIR) $(CTEST) --output-on-failure $(CTEST_ARGS)
 
-test-dsmc:
+test-dsmc: configure-dsmc
+	@awk 'BEGIN { found=0; show=1 } /^Tests:/ { print ""; print "Skipped tests:"; show=0; next } show { print } /^SKIP/ { print; found=1 } END { if (!found) print "  none" }' $(DSMC_BUILD_DIR)/test-summary.txt
 	$(CMAKE) -E chdir $(DSMC_BUILD_DIR) $(CTEST) --output-on-failure $(CTEST_ARGS)
 
-test-dsmc-serial:
+test-dsmc-serial: configure-dsmc
+	@awk 'BEGIN { found=0; show=1 } /^Tests:/ { print ""; print "Skipped tests:"; show=0; next } show { print } /^SKIP/ { print; found=1 } END { if (!found) print "  none" }' $(DSMC_BUILD_DIR)/test-summary.txt
 	$(CMAKE) -E chdir $(DSMC_BUILD_DIR) $(CTEST) --output-on-failure -E '(^hosted-mpi-|^dsmc-mpi-)' $(CTEST_ARGS)
 
 test: test-dsmc

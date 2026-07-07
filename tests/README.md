@@ -13,6 +13,21 @@ Inspect registered tests without running them:
 cmake -E chdir build-dsmc ctest -N
 ```
 
+Each configure also writes a test plan summary:
+
+```bash
+cat build-dsmc/test-summary.txt
+```
+
+The summary lists declared, runnable, and skipped tests, then gives each test's
+requirements and missing capability reasons. Use these Make targets to generate
+the summary and ask CTest for the registered list:
+
+```bash
+make test-plan-standalone
+make test-plan-dsmc
+```
+
 ## Test Groups
 
 | Group | Names | What they prove |

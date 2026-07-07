@@ -346,363 +346,517 @@ endif()
 
 enable_testing()
 
+set(IAC_TEST_DECLARED_COUNT 0)
+set(IAC_TEST_RUNNABLE_COUNT 0)
+set(IAC_TEST_SKIPPED_COUNT 0)
+set(IAC_TEST_SUMMARY_LINES)
+
+function(iac_test_requirement_status requirement available_var reason_var)
+  string(TOUPPER "${requirement}" _requirement)
+  set(_available TRUE)
+  set(_reason "")
+
+  if(_requirement STREQUAL "ISTHMUS")
+    if(NOT isthmus_cpp_FOUND)
+      set(_available FALSE)
+      set(_reason "ISTHMUS library unavailable")
+    endif()
+  elseif(_requirement STREQUAL "PYTHON")
+    if(NOT Python3_Interpreter_FOUND)
+      set(_available FALSE)
+      set(_reason "Python3 interpreter unavailable")
+    endif()
+  elseif(_requirement STREQUAL "PYTHON_FIXTURES")
+    if(NOT TARGET generated-fixtures)
+      set(_available FALSE)
+      set(_reason "generated TIFF fixtures unavailable because Python3 was not found")
+    endif()
+  elseif(_requirement STREQUAL "DSMC")
+    if(NOT IAC_DSMC_EXECUTABLE)
+      set(_available FALSE)
+      set(_reason "DSMC/IAC executable unavailable")
+    elseif(NOT isthmus_cpp_FOUND)
+      set(_available FALSE)
+      set(_reason "DSMC/IAC tests require ISTHMUS")
+    endif()
+  elseif(_requirement STREQUAL "MPI")
+    if(NOT IAC_ENABLE_MPI_TESTS)
+      set(_available FALSE)
+      set(_reason "MPI tests disabled by IAC_ENABLE_MPI_TESTS=OFF")
+    elseif(NOT IAC_MPIEXEC_EXECUTABLE)
+      set(_available FALSE)
+      set(_reason "MPI launcher unavailable")
+    endif()
+  else()
+    set(_available FALSE)
+    set(_reason "unknown requirement '${requirement}'")
+  endif()
+
+  set(${available_var} "${_available}" PARENT_SCOPE)
+  set(${reason_var} "${_reason}" PARENT_SCOPE)
+endfunction()
+
+function(iac_add_registered_test)
+  set(options)
+  set(one_value_args NAME)
+  set(multi_value_args COMMAND LABELS PROPERTIES REQUIRES)
+  cmake_parse_arguments(IAC_TEST "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
+
+  if(NOT IAC_TEST_NAME)
+    message(FATAL_ERROR "iac_add_registered_test requires NAME")
+  endif()
+  if(NOT IAC_TEST_COMMAND)
+    message(FATAL_ERROR "iac_add_registered_test(${IAC_TEST_NAME}) requires COMMAND")
+  endif()
+
+  set(_missing_reasons)
+  foreach(_requirement IN LISTS IAC_TEST_REQUIRES)
+    iac_test_requirement_status("${_requirement}" _available _reason)
+    if(NOT _available)
+      list(APPEND _missing_reasons "${_reason}")
+    endif()
+  endforeach()
+
+  string(REPLACE ";" "," _requires_text "${IAC_TEST_REQUIRES}")
+  if(NOT _requires_text)
+    set(_requires_text "-")
+  endif()
+  string(REPLACE ";" "," _labels_text "${IAC_TEST_LABELS}")
+  if(NOT _labels_text)
+    set(_labels_text "-")
+  endif()
+
+  math(EXPR _declared_count "${IAC_TEST_DECLARED_COUNT} + 1")
+  set(IAC_TEST_DECLARED_COUNT "${_declared_count}" PARENT_SCOPE)
+
+  if(_missing_reasons)
+    string(REPLACE ";" ", " _missing_text "${_missing_reasons}")
+    add_test(
+      NAME ${IAC_TEST_NAME}
+      COMMAND ${CMAKE_COMMAND}
+              -DIAC_SKIP_REASON=${_missing_text}
+              -P ${CMAKE_SOURCE_DIR}/tests/cmake/skip-test.cmake
+    )
+    set_tests_properties(${IAC_TEST_NAME} PROPERTIES
+      SKIP_REGULAR_EXPRESSION "IAC test skipped:"
+    )
+    if(IAC_TEST_LABELS)
+      set_tests_properties(${IAC_TEST_NAME} PROPERTIES
+        LABELS "${IAC_TEST_LABELS}"
+      )
+    endif()
+    math(EXPR _skipped_count "${IAC_TEST_SKIPPED_COUNT} + 1")
+    set(IAC_TEST_SKIPPED_COUNT "${_skipped_count}" PARENT_SCOPE)
+    set(_summary_line "SKIP\t${IAC_TEST_NAME}\trequires=${_requires_text}\tlabels=${_labels_text}\tmissing=${_missing_text}")
+  else()
+    add_test(NAME ${IAC_TEST_NAME} COMMAND ${IAC_TEST_COMMAND})
+    set(_test_properties ${IAC_TEST_PROPERTIES})
+    if(_test_properties)
+      set_tests_properties(${IAC_TEST_NAME} PROPERTIES ${_test_properties})
+    endif()
+    if(IAC_TEST_LABELS)
+      set_tests_properties(${IAC_TEST_NAME} PROPERTIES
+        LABELS "${IAC_TEST_LABELS}"
+      )
+    endif()
+    math(EXPR _runnable_count "${IAC_TEST_RUNNABLE_COUNT} + 1")
+    set(IAC_TEST_RUNNABLE_COUNT "${_runnable_count}" PARENT_SCOPE)
+    set(_summary_line "RUN\t${IAC_TEST_NAME}\trequires=${_requires_text}\tlabels=${_labels_text}")
+  endif()
+
+  set(_summary_lines "${IAC_TEST_SUMMARY_LINES}")
+  list(APPEND _summary_lines "${_summary_line}")
+  set(IAC_TEST_SUMMARY_LINES "${_summary_lines}" PARENT_SCOPE)
+endfunction()
+
+macro(iac_add_hosted_input_test test_name input_file)
+  iac_add_registered_test(
+    NAME hosted-${test_name}
+    REQUIRES DSMC
+    LABELS hosted dsmc
+    COMMAND ${IAC_DSMC_EXECUTABLE} -log none
+            -in ${CMAKE_SOURCE_DIR}/${input_file}
+  )
+
+  iac_add_registered_test(
+    NAME hosted-mpi-${test_name}
+    REQUIRES DSMC MPI
+    LABELS hosted dsmc mpi
+    COMMAND ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
+            ${IAC_DSMC_EXECUTABLE} -log none
+            -in ${CMAKE_SOURCE_DIR}/${input_file}
+  )
+endmacro()
+
+macro(iac_add_dsmc_input_test test_name input_file)
+  iac_add_registered_test(
+    NAME ${test_name}
+    REQUIRES DSMC
+    LABELS dsmc
+    COMMAND ${IAC_DSMC_EXECUTABLE} -log none
+            -in ${CMAKE_SOURCE_DIR}/${input_file}
+  )
+
+  string(REGEX REPLACE "^dsmc-" "" mpi_test_suffix "${test_name}")
+  iac_add_registered_test(
+    NAME dsmc-mpi-${mpi_test_suffix}
+    REQUIRES DSMC MPI
+    LABELS dsmc mpi
+    COMMAND ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
+            ${IAC_DSMC_EXECUTABLE} -log none
+            -in ${CMAKE_SOURCE_DIR}/${input_file}
+  )
+endmacro()
+
+macro(iac_add_dsmc_input_test_serial test_name input_file)
+  iac_add_registered_test(
+    NAME ${test_name}
+    REQUIRES DSMC
+    LABELS dsmc
+    COMMAND ${IAC_DSMC_EXECUTABLE} -log none
+            -in ${CMAKE_SOURCE_DIR}/${input_file}
+  )
+endmacro()
+
+set(IAC_TIFF_DEFAULT_AXES_TEST_INPUT
+    "${CMAKE_BINARY_DIR}/tests/inputs/tiff-axis/in.tiff-default-axes.verify")
+set(IAC_TIFF_LEGACY_AXES_TEST_INPUT
+    "${CMAKE_BINARY_DIR}/tests/inputs/tiff-axis/in.tiff-legacy-axes.verify")
+set(IAC_TIFF_CENTER_ORIGIN_TEST_INPUT
+    "${CMAKE_BINARY_DIR}/tests/inputs/tiff-axis/in.tiff-center-origin.verify")
+set(IAC_CARBON_CONSTANT_TEST_INPUT
+    "${CMAKE_BINARY_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.constant-flux.verify")
+set(IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT
+    "${CMAKE_BINARY_DIR}/tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs-tiff.verify")
+set(IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT
+    "${CMAKE_BINARY_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.dsmc-co.verify")
+
+set(SOURCE_DIR ${CMAKE_SOURCE_DIR})
+set(BINARY_DIR ${CMAKE_BINARY_DIR})
+
 if(TARGET generated-fixtures)
-  add_test(
-    NAME generated-fixtures-build
-    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target generated-fixtures
+  configure_file(
+    ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-axis/in.tiff-default-axes.verify.in
+    ${IAC_TIFF_DEFAULT_AXES_TEST_INPUT}
+    @ONLY
+  )
+  configure_file(
+    ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-axis/in.tiff-legacy-axes.verify.in
+    ${IAC_TIFF_LEGACY_AXES_TEST_INPUT}
+    @ONLY
+  )
+  configure_file(
+    ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-axis/in.tiff-center-origin.verify.in
+    ${IAC_TIFF_CENTER_ORIGIN_TEST_INPUT}
+    @ONLY
+  )
+  configure_file(
+    ${CMAKE_SOURCE_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.constant-flux.verify.in
+    ${IAC_CARBON_CONSTANT_TEST_INPUT}
+    @ONLY
+  )
+  configure_file(
+    ${CMAKE_SOURCE_DIR}/tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs-tiff.verify.in
+    ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
+    @ONLY
+  )
+  configure_file(
+    ${CMAKE_SOURCE_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.dsmc-co.verify.in
+    ${IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT}
+    @ONLY
   )
 endif()
 
-add_test(
+iac_add_registered_test(
+  NAME generated-fixtures-build
+  REQUIRES PYTHON_FIXTURES
+  LABELS fixtures python
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target generated-fixtures
+)
+
+iac_add_registered_test(
   NAME slab-direct-command-verification
+  LABELS standalone
   COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-direct-ablation/in.slab-direct-command.verify
 )
 
-add_test(
+iac_add_registered_test(
   NAME slab-direct-yhi-verification
+  LABELS standalone
   COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-direct-ablation/in.slab-direct-yhi.verify
 )
 
-add_test(
+iac_add_registered_test(
   NAME multiphase-side-by-side-slabs-verification
+  LABELS standalone
   COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs.verify
 )
 
+iac_add_registered_test(
+  NAME slab-isthmus-finite-surface-verification
+  REQUIRES ISTHMUS
+  LABELS standalone isthmus
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite-surface.verify
+)
+iac_add_registered_test(
+  NAME slab-isthmus-ghost-wall-verification
+  REQUIRES ISTHMUS
+  LABELS standalone isthmus
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost-wall.verify
+)
+iac_add_registered_test(
+  NAME sphere-isthmus-local-deletion-verification
+  REQUIRES ISTHMUS
+  LABELS standalone isthmus
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify
+)
+iac_add_registered_test(
+  NAME sphere-isthmus-normal-carryover-verification
+  REQUIRES ISTHMUS
+  LABELS standalone isthmus
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify
+)
+iac_add_registered_test(
+  NAME sphere-isthmus-kinetic-theory-verification
+  REQUIRES ISTHMUS
+  LABELS standalone isthmus
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-kinetic-theory.verify
+)
+iac_add_registered_test(
+  NAME sphere-isthmus-normal-carryover-convergence
+  REQUIRES ISTHMUS
+  LABELS standalone isthmus convergence
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover-convergence.verify
+)
+iac_add_registered_test(
+  NAME sphere-isthmus-surface-resolution-convergence
+  REQUIRES ISTHMUS
+  LABELS standalone isthmus convergence
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-surface-resolution-convergence.verify
+)
+iac_add_registered_test(
+  NAME tiff-sphere-normal-carryover-verification
+  REQUIRES ISTHMUS
+  LABELS standalone isthmus tiff
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-sphere/in.tiff-sphere-normal-carryover.verify
+)
+
+iac_add_registered_test(
+  NAME tiff-default-axes-verification
+  REQUIRES PYTHON_FIXTURES
+  LABELS standalone tiff python
+  PROPERTIES DEPENDS generated-fixtures-build
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+          $<TARGET_FILE:ia-core> -in ${IAC_TIFF_DEFAULT_AXES_TEST_INPUT}
+)
+iac_add_registered_test(
+  NAME tiff-legacy-axes-verification
+  REQUIRES PYTHON_FIXTURES
+  LABELS standalone tiff python
+  PROPERTIES DEPENDS generated-fixtures-build
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+          $<TARGET_FILE:ia-core> -in ${IAC_TIFF_LEGACY_AXES_TEST_INPUT}
+)
+iac_add_registered_test(
+  NAME tiff-center-origin-verification
+  REQUIRES PYTHON_FIXTURES
+  LABELS standalone tiff python
+  PROPERTIES DEPENDS generated-fixtures-build
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+          $<TARGET_FILE:ia-core> -in ${IAC_TIFF_CENTER_ORIGIN_TEST_INPUT}
+)
+iac_add_registered_test(
+  NAME pregen-tiff-carbon-recession-constant-flux-verification
+  REQUIRES PYTHON_FIXTURES
+  LABELS standalone tiff python
+  PROPERTIES DEPENDS generated-fixtures-build
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+          $<TARGET_FILE:ia-core> -in ${IAC_CARBON_CONSTANT_TEST_INPUT}
+)
+iac_add_registered_test(
+  NAME multiphase-side-by-side-slabs-tiff-verification
+  REQUIRES PYTHON_FIXTURES
+  LABELS standalone tiff python
+  PROPERTIES DEPENDS generated-fixtures-build
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+          $<TARGET_FILE:ia-core> -in ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
+)
+
+iac_add_hosted_input_test(
+  slab-direct-command-verification
+  tests/inputs/slab-direct-ablation/in.slab-direct-command.verify
+)
+iac_add_hosted_input_test(
+  slab-direct-yhi-verification
+  tests/inputs/slab-direct-ablation/in.slab-direct-yhi.verify
+)
+iac_add_hosted_input_test(
+  multiphase-side-by-side-slabs-verification
+  tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs.verify
+)
+iac_add_hosted_input_test(
+  slab-isthmus-finite-surface-verification
+  tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite-surface.verify
+)
+iac_add_hosted_input_test(
+  slab-isthmus-ghost-wall-verification
+  tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost-wall.verify
+)
+iac_add_hosted_input_test(
+  sphere-isthmus-local-deletion-verification
+  tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify
+)
+iac_add_hosted_input_test(
+  sphere-isthmus-normal-carryover-verification
+  tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify
+)
+iac_add_hosted_input_test(
+  sphere-isthmus-kinetic-theory-verification
+  tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-kinetic-theory.verify
+)
+iac_add_hosted_input_test(
+  tiff-sphere-normal-carryover-verification
+  tests/inputs/tiff-sphere/in.tiff-sphere-normal-carryover.verify
+)
+
+iac_add_dsmc_input_test(
+  dsmc-slab-time-stop-verification
+  tests/inputs/dsmc-slab-time-stop/in.dsmc-slab-time-stop.verify
+)
+iac_add_dsmc_input_test(
+  dsmc-sphere-flux-verification
+  tests/inputs/dsmc-sphere-flux/in.dsmc-sphere-flux.verify
+)
+
+iac_add_dsmc_input_test_serial(
+  dsmc-mass-flux-explicit-verification
+  tests/inputs/dsmc-sphere-mass-flux/in.dsmc-mass-flux-explicit.verify
+)
+iac_add_dsmc_input_test_serial(
+  dsmc-converge-verification
+  tests/inputs/dsmc-sphere-mass-flux/in.dsmc-converge.verify
+)
+iac_add_dsmc_input_test_serial(
+  dsmc-mass-flux-ablation-verification
+  tests/inputs/dsmc-sphere-mass-flux/in.dsmc-mass-flux-ablation.verify
+)
+iac_add_dsmc_input_test(
+  dsmc-converge-ablation-loop-verification
+  tests/inputs/dsmc-sphere-mass-flux/in.dsmc-converge-ablation-loop.verify
+)
+set_tests_properties(
+  dsmc-mass-flux-explicit-verification
+  dsmc-converge-verification
+  dsmc-mass-flux-ablation-verification
+  PROPERTIES ENVIRONMENT "OMPI_MCA_btl=self"
+)
+
+iac_add_registered_test(
+  NAME dsmc-sphere-kinetic-convergence
+  REQUIRES DSMC
+  LABELS dsmc convergence
+  PROPERTIES TIMEOUT 90
+  COMMAND ${CMAKE_COMMAND}
+          -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
+          -DCHECKER=$<TARGET_FILE:dsmc-kinetic-convergence-check>
+          -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
+          -DBINARY_DIR=${CMAKE_BINARY_DIR}
+          -P ${CMAKE_SOURCE_DIR}/tests/cmake/run-dsmc-sphere-kinetic-convergence.cmake
+)
+
+iac_add_registered_test(
+  NAME dsmc-mpi-isthmus-restart-verification
+  REQUIRES DSMC MPI
+  LABELS dsmc mpi isthmus restart
+  PROPERTIES TIMEOUT 60
+  COMMAND ${CMAKE_COMMAND}
+          -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
+          -DMPIEXEC_EXECUTABLE=${IAC_MPIEXEC_EXECUTABLE}
+          -DMPIEXEC_NUMPROC_FLAG=${IAC_MPIEXEC_NUMPROC_FLAG}
+          -DMPI_NP=${IAC_DSMC_MPI_NP}
+          -DBINARY_DIR=${CMAKE_BINARY_DIR}
+          -P ${CMAKE_SOURCE_DIR}/tests/cmake/run-dsmc-mpi-isthmus-restart.cmake
+)
+
+iac_add_registered_test(
+  NAME hosted-multiphase-side-by-side-slabs-tiff-verification
+  REQUIRES DSMC PYTHON_FIXTURES
+  LABELS hosted dsmc tiff python
+  PROPERTIES DEPENDS generated-fixtures-build
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+          ${IAC_DSMC_EXECUTABLE} -log none
+          -in ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
+)
+iac_add_registered_test(
+  NAME hosted-mpi-multiphase-side-by-side-slabs-tiff-verification
+  REQUIRES DSMC MPI PYTHON_FIXTURES
+  LABELS hosted dsmc mpi tiff python
+  PROPERTIES DEPENDS generated-fixtures-build
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+          ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
+          ${IAC_DSMC_EXECUTABLE} -log none
+          -in ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
+)
+iac_add_registered_test(
+  NAME pregen-tiff-carbon-recession-dsmc-co-verification
+  REQUIRES DSMC PYTHON_FIXTURES
+  LABELS dsmc tiff python
+  PROPERTIES DEPENDS generated-fixtures-build TIMEOUT 90
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
+          ${IAC_DSMC_EXECUTABLE} -log none
+          -in ${IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT}
+)
+iac_add_registered_test(
+  NAME pregen-tiff-carbon-recession-dsmc-co-converge-verification
+  REQUIRES DSMC PYTHON_FIXTURES
+  LABELS dsmc tiff python convergence
+  PROPERTIES DEPENDS generated-fixtures-build TIMEOUT 30 ENVIRONMENT "OMPI_MCA_btl=self"
+  COMMAND ${CMAKE_COMMAND}
+          -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
+          -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
+          -DBINARY_DIR=${CMAKE_BINARY_DIR}
+          -DCARBON_TIFF=${IAC_CARBON_SAMPLE_TIFF}
+          -P ${CMAKE_SOURCE_DIR}/tests/cmake/run-pregen-tiff-carbon-converge.cmake
+)
+
+set(IAC_TEST_SUMMARY_FILE "${CMAKE_BINARY_DIR}/test-summary.txt")
+file(WRITE "${IAC_TEST_SUMMARY_FILE}"
+     "IAC test plan\n"
+     "=============\n\n"
+     "Declared tests: ${IAC_TEST_DECLARED_COUNT}\n"
+     "Runnable tests: ${IAC_TEST_RUNNABLE_COUNT}\n"
+     "Skipped tests: ${IAC_TEST_SKIPPED_COUNT}\n\n"
+     "Capabilities:\n")
 if(isthmus_cpp_FOUND)
-  add_test(
-    NAME slab-isthmus-finite-surface-verification
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite-surface.verify
-  )
-  add_test(
-    NAME slab-isthmus-ghost-wall-verification
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost-wall.verify
-  )
-  add_test(
-    NAME sphere-isthmus-local-deletion-verification
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify
-  )
-  add_test(
-    NAME sphere-isthmus-normal-carryover-verification
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify
-  )
-  add_test(
-    NAME sphere-isthmus-kinetic-theory-verification
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-kinetic-theory.verify
-  )
-  add_test(
-    NAME sphere-isthmus-normal-carryover-convergence
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover-convergence.verify
-  )
-  add_test(
-    NAME sphere-isthmus-surface-resolution-convergence
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-surface-resolution-convergence.verify
-  )
-  add_test(
-    NAME tiff-sphere-normal-carryover-verification
-    COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-sphere/in.tiff-sphere-normal-carryover.verify
-  )
-  set_tests_properties(tiff-sphere-normal-carryover-verification PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  )
-  if(TARGET generated-fixtures)
-    set(IAC_TIFF_DEFAULT_AXES_TEST_INPUT
-        "${CMAKE_BINARY_DIR}/tests/inputs/tiff-axis/in.tiff-default-axes.verify")
-    configure_file(
-      ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-axis/in.tiff-default-axes.verify.in
-      ${IAC_TIFF_DEFAULT_AXES_TEST_INPUT}
-      @ONLY
-    )
-    add_test(
-      NAME tiff-default-axes-verification
-      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
-              $<TARGET_FILE:ia-core> -in ${IAC_TIFF_DEFAULT_AXES_TEST_INPUT}
-    )
-    set_tests_properties(tiff-default-axes-verification PROPERTIES
-      DEPENDS generated-fixtures-build
-    )
-    set(IAC_TIFF_LEGACY_AXES_TEST_INPUT
-        "${CMAKE_BINARY_DIR}/tests/inputs/tiff-axis/in.tiff-legacy-axes.verify")
-    configure_file(
-      ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-axis/in.tiff-legacy-axes.verify.in
-      ${IAC_TIFF_LEGACY_AXES_TEST_INPUT}
-      @ONLY
-    )
-    add_test(
-      NAME tiff-legacy-axes-verification
-      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
-              $<TARGET_FILE:ia-core> -in ${IAC_TIFF_LEGACY_AXES_TEST_INPUT}
-    )
-    set_tests_properties(tiff-legacy-axes-verification PROPERTIES
-      DEPENDS generated-fixtures-build
-    )
-    set(IAC_TIFF_CENTER_ORIGIN_TEST_INPUT
-        "${CMAKE_BINARY_DIR}/tests/inputs/tiff-axis/in.tiff-center-origin.verify")
-    configure_file(
-      ${CMAKE_SOURCE_DIR}/tests/inputs/tiff-axis/in.tiff-center-origin.verify.in
-      ${IAC_TIFF_CENTER_ORIGIN_TEST_INPUT}
-      @ONLY
-    )
-    add_test(
-      NAME tiff-center-origin-verification
-      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
-              $<TARGET_FILE:ia-core> -in ${IAC_TIFF_CENTER_ORIGIN_TEST_INPUT}
-    )
-    set_tests_properties(tiff-center-origin-verification PROPERTIES
-      DEPENDS generated-fixtures-build
-    )
-    set(IAC_CARBON_CONSTANT_TEST_INPUT
-        "${CMAKE_BINARY_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.constant-flux.verify")
-    configure_file(
-      ${CMAKE_SOURCE_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.constant-flux.verify.in
-      ${IAC_CARBON_CONSTANT_TEST_INPUT}
-      @ONLY
-    )
-    add_test(
-      NAME pregen-tiff-carbon-recession-constant-flux-verification
-      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
-              $<TARGET_FILE:ia-core> -in ${IAC_CARBON_CONSTANT_TEST_INPUT}
-    )
-    set_tests_properties(pregen-tiff-carbon-recession-constant-flux-verification PROPERTIES
-      DEPENDS generated-fixtures-build
-    )
-    set(IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT
-        "${CMAKE_BINARY_DIR}/tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs-tiff.verify")
-    configure_file(
-      ${CMAKE_SOURCE_DIR}/tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs-tiff.verify.in
-      ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
-      @ONLY
-    )
-    add_test(
-      NAME multiphase-side-by-side-slabs-tiff-verification
-      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
-              $<TARGET_FILE:ia-core> -in ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
-    )
-    set_tests_properties(multiphase-side-by-side-slabs-tiff-verification PROPERTIES
-      DEPENDS generated-fixtures-build
-    )
-  endif()
+  file(APPEND "${IAC_TEST_SUMMARY_FILE}" "  ISTHMUS: enabled (${IAC_ISTHMUS_LIBRARY})\n")
+else()
+  file(APPEND "${IAC_TEST_SUMMARY_FILE}" "  ISTHMUS: disabled\n")
+endif()
+if(Python3_Interpreter_FOUND)
+  file(APPEND "${IAC_TEST_SUMMARY_FILE}" "  Python fixtures: enabled (${Python3_EXECUTABLE})\n")
+else()
+  file(APPEND "${IAC_TEST_SUMMARY_FILE}" "  Python fixtures: disabled (Python3 not found)\n")
+endif()
+if(IAC_DSMC_EXECUTABLE)
+  file(APPEND "${IAC_TEST_SUMMARY_FILE}" "  DSMC executable: enabled (${IAC_DSMC_EXECUTABLE})\n")
+else()
+  file(APPEND "${IAC_TEST_SUMMARY_FILE}" "  DSMC executable: disabled\n")
+endif()
+if(IAC_ENABLE_MPI_TESTS AND IAC_MPIEXEC_EXECUTABLE)
+  file(APPEND "${IAC_TEST_SUMMARY_FILE}" "  MPI tests: enabled (${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP})\n")
+elseif(IAC_ENABLE_MPI_TESTS)
+  file(APPEND "${IAC_TEST_SUMMARY_FILE}" "  MPI tests: disabled (MPI launcher not found)\n")
+else()
+  file(APPEND "${IAC_TEST_SUMMARY_FILE}" "  MPI tests: disabled (IAC_ENABLE_MPI_TESTS=OFF)\n")
 endif()
 
-if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
-  function(iac_add_hosted_input_test test_name input_file)
-    add_test(
-      NAME hosted-${test_name}
-      COMMAND ${IAC_DSMC_EXECUTABLE} -log none
-              -in ${CMAKE_SOURCE_DIR}/${input_file}
-    )
-    set_tests_properties(hosted-${test_name} PROPERTIES
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    )
+file(APPEND "${IAC_TEST_SUMMARY_FILE}" "\nTests:\n")
+foreach(_summary_line IN LISTS IAC_TEST_SUMMARY_LINES)
+  file(APPEND "${IAC_TEST_SUMMARY_FILE}" "${_summary_line}\n")
+endforeach()
 
-    if(IAC_ENABLE_MPI_TESTS AND IAC_MPIEXEC_EXECUTABLE)
-      add_test(
-        NAME hosted-mpi-${test_name}
-        COMMAND ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
-                ${IAC_DSMC_EXECUTABLE} -log none
-                -in ${CMAKE_SOURCE_DIR}/${input_file}
-      )
-      set_tests_properties(hosted-mpi-${test_name} PROPERTIES
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-      )
-    endif()
-  endfunction()
-
-  function(iac_add_dsmc_input_test test_name input_file)
-    add_test(
-      NAME ${test_name}
-      COMMAND ${IAC_DSMC_EXECUTABLE} -log none
-              -in ${CMAKE_SOURCE_DIR}/${input_file}
-    )
-    set_tests_properties(${test_name} PROPERTIES
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    )
-
-    if(IAC_ENABLE_MPI_TESTS AND IAC_MPIEXEC_EXECUTABLE)
-      string(REGEX REPLACE "^dsmc-" "" mpi_test_suffix "${test_name}")
-      add_test(
-        NAME dsmc-mpi-${mpi_test_suffix}
-        COMMAND ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
-                ${IAC_DSMC_EXECUTABLE} -log none
-                -in ${CMAKE_SOURCE_DIR}/${input_file}
-      )
-      set_tests_properties(dsmc-mpi-${mpi_test_suffix} PROPERTIES
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-      )
-    endif()
-  endfunction()
-
-  function(iac_add_dsmc_input_test_serial test_name input_file)
-    add_test(
-      NAME ${test_name}
-      COMMAND ${IAC_DSMC_EXECUTABLE} -log none
-              -in ${CMAKE_SOURCE_DIR}/${input_file}
-    )
-    set_tests_properties(${test_name} PROPERTIES
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    )
-  endfunction()
-
-  iac_add_hosted_input_test(
-    slab-direct-command-verification
-    tests/inputs/slab-direct-ablation/in.slab-direct-command.verify
-  )
-  iac_add_hosted_input_test(
-    slab-direct-yhi-verification
-    tests/inputs/slab-direct-ablation/in.slab-direct-yhi.verify
-  )
-  iac_add_hosted_input_test(
-    multiphase-side-by-side-slabs-verification
-    tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs.verify
-  )
-  iac_add_hosted_input_test(
-    slab-isthmus-finite-surface-verification
-    tests/inputs/slab-isthmus-ablation/in.slab-isthmus-finite-surface.verify
-  )
-  iac_add_hosted_input_test(
-    slab-isthmus-ghost-wall-verification
-    tests/inputs/slab-isthmus-ablation/in.slab-isthmus-ghost-wall.verify
-  )
-  iac_add_hosted_input_test(
-    sphere-isthmus-local-deletion-verification
-    tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-local-deletion.verify
-  )
-  iac_add_hosted_input_test(
-    sphere-isthmus-normal-carryover-verification
-    tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-normal-carryover.verify
-  )
-  iac_add_hosted_input_test(
-    sphere-isthmus-kinetic-theory-verification
-    tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-kinetic-theory.verify
-  )
-  iac_add_hosted_input_test(
-    tiff-sphere-normal-carryover-verification
-    tests/inputs/tiff-sphere/in.tiff-sphere-normal-carryover.verify
-  )
-
-  iac_add_dsmc_input_test(
-    dsmc-slab-time-stop-verification
-    tests/inputs/dsmc-slab-time-stop/in.dsmc-slab-time-stop.verify
-  )
-  iac_add_dsmc_input_test(
-    dsmc-sphere-flux-verification
-    tests/inputs/dsmc-sphere-flux/in.dsmc-sphere-flux.verify
-  )
-
-  iac_add_dsmc_input_test_serial(
-    dsmc-mass-flux-explicit-verification
-    tests/inputs/dsmc-sphere-mass-flux/in.dsmc-mass-flux-explicit.verify
-  )
-  iac_add_dsmc_input_test_serial(
-    dsmc-converge-verification
-    tests/inputs/dsmc-sphere-mass-flux/in.dsmc-converge.verify
-  )
-  iac_add_dsmc_input_test_serial(
-    dsmc-mass-flux-ablation-verification
-    tests/inputs/dsmc-sphere-mass-flux/in.dsmc-mass-flux-ablation.verify
-  )
-  iac_add_dsmc_input_test(
-    dsmc-converge-ablation-loop-verification
-    tests/inputs/dsmc-sphere-mass-flux/in.dsmc-converge-ablation-loop.verify
-  )
-  set_tests_properties(
-    dsmc-mass-flux-explicit-verification
-    dsmc-converge-verification
-    dsmc-mass-flux-ablation-verification
-    PROPERTIES ENVIRONMENT "OMPI_MCA_btl=self"
-  )
-
-  add_test(
-    NAME dsmc-sphere-kinetic-convergence
-    COMMAND ${CMAKE_COMMAND}
-            -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
-            -DCHECKER=$<TARGET_FILE:dsmc-kinetic-convergence-check>
-            -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
-            -DBINARY_DIR=${CMAKE_BINARY_DIR}
-            -P ${CMAKE_SOURCE_DIR}/tests/cmake/run-dsmc-sphere-kinetic-convergence.cmake
-  )
-  set_tests_properties(dsmc-sphere-kinetic-convergence PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    TIMEOUT 90
-  )
-
-  if(IAC_ENABLE_MPI_TESTS AND IAC_MPIEXEC_EXECUTABLE)
-    add_test(
-      NAME dsmc-mpi-isthmus-restart-verification
-      COMMAND ${CMAKE_COMMAND}
-              -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
-              -DMPIEXEC_EXECUTABLE=${IAC_MPIEXEC_EXECUTABLE}
-              -DMPIEXEC_NUMPROC_FLAG=${IAC_MPIEXEC_NUMPROC_FLAG}
-              -DMPI_NP=${IAC_DSMC_MPI_NP}
-              -DBINARY_DIR=${CMAKE_BINARY_DIR}
-              -P ${CMAKE_SOURCE_DIR}/tests/cmake/run-dsmc-mpi-isthmus-restart.cmake
-    )
-    set_tests_properties(dsmc-mpi-isthmus-restart-verification PROPERTIES
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-      TIMEOUT 60
-    )
-  endif()
-
-  if(TARGET generated-fixtures)
-    add_test(
-      NAME hosted-multiphase-side-by-side-slabs-tiff-verification
-      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
-              ${IAC_DSMC_EXECUTABLE} -log none
-              -in ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
-    )
-    set_tests_properties(hosted-multiphase-side-by-side-slabs-tiff-verification PROPERTIES
-      DEPENDS generated-fixtures-build
-    )
-    if(IAC_ENABLE_MPI_TESTS AND IAC_MPIEXEC_EXECUTABLE)
-      add_test(
-        NAME hosted-mpi-multiphase-side-by-side-slabs-tiff-verification
-        COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
-                ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
-                ${IAC_DSMC_EXECUTABLE} -log none
-                -in ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
-      )
-      set_tests_properties(hosted-mpi-multiphase-side-by-side-slabs-tiff-verification PROPERTIES
-        DEPENDS generated-fixtures-build
-      )
-    endif()
-
-    set(SOURCE_DIR ${CMAKE_SOURCE_DIR})
-    set(BINARY_DIR ${CMAKE_BINARY_DIR})
-    set(IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT
-        "${CMAKE_BINARY_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.dsmc-co.verify")
-    configure_file(
-      ${CMAKE_SOURCE_DIR}/tests/inputs/pregen-tiff-carbon-recession/in.dsmc-co.verify.in
-      ${IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT}
-      @ONLY
-    )
-    add_test(
-      NAME pregen-tiff-carbon-recession-dsmc-co-verification
-      COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
-              ${IAC_DSMC_EXECUTABLE} -log none
-              -in ${IAC_DSMC_TIFF_CHEMISTRY_TEST_INPUT}
-    )
-    set_tests_properties(pregen-tiff-carbon-recession-dsmc-co-verification PROPERTIES
-      DEPENDS generated-fixtures-build
-      TIMEOUT 90
-    )
-
-    add_test(
-      NAME pregen-tiff-carbon-recession-dsmc-co-converge-verification
-      COMMAND ${CMAKE_COMMAND}
-              -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
-              -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
-              -DBINARY_DIR=${CMAKE_BINARY_DIR}
-              -DCARBON_TIFF=${IAC_CARBON_SAMPLE_TIFF}
-              -P ${CMAKE_SOURCE_DIR}/tests/cmake/run-pregen-tiff-carbon-converge.cmake
-    )
-    set_tests_properties(pregen-tiff-carbon-recession-dsmc-co-converge-verification PROPERTIES
-      DEPENDS generated-fixtures-build
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-      TIMEOUT 30
-      ENVIRONMENT "OMPI_MCA_btl=self"
-    )
-  endif()
-
-endif()
+message(STATUS "IAC test plan: ${IAC_TEST_DECLARED_COUNT} declared, ${IAC_TEST_RUNNABLE_COUNT} runnable, ${IAC_TEST_SKIPPED_COUNT} skipped")
+message(STATUS "IAC test summary: ${IAC_TEST_SUMMARY_FILE}")
 
 get_property(IAC_REGISTERED_TESTS DIRECTORY PROPERTY TESTS)
 if(IAC_REGISTERED_TESTS)
