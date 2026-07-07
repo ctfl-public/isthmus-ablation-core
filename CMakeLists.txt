@@ -470,10 +470,12 @@ function(iac_add_registered_test)
 endfunction()
 
 macro(iac_add_hosted_input_test test_name input_file)
+  set(_iac_hosted_labels hosted dsmc ${ARGN})
+  set(_iac_hosted_mpi_labels hosted dsmc mpi ${ARGN})
   iac_add_registered_test(
     NAME hosted-${test_name}
     REQUIRES DSMC
-    LABELS hosted dsmc
+    LABELS ${_iac_hosted_labels}
     COMMAND ${IAC_DSMC_EXECUTABLE} -log none
             -in ${CMAKE_SOURCE_DIR}/${input_file}
   )
@@ -481,7 +483,7 @@ macro(iac_add_hosted_input_test test_name input_file)
   iac_add_registered_test(
     NAME hosted-mpi-${test_name}
     REQUIRES DSMC MPI
-    LABELS hosted dsmc mpi
+    LABELS ${_iac_hosted_mpi_labels}
     COMMAND ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}
             ${IAC_DSMC_EXECUTABLE} -log none
             -in ${CMAKE_SOURCE_DIR}/${input_file}
@@ -588,8 +590,15 @@ iac_add_registered_test(
 
 iac_add_registered_test(
   NAME multiphase-side-by-side-slabs-verification
-  LABELS standalone
+  LABELS standalone multiphase slab
   COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs.verify
+)
+
+iac_add_registered_test(
+  NAME multiphase-core-shell-sphere-verification
+  REQUIRES ISTHMUS
+  LABELS standalone isthmus multiphase sphere
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/multiphase-core-shell-sphere/in.multiphase-core-shell-sphere.verify
 )
 
 iac_add_registered_test(
@@ -676,7 +685,7 @@ iac_add_registered_test(
 iac_add_registered_test(
   NAME multiphase-side-by-side-slabs-tiff-verification
   REQUIRES PYTHON_FIXTURES
-  LABELS standalone tiff python
+  LABELS standalone multiphase slab tiff python
   PROPERTIES DEPENDS generated-fixtures-build
   COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
           $<TARGET_FILE:ia-core> -in ${IAC_MULTIPHASE_SLAB_TIFF_TEST_INPUT}
@@ -693,6 +702,12 @@ iac_add_hosted_input_test(
 iac_add_hosted_input_test(
   multiphase-side-by-side-slabs-verification
   tests/inputs/multiphase-side-by-side-slabs/in.multiphase-side-by-side-slabs.verify
+  multiphase slab
+)
+iac_add_hosted_input_test(
+  multiphase-core-shell-sphere-verification
+  tests/inputs/multiphase-core-shell-sphere/in.multiphase-core-shell-sphere.verify
+  multiphase sphere
 )
 iac_add_hosted_input_test(
   slab-isthmus-finite-surface-verification
@@ -781,7 +796,7 @@ iac_add_registered_test(
 iac_add_registered_test(
   NAME hosted-multiphase-side-by-side-slabs-tiff-verification
   REQUIRES DSMC PYTHON_FIXTURES
-  LABELS hosted dsmc tiff python
+  LABELS hosted dsmc multiphase slab tiff python
   PROPERTIES DEPENDS generated-fixtures-build
   COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
           ${IAC_DSMC_EXECUTABLE} -log none
@@ -790,7 +805,7 @@ iac_add_registered_test(
 iac_add_registered_test(
   NAME hosted-mpi-multiphase-side-by-side-slabs-tiff-verification
   REQUIRES DSMC MPI PYTHON_FIXTURES
-  LABELS hosted dsmc mpi tiff python
+  LABELS hosted dsmc mpi multiphase slab tiff python
   PROPERTIES DEPENDS generated-fixtures-build
   COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}
           ${IAC_MPIEXEC_EXECUTABLE} ${IAC_MPIEXEC_NUMPROC_FLAG} ${IAC_DSMC_MPI_NP}

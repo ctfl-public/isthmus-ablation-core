@@ -1,0 +1,30 @@
+# Shared standalone/DSMC-hosted multiphase core-shell sphere ablation example.
+
+units               si
+
+voxel_material      mat1 id 1 density 1000.0
+voxel_material      mat2 id 2 density 3000.0
+
+voxel_create        solid sphere diameter 1.0e-3 resolution 20 material mat1
+voxel_create        solid sphere diameter 5.0e-4 resolution 10 material mat2
+
+source              q1 constant 1.0 units kg/m2/s
+iac_timestep        mass/courant 0.5 source q1
+variable            ablation_time equal 1.0e-1
+variable            keep internal 1
+
+iac_stats           1
+iac_stats_style     step time nvox ndel mass mf vf mapp mdrop
+
+voxel_dump          hist solid history 1 output/multiphase-core-shell-sphere/history.csv
+voxel_dump          vox solid vtu 1 output/multiphase-core-shell-sphere/voxels_*.vtu select active scalar material-id
+surf_dump           skin skin vtp 1 output/multiphase-core-shell-sphere/surface_*.vtp
+
+label               ablate-loop
+  iac_limit         time ${ablation_time}
+  isthmus_surface   skin voxels solid  resolution 1.6 iso 0.6 map yes
+  surf_flux         skin source q1 select all
+  voxel_ablate      solid surface skin policy carryover/normal delete yes
+  iac_run           1
+  iac_continue      time ${ablation_time} variable keep
+  if                "${keep} > 0" then "jump SELF ablate-loop"
