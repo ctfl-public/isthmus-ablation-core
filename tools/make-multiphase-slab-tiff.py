@@ -4,13 +4,14 @@
 import argparse
 import struct
 from pathlib import Path
+from typing import List
 
 
 def ifd_entry(tag: int, field_type: int, count: int, value: int) -> bytes:
     return struct.pack("<HHII", tag, field_type, count, value)
 
 
-def make_pages(width: int, height: int, depth: int) -> list[bytes]:
+def make_pages(width: int, height: int, depth: int) -> List[bytes]:
     pages = []
     split = height // 2
     for _z in range(depth):
@@ -23,7 +24,7 @@ def make_pages(width: int, height: int, depth: int) -> list[bytes]:
     return pages
 
 
-def write_tiff(path: Path, pages: list[bytes], width: int, height: int) -> None:
+def write_tiff(path: Path, pages: List[bytes], width: int, height: int) -> None:
     depth = len(pages)
     page_bytes = width * height
     ifd_entries = 8
