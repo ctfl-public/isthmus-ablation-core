@@ -98,7 +98,8 @@ make test-dsmc
 
 The top-level `Makefile` is the recommended user interface. It keeps the same
 machine-target style as DSMC/SPARTA while CMake still handles package
-discovery, test registration, generated fixtures, and overlay generation.
+discovery, test registration, optional generated fixtures, and overlay
+generation.
 
 Common targets are:
 
@@ -131,12 +132,11 @@ make mpi
 make test-dsmc
 ```
 
-The normal build/test path uses MCC's system Python 3.6 for small helper
-scripts, including DSMC overlay generation and generated TIFF fixtures. The
-`dsmc-iac` launcher is compiled C++, so running coupled cases does not go
-through Python. Documentation and report-generation targets may need additional
-LaTeX or Python packages, but they are not required for compiling and running
-the verification suite.
+The normal build does not require Python. Generated TIFF fixture tests use
+small standard-library Python helpers when Python 3 is available, while tests
+that do not need those fixtures remain available without Python. Documentation
+and report-generation targets may need additional LaTeX or Python packages, but
+they are not required for compiling or running coupled cases.
 
 Run a coupled input:
 
@@ -256,10 +256,10 @@ build-dsmc/
       spa_<machine>
 ```
 
-The script that creates this is:
+The compiled helper that creates this is:
 
 ```text
-tools/create-dsmc-overlay.py
+tools/create_dsmc_overlay.cpp
 ```
 
 It symlinks the user's DSMC `src` directory into the overlay, excluding build

@@ -172,6 +172,11 @@ add_executable(
   tests/tools/dsmc-kinetic-convergence-check.cpp
 )
 
+add_executable(
+  create-dsmc-overlay
+  tools/create_dsmc_overlay.cpp
+)
+
 find_package(Python3 COMPONENTS Interpreter)
 find_package(MPI QUIET)
 find_program(PDFLATEX_EXECUTABLE pdflatex)
@@ -201,6 +206,9 @@ if(Python3_Interpreter_FOUND)
     ${IAC_CARBON_SAMPLE_TIFF}
     ${IAC_MULTIPHASE_SLAB_TIFF}
   )
+  message(STATUS "Generated TIFF fixture tests: enabled with ${Python3_EXECUTABLE}")
+else()
+  message(STATUS "Generated TIFF fixture tests: disabled because Python3 was not found")
 endif()
 
 set(DSMC_ROOT "" CACHE PATH "Optional root directory of a DSMC/SPARTA source checkout")
@@ -283,10 +291,13 @@ set(IAC_DSMC_TARGET_DEPENDS ia-core dsmc-kinetic-convergence-check)
 if(TARGET dsmc-iac)
   list(APPEND IAC_DSMC_TARGET_DEPENDS dsmc-iac)
 endif()
-if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND Python3_Interpreter_FOUND AND IAC_MAKE_EXECUTABLE)
+if(TARGET create-dsmc-overlay)
+  list(APPEND IAC_DSMC_TARGET_DEPENDS create-dsmc-overlay)
+endif()
+if(IAC_DSMC_USE_OVERLAY AND DSMC_ROOT AND IAC_MAKE_EXECUTABLE)
   add_custom_target(
     dsmc
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/create-dsmc-overlay.py
+    COMMAND $<TARGET_FILE:create-dsmc-overlay>
             --dsmc-root ${DSMC_ROOT}
             --bridge-dir ${CMAKE_SOURCE_DIR}/dsmc-bridge
             --overlay-src ${IAC_DSMC_OVERLAY_SRC}
@@ -309,7 +320,7 @@ else()
   add_custom_target(
     dsmc
     COMMAND ${CMAKE_COMMAND} -E echo "Cannot build DSMC/IAC overlay."
-    COMMAND ${CMAKE_COMMAND} -E echo "Set DSMC_ROOT and ISTHMUS_ROOT, and make sure Python3 and make are available."
+    COMMAND ${CMAKE_COMMAND} -E echo "Set DSMC_ROOT and ISTHMUS_ROOT, and make sure make is available."
     COMMAND ${CMAKE_COMMAND} -E false
   )
 endif()

@@ -93,10 +93,10 @@ make mpi
 make test-dsmc
 ```
 
-MCC's system Python 3.6 is enough for the build/helper scripts used during the
-normal build and verification tests. The installed `dsmc-iac` launcher itself is
-compiled, so running coupled cases does not go through Python. The optional PDF
-documentation and report targets may need additional local tools.
+The normal build does not require Python. Some generated TIFF fixture tests use
+small standard-library Python helpers when Python 3 is available; those tests
+are not part of compiling or running `dsmc-iac`. The optional PDF documentation
+and report targets may need additional local tools.
 
 The DSMC/IAC build:
 
