@@ -22,6 +22,11 @@ cmake -E chdir build-dsmc ctest -N
 | DSMC-hosted MPI parity | `hosted-mpi-*` | The same bridge commands do not break when DSMC launches with MPI. |
 | DSMC gas-domain checks | `dsmc-*` and `dsmc-mpi-*` | Actual DSMC setup, surface installation, surface flux measurement, bridge verification, and coupled particle-driven recession work. |
 
+`dsmc-mpi-isthmus-restart-verification` writes a DSMC/IAC restart after
+`isthmus_surface` and `surf_install`, then reads it on the same MPI rank count
+and with `read_restart ... balance rcb cell`. It guards the restart-time
+surface-to-grid remapping path.
+
 ## Input Organization
 
 Examples live under `examples/` and should be useful for visual inspection. They

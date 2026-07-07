@@ -625,6 +625,23 @@ if(IAC_DSMC_EXECUTABLE AND isthmus_cpp_FOUND)
     TIMEOUT 90
   )
 
+  if(IAC_ENABLE_MPI_TESTS AND IAC_MPIEXEC_EXECUTABLE)
+    add_test(
+      NAME dsmc-mpi-isthmus-restart-verification
+      COMMAND ${CMAKE_COMMAND}
+              -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
+              -DMPIEXEC_EXECUTABLE=${IAC_MPIEXEC_EXECUTABLE}
+              -DMPIEXEC_NUMPROC_FLAG=${IAC_MPIEXEC_NUMPROC_FLAG}
+              -DMPI_NP=${IAC_DSMC_MPI_NP}
+              -DBINARY_DIR=${CMAKE_BINARY_DIR}
+              -P ${CMAKE_SOURCE_DIR}/tests/cmake/run-dsmc-mpi-isthmus-restart.cmake
+    )
+    set_tests_properties(dsmc-mpi-isthmus-restart-verification PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      TIMEOUT 60
+    )
+  endif()
+
   if(TARGET generated-fixtures)
     add_test(
       NAME hosted-multiphase-side-by-side-slabs-tiff-verification
