@@ -1410,6 +1410,9 @@ void Surface::command(int narg, char **arg) {
     auto &cfg = IACBridge::config();
     if (narg == 2 && std::strcmp(arg[1], "off") == 0) {
       cfg.surface_dumps.clear();
+      if (IACBridge::owns_model(sparta) && IACBridge::has_model()) {
+        IACBridge::model(sparta).set_surface_dumps(cfg.surface_dumps);
+      }
       return;
     }
     if (narg != 6) {
@@ -1428,7 +1431,9 @@ void Surface::command(int narg, char **arg) {
       error->all(FLERR, "surface dump interval must be positive");
     }
     cfg.surface_dumps.push_back(std::move(dump));
-    IACBridge::reset_model();
+    if (IACBridge::owns_model(sparta) && IACBridge::has_model()) {
+      IACBridge::model(sparta).set_surface_dumps(cfg.surface_dumps);
+    }
     return;
   }
 

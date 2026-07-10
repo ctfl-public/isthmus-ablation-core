@@ -39,6 +39,8 @@ isthmus_surface     skin voxels solid map yes
 surf_install        skin particle none type 1
 surf_collide        1 diffuse 300.0 1.0
 surf_modify         all collide 1
+surf_dump           skin skin vtp 1 output/surface_*.vtp
+iac_run             1
 
 write_restart       restart.isthmus
 ")

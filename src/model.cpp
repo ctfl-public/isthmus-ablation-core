@@ -2534,6 +2534,10 @@ void Model::set_stats_config(const StatsConfig &stats) {
   config_.stats = stats;
 }
 
+void Model::set_surface_dumps(const std::vector<SurfaceDump> &surface_dumps) {
+  config_.surface_dumps = surface_dumps;
+}
+
 void Model::print_header(std::ostream &out) const {
   const auto &columns =
       config_.stats.columns.empty() ? default_stats_columns() : config_.stats.columns;

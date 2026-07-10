@@ -67,6 +67,7 @@ public:
   void print_stats_header(std::ostream &out) const;
   void print_latest_stats(std::ostream &out) const;
   void set_stats_config(const StatsConfig &stats);
+  void set_surface_dumps(const std::vector<SurfaceDump> &surface_dumps);
 
 private:
   struct SurfaceTriangle {
