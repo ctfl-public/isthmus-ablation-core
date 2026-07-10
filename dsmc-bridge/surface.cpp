@@ -81,6 +81,16 @@ struct ConvergenceWindow {
   }
 };
 
+struct SurfaceValueStats {
+  std::size_t selected_count = 0;
+  std::size_t positive_count = 0;
+  double selected_area = 0.0;
+  double positive_area = 0.0;
+  double positive_value_sum = 0.0;
+  double positive_area_value_sum = 0.0;
+  double max_positive_value = 0.0;
+};
+
 const char *value_after(int narg, char **arg, const char *key) {
   for (int i = 0; i + 1 < narg; ++i) {
     if (std::strcmp(arg[i], key) == 0) {
@@ -88,6 +98,25 @@ const char *value_after(int narg, char **arg, const char *key) {
     }
   }
   return nullptr;
+}
+
+bool optional_bool_after(int narg, char **arg, const char *key, bool default_value,
+                         Error *error, const char *command) {
+  const char *value = value_after(narg, arg, key);
+  if (!value) {
+    return default_value;
+  }
+  if (std::strcmp(value, "yes") == 0 || std::strcmp(value, "true") == 0 ||
+      std::strcmp(value, "1") == 0) {
+    return true;
+  }
+  if (std::strcmp(value, "no") == 0 || std::strcmp(value, "false") == 0 ||
+      std::strcmp(value, "0") == 0) {
+    return false;
+  }
+  error->all(FLERR, (std::string(command) + " " + key +
+                     " must be yes or no").c_str());
+  return default_value;
 }
 
 int direct_mass_flux_column(int narg, char **arg, Error *error, const char *command) {
@@ -162,6 +191,44 @@ bool selected_by_normal(const NormalSelector &selector,
                             triangle.normal[2] * selector.direction[2]) /
                            norm;
   return cos_angle >= selector.min_cos;
+}
+
+SurfaceValueStats surface_value_stats(
+    const std::vector<double> &values,
+    const std::vector<iac::Model::PublicSurfaceTriangle> &triangles,
+    const NormalSelector &selector) {
+  SurfaceValueStats stats;
+  for (std::size_t i = 0; i < values.size() && i < triangles.size(); ++i) {
+    if (!selected_by_normal(selector, triangles[i])) {
+      continue;
+    }
+    ++stats.selected_count;
+    const double area = triangles[i].area;
+    stats.selected_area += area;
+    if (values[i] <= 0.0) {
+      continue;
+    }
+    ++stats.positive_count;
+    stats.positive_area += area;
+    stats.positive_value_sum += values[i];
+    stats.positive_area_value_sum += values[i] * area;
+    stats.max_positive_value = std::max(stats.max_positive_value, values[i]);
+  }
+  return stats;
+}
+
+void set_surface_value_diagnostics(iac::Model &model, const std::string &prefix,
+                                   const SurfaceValueStats &stats) {
+  model.set_diagnostic(prefix + "-selected-triangles",
+                       static_cast<double>(stats.selected_count));
+  model.set_diagnostic(prefix + "-selected-area", stats.selected_area);
+  model.set_diagnostic(prefix + "-positive-triangles",
+                       static_cast<double>(stats.positive_count));
+  model.set_diagnostic(prefix + "-positive-area", stats.positive_area);
+  model.set_diagnostic(prefix + "-positive-value-sum", stats.positive_value_sum);
+  model.set_diagnostic(prefix + "-positive-area-value-sum",
+                       stats.positive_area_value_sum);
+  model.set_diagnostic(prefix + "-max-positive-value", stats.max_positive_value);
 }
 
 void parse_selector(iac::SurfaceFluxCommand &flux, int narg, char **arg, Error *error) {
@@ -565,6 +632,9 @@ void Surface::command(int narg, char **arg) {
               mass_fluxes[idx] = area > 0.0 ? mass_fluxes[idx] / area : 0.0;
             }
           }
+          set_surface_value_diagnostics(
+              IACBridge::model(sparta), "dsmc-mass-flux",
+              surface_value_stats(mass_fluxes, triangles, selector));
           if (mass_courant_value) {
             IACBridge::model(sparta).set_timestep_from_triangle_fluxes(
                 flux.surface, mass_fluxes, mass_courant);
@@ -875,6 +945,9 @@ void Surface::command(int narg, char **arg) {
     const char *min_iter_value = value_after(npairs, pairs, "min-iter");
     const char *passes_value = value_after(npairs, pairs, "passes");
     const char *variable_name = value_after(npairs, pairs, "variable");
+    const bool allow_zero =
+        optional_bool_after(npairs, pairs, "allow-zero", false, error,
+                            "dsmc_converge flux");
     const int min_iter = min_iter_value ? std::atoi(min_iter_value) : window_size;
     const int passes_required = passes_value ? std::atoi(passes_value) : 1;
     const double rel_tol = std::atof(rel_value);
@@ -892,6 +965,10 @@ void Surface::command(int narg, char **arg) {
     double current = 0.0;
     double rel = 0.0;
     double cv = 0.0;
+    bool has_positive_support = false;
+    bool warned_zero_support = false;
+    int positive_support_iters = 0;
+    int zero_support_iters = 0;
     int iter = 0;
 
     IACBridge::print_coupled_summary(sparta);
@@ -910,6 +987,11 @@ void Surface::command(int narg, char **arg) {
           if (triangles.size() != static_cast<std::size_t>(surf->nsurf)) {
             throw std::runtime_error("dsmc_converge flux triangle count does not match SPARTA surface count");
           }
+          const SurfaceValueStats stats = surface_value_stats(values, triangles, selector);
+          set_surface_value_diagnostics(IACBridge::model(sparta), "dsmc-converge",
+                                        stats);
+          has_positive_support = stats.positive_count > 0 &&
+                                 stats.positive_area_value_sum > 0.0;
           current = reduce_surface_values(values, triangles, reduce_value, selector, error,
                                           "dsmc_converge flux");
         }
@@ -918,11 +1000,27 @@ void Surface::command(int narg, char **arg) {
       }
       IACBridge::error_if_root_failed(sparta, root_error);
       MPI_Bcast(&current, 1, MPI_DOUBLE, 0, sparta->world);
+      int positive_support_flag = has_positive_support ? 1 : 0;
+      MPI_Bcast(&positive_support_flag, 1, MPI_INT, 0, sparta->world);
+      has_positive_support = positive_support_flag != 0;
+      if (has_positive_support) {
+        ++positive_support_iters;
+      } else {
+        ++zero_support_iters;
+        if (!allow_zero && !warned_zero_support && comm->me == 0) {
+          error->warning(
+              FLERR,
+              "dsmc_converge flux sampled no positive selected mass flux; "
+              "zero-flux windows are not considered converged unless allow-zero yes");
+        }
+        warned_zero_support = true;
+      }
       rel = iter == 1 ? 1.0 : std::abs(current - previous) /
                                 std::sqrt(previous * previous + 1.0e-300);
       window.push(current);
       cv = window.cv();
-      const bool pass = iter >= min_iter && window.full() &&
+      const bool pass = (allow_zero || has_positive_support) &&
+                        iter >= min_iter && window.full() &&
                         rel <= rel_tol && cv <= cv_tol;
       pass_count = pass ? pass_count + 1 : 0;
       if (pass_count >= passes_required) {
@@ -940,11 +1038,24 @@ void Surface::command(int narg, char **arg) {
       model.set_diagnostic("dsmc-converge-iter", static_cast<double>(iter));
       model.set_diagnostic("dsmc-converge-steps", static_cast<double>(iter * every));
       model.set_diagnostic("dsmc-converged", converged ? 1.0 : 0.0);
+      model.set_diagnostic("dsmc-converge-positive-support",
+                           has_positive_support ? 1.0 : 0.0);
+      model.set_diagnostic("dsmc-converge-positive-support-iters",
+                           static_cast<double>(positive_support_iters));
+      model.set_diagnostic("dsmc-converge-zero-support-iters",
+                           static_cast<double>(zero_support_iters));
     }
     if (variable_name) {
       set_internal_variable(input, error, variable_name, converged ? 1.0 : 0.0);
     }
     if (!converged) {
+      if (!allow_zero && positive_support_iters == 0 && zero_support_iters > 0) {
+        error->all(FLERR,
+                   "dsmc_converge flux did not converge before max-iter: "
+                   "sampled no positive selected mass flux; increase sampling, "
+                   "check species/reaction inputs, or set allow-zero yes if zero "
+                   "flux is expected");
+      }
       error->all(FLERR, "dsmc_converge flux did not converge before max-iter");
     }
     return;
