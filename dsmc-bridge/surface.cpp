@@ -283,6 +283,22 @@ Fix *require_surface_fix(SPARTA *sparta, Modify *modify, Comm *comm, Error *erro
   return ave;
 }
 
+Fix *require_global_vector_fix(Modify *modify, Error *error, const char *command,
+                               const char *fix_id, int index) {
+  const int ifix = modify->find_fix(fix_id);
+  if (ifix < 0) {
+    error->all(FLERR, (std::string(command) + " fix ID does not exist").c_str());
+  }
+  Fix *ave = modify->fix[ifix];
+  if (!ave->vector_flag) {
+    error->all(FLERR, (std::string(command) + " fix must provide global vector data").c_str());
+  }
+  if (index < 0 || index >= ave->size_vector) {
+    error->all(FLERR, (std::string(command) + " boundary face is out of range for fix vector").c_str());
+  }
+  return ave;
+}
+
 double fix_surface_value(Fix *ave, int local_index, int column) {
   return ave->size_per_surf_cols == 0 ? ave->vector_surf[local_index]
                                       : ave->array_surf[local_index][column - 1];
@@ -400,6 +416,30 @@ int parse_dsmc_surf_quantity(const char *quantity, Error *error) {
   }
   error->all(FLERR, "surface flux dsmc/surf quantity must be incident-number-flux");
   return 0;
+}
+
+int boundary_face_index(const char *face, Error *error, const char *command) {
+  if (std::strcmp(face, "xlo") == 0) {
+    return 0;
+  }
+  if (std::strcmp(face, "xhi") == 0) {
+    return 1;
+  }
+  if (std::strcmp(face, "ylo") == 0) {
+    return 2;
+  }
+  if (std::strcmp(face, "yhi") == 0) {
+    return 3;
+  }
+  if (std::strcmp(face, "zlo") == 0) {
+    return 4;
+  }
+  if (std::strcmp(face, "zhi") == 0) {
+    return 5;
+  }
+  error->all(FLERR, (std::string(command) +
+                     " boundary must be xlo, xhi, ylo, yhi, zlo, or zhi").c_str());
+  return -1;
 }
 
 std::string trim(const std::string &text) {
@@ -919,7 +959,128 @@ void Surface::command(int narg, char **arg) {
   }
 
   if (std::strcmp(arg[0], "converge") == 0) {
-    if (narg < 19 || std::strcmp(arg[1], "flux") != 0) {
+    if (narg < 3 || std::strcmp(arg[1], "flux") != 0) {
+      error->all(FLERR, "Illegal dsmc_converge command");
+    }
+    if (std::strcmp(arg[2], "boundary") == 0) {
+      if (narg < 18) {
+        error->all(FLERR, "Illegal dsmc_converge command");
+      }
+      const int face_index = boundary_face_index(arg[3], error, "dsmc_converge flux boundary");
+      char **pairs = arg + 4;
+      const int npairs = narg - 4;
+      const char *fix_id = value_after(npairs, pairs, "fix");
+      const char *quantity_value = value_after(npairs, pairs, "quantity");
+      const char *every_value = value_after(npairs, pairs, "every");
+      const char *rel_value = value_after(npairs, pairs, "rel");
+      const char *cv_value = value_after(npairs, pairs, "cv");
+      const char *window_value = value_after(npairs, pairs, "window");
+      const char *max_iter_value = value_after(npairs, pairs, "max-iter");
+      if (!fix_id || !every_value || !rel_value || !cv_value ||
+          !window_value || !max_iter_value) {
+        error->all(FLERR, "dsmc_converge flux boundary requires boundary, fix, every, rel, cv, window, and max-iter");
+      }
+      if (quantity_value && std::strcmp(quantity_value, "mass-flux") != 0) {
+        error->all(FLERR, "dsmc_converge flux boundary quantity must be mass-flux");
+      }
+      const int every = std::atoi(every_value);
+      const int window_size = std::atoi(window_value);
+      const int max_iter = std::atoi(max_iter_value);
+      const char *min_iter_value = value_after(npairs, pairs, "min-iter");
+      const char *passes_value = value_after(npairs, pairs, "passes");
+      const char *variable_name = value_after(npairs, pairs, "variable");
+      const bool allow_zero =
+          optional_bool_after(npairs, pairs, "allow-zero", false, error,
+                              "dsmc_converge flux boundary");
+      const int min_iter = min_iter_value ? std::atoi(min_iter_value) : window_size;
+      const int passes_required = passes_value ? std::atoi(passes_value) : 1;
+      const double rel_tol = std::atof(rel_value);
+      const double cv_tol = std::atof(cv_value);
+      if (every <= 0 || window_size <= 0 || max_iter <= 0 || min_iter <= 0 ||
+          passes_required <= 0 || rel_tol < 0.0 || cv_tol < 0.0) {
+        error->all(FLERR, "dsmc_converge flux boundary has invalid numeric arguments");
+      }
+
+      ConvergenceWindow window;
+      window.max_size = window_size;
+      bool converged = false;
+      int pass_count = 0;
+      double previous = 0.0;
+      double current = 0.0;
+      double rel = 0.0;
+      double cv = 0.0;
+      bool has_positive_support = false;
+      bool warned_zero_support = false;
+      int positive_support_iters = 0;
+      int zero_support_iters = 0;
+      int iter = 0;
+
+      IACBridge::print_coupled_summary(sparta);
+
+      for (iter = 1; iter <= max_iter; ++iter) {
+        run_dsmc_block(sparta, every, iter == 1);
+        Fix *ave = require_global_vector_fix(modify, error, "dsmc_converge flux boundary",
+                                             fix_id, face_index);
+        current = ave->compute_vector(face_index);
+        has_positive_support = current > 0.0;
+        if (has_positive_support) {
+          ++positive_support_iters;
+        } else {
+          ++zero_support_iters;
+          if (!allow_zero && !warned_zero_support && comm->me == 0) {
+            error->warning(
+                FLERR,
+                "dsmc_converge flux boundary sampled no positive selected mass flux; "
+                "zero-flux windows are not considered converged unless allow-zero yes");
+          }
+          warned_zero_support = true;
+        }
+        rel = iter == 1 ? 1.0 : std::abs(current - previous) /
+                                  std::sqrt(previous * previous + 1.0e-300);
+        window.push(current);
+        cv = window.cv();
+        const bool pass = (allow_zero || has_positive_support) &&
+                          iter >= min_iter && window.full() &&
+                          rel <= rel_tol && cv <= cv_tol;
+        pass_count = pass ? pass_count + 1 : 0;
+        if (pass_count >= passes_required) {
+          converged = true;
+          break;
+        }
+        previous = current;
+      }
+
+      if (IACBridge::owns_model(sparta)) {
+        auto &model = IACBridge::model(sparta);
+        model.set_diagnostic("dsmc-converge-value", current);
+        model.set_diagnostic("dsmc-converge-rel", rel);
+        model.set_diagnostic("dsmc-converge-cv", cv);
+        model.set_diagnostic("dsmc-converge-iter", static_cast<double>(iter));
+        model.set_diagnostic("dsmc-converge-steps", static_cast<double>(iter * every));
+        model.set_diagnostic("dsmc-converged", converged ? 1.0 : 0.0);
+        model.set_diagnostic("dsmc-converge-positive-support",
+                             has_positive_support ? 1.0 : 0.0);
+        model.set_diagnostic("dsmc-converge-positive-support-iters",
+                             static_cast<double>(positive_support_iters));
+        model.set_diagnostic("dsmc-converge-zero-support-iters",
+                             static_cast<double>(zero_support_iters));
+      }
+      if (variable_name) {
+        set_internal_variable(input, error, variable_name, converged ? 1.0 : 0.0);
+      }
+      if (!converged) {
+        if (!allow_zero && positive_support_iters == 0 && zero_support_iters > 0) {
+          error->all(FLERR,
+                     "dsmc_converge flux boundary did not converge before max-iter: "
+                     "sampled no positive selected mass flux; increase sampling, "
+                     "check species/reaction inputs, or set allow-zero yes if zero "
+                     "flux is expected");
+        }
+        error->all(FLERR, "dsmc_converge flux boundary did not converge before max-iter");
+      }
+      return;
+    }
+    if (narg < 19) {
       error->all(FLERR, "Illegal dsmc_converge command");
     }
     const char *surface_id = arg[2];

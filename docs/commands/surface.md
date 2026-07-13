@@ -43,6 +43,9 @@ dsmc_converge flux <surface-id> fix <fix-id> quantity mass-flux every <Nstep> \
   reduce <sum|ave|sum-area|ave-area> rel <tol> cv <tol> window <N> \
   max-iter <N> [min-iter <N>] [passes <N>] [variable <name>] \
   [select all | select normal nx <x> ny <y> nz <z> [min-cos <c>]]
+dsmc_converge flux boundary <xlo|xhi|ylo|yhi|zlo|zhi> fix <fix-id> \
+  quantity mass-flux every <Nstep> rel <tol> cv <tol> window <N> \
+  max-iter <N> [min-iter <N>] [passes <N>] [variable <name>]
 
 surf_dump <dump-id> <surface-id> vtp <N> <path>
 surf_dump off
@@ -76,6 +79,8 @@ surf_measure_flux skin dsmc/mass-flux fix mflux quantity mass-flux units flux \
   temperature 5000.0 molecular-mass 5.31352e-26 \
   solid-mass-per-reaction 3.98894696e-26
 dsmc_converge flux skin fix mflux quantity mass-flux every 20 reduce sum-area \
+  rel 0.10 cv 0.10 window 3 min-iter 3 max-iter 20
+dsmc_converge flux boundary xlo fix bflux quantity mass-flux every 20 \
   rel 0.10 cv 0.10 window 3 min-iter 3 max-iter 20
 
 surf_dump skin skin vtp 10 output/sphere/surface_*.vtp
@@ -264,10 +269,25 @@ iac_run 1
 iac_spa_stats
 ```
 
+For a flat-plate case that reacts on a DSMC box boundary instead of an
+installed surface, average the boundary mass-flux compute as a six-row vector
+and select the face in `dsmc_converge`:
+
+```text
+bound_modify xlo collide wall react ox
+compute bflux react/boundary/mass/flux ox mass 0.0240214
+fix bflux ave/time 1 20 20 c_bflux[*][1] mode vector ave one
+
+dsmc_converge flux boundary xlo fix bflux quantity mass-flux every 20 \
+  rel 0.10 cv 0.10 window 3 max-iter 20
+```
+
 For a DSMC column normalized as `kg/m2/s`, `sum-area` returns total mass loss
 rate in `kg/s` over the selected triangles, while `ave-area` returns the
 area-averaged mass flux in `kg/m2/s`. Add `select normal ...` when the
 convergence diagnostic should follow only one face of a reconstructed surface.
+The boundary form reads one face from the averaged six-face boundary vector, so
+it does not use `reduce` or surface-normal selection.
 
 The compact command is quiet during normal console output. Use `iac_spa_stats`
 after the IAC update to print the compact `[SPA]` gas stats row for the DSMC

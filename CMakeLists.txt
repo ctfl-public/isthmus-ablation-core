@@ -768,15 +768,19 @@ iac_add_dsmc_input_test_serial(
   dsmc-converge-verification
   tests/inputs/dsmc-sphere-mass-flux/in.dsmc-converge.verify
 )
+iac_add_dsmc_input_test_serial(
+  dsmc-converge-boundary-verification
+  tests/inputs/dsmc-sphere-mass-flux/in.dsmc-converge-boundary.verify
+)
 iac_add_registered_test(
   NAME dsmc-converge-zero-flux-guard-verification
   REQUIRES DSMC
   LABELS dsmc
-  PROPERTIES
-    WILL_FAIL TRUE
-    PASS_REGULAR_EXPRESSION "dsmc_converge flux did not converge before max-iter"
-  COMMAND ${IAC_DSMC_EXECUTABLE} -log none
-          -in ${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-sphere-mass-flux/in.dsmc-converge-zero-flux.verify
+  COMMAND ${CMAKE_COMMAND}
+          -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
+          -DINPUT=${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-sphere-mass-flux/in.dsmc-converge-zero-flux.verify
+          -DEXPECTED_REGEX=dsmc_converge flux did not converge before max-iter
+          -P ${CMAKE_SOURCE_DIR}/tests/cmake/expect-dsmc-failure.cmake
 )
 iac_add_dsmc_input_test_serial(
   dsmc-mass-flux-ablation-verification
