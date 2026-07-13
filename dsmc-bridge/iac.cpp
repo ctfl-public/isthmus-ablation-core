@@ -102,10 +102,10 @@ void Iac::command(int narg, char **arg) {
     std::string root_error;
     try {
       if (IACBridge::owns_model(sparta)) {
-        auto &model = IACBridge::model(sparta);
-        if (model.has_diagnostic(check.quantity)) {
-          model.verify_diagnostic(check);
+        if (IACBridge::has_diagnostic(check.quantity)) {
+          IACBridge::verify_diagnostic(check);
         } else {
+          auto &model = IACBridge::model(sparta);
           const double error_value = model.verification_error(check);
           if (!(error_value <= check.tolerance)) {
             std::string message = "iac verify failed for '" + check.quantity +
@@ -295,15 +295,17 @@ void Iac::command(int narg, char **arg) {
       }
       double value = 0.0;
       if (IACBridge::owns_model(sparta)) {
-        auto &model = IACBridge::model(sparta);
         if (std::strcmp(arg[2], "time") == 0) {
+          auto &model = IACBridge::model(sparta);
           value = model.time();
         } else if (std::strcmp(arg[2], "step") == 0) {
+          auto &model = IACBridge::model(sparta);
           value = static_cast<double>(model.step_count());
         } else if (std::strcmp(arg[2], "dt") == 0) {
+          auto &model = IACBridge::model(sparta);
           value = model.timestep();
         } else if (std::strcmp(arg[2], "diagnostic") == 0) {
-          value = model.diagnostic(arg[3]);
+          value = IACBridge::diagnostic(arg[3]);
         }
       }
       value = broadcast_root_value(sparta, value);

@@ -1,5 +1,7 @@
 #include "iacbridge.h"
 
+#include "isthmus_ablation/expression.hpp"
+
 #include "comm.h"
 #include "domain.h"
 #include "error.h"
@@ -17,6 +19,7 @@
 #include "update.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
@@ -45,6 +48,7 @@ enum { OUTPUT_NONE, OUTPUT_IAC, OUTPUT_SPA };
 
 std::unique_ptr<iac::Model> active_model;
 iac::Config active_config;
+std::unordered_map<std::string, double> bridge_diagnostics;
 std::unordered_map<std::string, std::vector<iac::Model::PublicSurfaceTriangle>> surface_cache;
 bigint last_coupling_step = 0;
 bool stats_header_printed = false;
@@ -166,8 +170,61 @@ iac::Model &model(SPARTA *sparta) {
   return *active_model;
 }
 
+void set_diagnostic(const std::string &name, double value) {
+  if (active_model) {
+    active_model->set_diagnostic(name, value);
+    return;
+  }
+  bridge_diagnostics[name] = value;
+}
+
+bool has_diagnostic(const std::string &name) {
+  return (active_model && active_model->has_diagnostic(name)) ||
+         bridge_diagnostics.find(name) != bridge_diagnostics.end();
+}
+
+double diagnostic(const std::string &name) {
+  if (active_model && active_model->has_diagnostic(name)) {
+    return active_model->diagnostic(name);
+  }
+  const auto found = bridge_diagnostics.find(name);
+  if (found != bridge_diagnostics.end()) {
+    return found->second;
+  }
+  throw std::runtime_error("unknown diagnostic '" + name + "'");
+}
+
+void verify_diagnostic(const iac::VerificationCheck &check) {
+  if (active_model && active_model->has_diagnostic(check.quantity)) {
+    active_model->verify_diagnostic(check);
+    return;
+  }
+  std::unordered_map<std::string, double> variables = bridge_diagnostics;
+  variables["pi"] = std::acos(-1.0);
+  const double actual = diagnostic(check.quantity);
+  const double exact = iac::evaluate_expression(check.expression, variables);
+  const double absolute_error = std::abs(actual - exact);
+  double error = absolute_error;
+  if (check.tolerance_mode == "percent") {
+    const double denominator = std::abs(exact);
+    error = denominator <= 1.0e-12
+                ? (absolute_error <= 1.0e-12 ? 0.0 : std::numeric_limits<double>::infinity())
+                : 100.0 * absolute_error / denominator;
+  }
+  if (!(error <= check.tolerance)) {
+    std::ostringstream message;
+    message << "verification failed for '" << check.quantity << "': error "
+            << error << " exceeds tolerance " << check.tolerance;
+    if (check.tolerance_mode == "percent") {
+      message << " percent";
+    }
+    throw std::runtime_error(message.str());
+  }
+}
+
 void reset_model() {
   active_model.reset();
+  bridge_diagnostics.clear();
   surface_cache.clear();
   grid_vtu_dumps.clear();
   reset_stats_output();

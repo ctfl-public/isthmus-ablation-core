@@ -1015,7 +1015,9 @@ void Surface::command(int narg, char **arg) {
       int zero_support_iters = 0;
       int iter = 0;
 
-      IACBridge::print_coupled_summary(sparta);
+      if (IACBridge::has_model()) {
+        IACBridge::print_coupled_summary(sparta);
+      }
 
       for (iter = 1; iter <= max_iter; ++iter) {
         run_dsmc_block(sparta, every, iter == 1);
@@ -1051,19 +1053,19 @@ void Surface::command(int narg, char **arg) {
       }
 
       if (IACBridge::owns_model(sparta)) {
-        auto &model = IACBridge::model(sparta);
-        model.set_diagnostic("dsmc-converge-value", current);
-        model.set_diagnostic("dsmc-converge-rel", rel);
-        model.set_diagnostic("dsmc-converge-cv", cv);
-        model.set_diagnostic("dsmc-converge-iter", static_cast<double>(iter));
-        model.set_diagnostic("dsmc-converge-steps", static_cast<double>(iter * every));
-        model.set_diagnostic("dsmc-converged", converged ? 1.0 : 0.0);
-        model.set_diagnostic("dsmc-converge-positive-support",
-                             has_positive_support ? 1.0 : 0.0);
-        model.set_diagnostic("dsmc-converge-positive-support-iters",
-                             static_cast<double>(positive_support_iters));
-        model.set_diagnostic("dsmc-converge-zero-support-iters",
-                             static_cast<double>(zero_support_iters));
+        IACBridge::set_diagnostic("dsmc-converge-value", current);
+        IACBridge::set_diagnostic("dsmc-converge-rel", rel);
+        IACBridge::set_diagnostic("dsmc-converge-cv", cv);
+        IACBridge::set_diagnostic("dsmc-converge-iter", static_cast<double>(iter));
+        IACBridge::set_diagnostic("dsmc-converge-steps",
+                                  static_cast<double>(iter * every));
+        IACBridge::set_diagnostic("dsmc-converged", converged ? 1.0 : 0.0);
+        IACBridge::set_diagnostic("dsmc-converge-positive-support",
+                                  has_positive_support ? 1.0 : 0.0);
+        IACBridge::set_diagnostic("dsmc-converge-positive-support-iters",
+                                  static_cast<double>(positive_support_iters));
+        IACBridge::set_diagnostic("dsmc-converge-zero-support-iters",
+                                  static_cast<double>(zero_support_iters));
       }
       if (variable_name) {
         set_internal_variable(input, error, variable_name, converged ? 1.0 : 0.0);
