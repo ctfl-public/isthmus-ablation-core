@@ -51,6 +51,23 @@ Tests live under `tests/inputs/`. When possible, a test input includes an
 example, disables expensive visual dumps, and adds `iac_verify` checks. This
 keeps examples and tests from becoming two separate simulations.
 
+Most files under `tests/inputs/` should be thin regression wrappers:
+
+```text
+include             examples/<case>/in.<case>
+
+voxel_dump          off
+surf_dump           off
+
+iac_verify          ...
+```
+
+Standalone files in `tests/inputs/` are reserved for cases that are genuinely
+test-only, generated from templates, intentionally failing, heavily
+parameterized, or too artificial to be useful as examples. When adding a new
+standalone test input, first ask whether the setup should instead live in
+`examples/` with a wrapper here.
+
 Use these comments at the top of new inputs:
 
 ```text

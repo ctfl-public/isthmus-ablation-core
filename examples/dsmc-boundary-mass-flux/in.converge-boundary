@@ -1,0 +1,38 @@
+# DSMC-hosted boundary mass-flux convergence example.
+# This converges a reactive DSMC box-boundary flux without installing a
+# SPARTA/IAC triangle surface.
+
+seed                12345
+dimension           3
+global              nrho 7.244e23 fnum 2.0e10 gridcut 0.0 comm/sort yes
+timestep            1.0e-9
+
+boundary            so oo oo
+create_box          0.0 1.0e-6 -5.0e-7 5.0e-7 -5.0e-7 5.0e-7
+create_grid         4 1 1
+balance_grid        rcb cell
+
+species             examples/dsmc-sphere-mass-flux/air-react-to-flux.species O2 N2 CO
+mixture             air O2 frac 1.0
+mixture             air N2 frac 0.0
+mixture             air CO frac 0.0
+mixture             air temp 5000.0 vstream -1000.0 0.0 0.0
+collide             vss air examples/dsmc-sphere-mass-flux/air-react-to-flux.vss
+
+voxel_material      carbon density 1800.0 molar-mass 0.0120107 formula C
+voxel_create        solid slab nx 2 ny 2 nz 2 dx 1.0e-6 material carbon
+
+surf_collide        wall diffuse 5000.0 1.0
+surf_react          ox prob examples/dsmc-sphere-kinetic/carbon-co.surf
+bound_modify        xlo collide wall react ox
+
+compute             bflux react/boundary/mass/flux ox mass 0.0240214
+fix                 bflux ave/time 1 1 1 c_bflux[*][1] mode vector ave one
+
+create_particles    air n 1000 twopass
+
+stats_style         step cpu np nscoll nscheck nsreact
+stats               1
+
+dsmc_converge       flux boundary xlo fix bflux quantity mass-flux every 1 &
+                    rel 2.0 cv 1.0 window 1 min-iter 1 max-iter 3

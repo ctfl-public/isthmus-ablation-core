@@ -1,24 +1,4 @@
-# Direct voxel slab ablation from the yhi face.
-# This verifies that source-backed local ablation can choose a slab face other
-# than the default xlo direction.
-
-units               si
-
-voxel_material      carbon density 1800.0
-voxel_create        solid slab nx 4 ny 8 nz 4 dx 1.0e-6 material carbon
-
-source              q1 constant 1.8 units kg/m2/s
-iac_timestep        mass/courant 0.5 source q1
-
-iac_stats           1
-iac_stats_style     step time nvox ndel mass mf
-
-variable            i loop 8
-label               ablate-loop
-voxel_ablate        solid source q1 policy local face yhi delete yes
-iac_run             1
-next                i
-jump                SELF ablate-loop
+include             examples/slab-direct-ablation/in.slab-direct-yhi
 
 iac_verify          mass exact "mass0 - q1*(nx*nz*dx*dx)*time" tolerance 0.01 percent norm max
 iac_verify          mf exact "1.0 - q1*time/(rho*ny*dx)" tolerance 0.01 percent norm max

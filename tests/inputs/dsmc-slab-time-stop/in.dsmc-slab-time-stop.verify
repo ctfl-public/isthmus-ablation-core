@@ -1,25 +1,4 @@
-# DSMC-hosted IAC physical-time loop control verification.
-# The mass-Courant timestep is 5.0e-4 s. The third step is clipped so the
-# ablation clock stops exactly at 1.1e-3 s.
-
-voxel_material      carbon density 1800.0
-voxel_create        solid slab nx 8 ny 4 nz 4 dx 1.0e-6 material carbon
-
-source              q1 constant 1.8 units kg/m2/s
-iac_stats           1
-iac_stats_style     step time nvox ndel mf front
-iac_timestep        mass/courant 0.5 source q1
-
-variable            keep internal 1
-label               ablate-loop
-iac_limit           time 1.1e-3
-voxel_ablate        solid source q1 policy local face xlo delete yes
-iac_run             1
-iac_continue        time 1.1e-3 variable keep
-if                  "${keep} > 0" then "jump SELF ablate-loop"
-
-iac_set             finaltime time
-print               "IAC_FINAL_TIME=${finaltime}" screen no
+include             examples/dsmc-slab-time-stop/in.dsmc-slab-time-stop
 
 iac_verify          step exact "3" tolerance 0.01 absolute norm final
 iac_verify          time exact "1.1e-3" tolerance 1.0e-12 absolute norm final
