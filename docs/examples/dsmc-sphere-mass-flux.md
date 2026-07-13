@@ -49,7 +49,7 @@ voxel_ablate solid surface skin policy carryover/normal delete yes
 iac_run 1
 
 remove_surf all
-isthmus_surface skin voxels solid remove_sealed_pores yes
+isthmus_surface skin voxels solid
 surf_install skin particle none type 1
 surf_modify all collide 1 react ox
 ```

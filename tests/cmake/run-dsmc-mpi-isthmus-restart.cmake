@@ -34,7 +34,7 @@ balance_grid        rcb cell
 
 voxel_material      carbon density 1800.0 molar-mass 0.0120107 formula C
 voxel_create        solid sphere diameter 8.0e-4 resolution 10 material carbon
-isthmus_surface     skin voxels solid remove_sealed_pores yes
+isthmus_surface     skin voxels solid
 surf_install        skin particle none type 1
 surf_collide        1 diffuse 300.0 1.0
 surf_modify         all collide 1

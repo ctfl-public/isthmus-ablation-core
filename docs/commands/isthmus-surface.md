@@ -14,7 +14,7 @@ isthmus_surface <surface-id> voxels <model> [resolution <R|A:B|voxel>] [iso <val
 ```text
 isthmus_surface skin voxels solid iso 0.45
 isthmus_surface skin voxels solid crop real
-isthmus_surface skin voxels solid resolution 1.6 iso 0.6 remove_sealed_pores yes
+isthmus_surface skin voxels solid resolution 1.6 iso 0.6
 ```
 
 ## Description
@@ -28,11 +28,11 @@ fractions to send triangle mass loss back to voxels. Use `map no` only for
 visualization or SPARTA-install surfaces that will not feed
 `voxel_ablate <model> surface <surface-id>`.
 
-`remove_sealed_pores yes` removes closed internal pore surfaces from the
-generated mesh. Enable it for DSMC/SPARTA ablation surfaces, where sealed pores
-are unreachable by particles and can confuse SPARTA cut-cell inside/outside
-classification. The default is `no` for non-DSMC uses where enclosed porosity is
-real data.
+Sealed internal pore surfaces are removed from the generated mesh by default.
+This is the recommended behavior for DSMC/SPARTA ablation surfaces, where
+sealed pores are unreachable by particles and can confuse SPARTA cut-cell
+inside/outside classification. Use `remove_sealed_pores no` only for
+non-DSMC uses where enclosed porosity is real data.
 
 `buffer` is a legacy option accepted for input compatibility. Newer ISTHMUS
 builds derive the required marching-domain padding internally, so new inputs

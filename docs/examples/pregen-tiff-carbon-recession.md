@@ -126,7 +126,7 @@ progress during the 100-step sample without spelling out a second input loop.
 The installed SPARTA surface is the full watertight ISTHMUS surface, but the
 ablation flux is restricted to triangles facing `x+` with `select normal nx 1.0
 ny 0.0 nz 0.0 min-cos 0.5`.
-The DSMC input enables `remove_sealed_pores yes` on each ISTHMUS surface
+The DSMC input uses the default sealed-pore removal on each ISTHMUS surface
 generation so closed internal pores are removed before SPARTA builds cut cells.
 That keeps pore interiors from poisoning SPARTA's inside/outside classification
 while preserving the exposed ablation surface.
