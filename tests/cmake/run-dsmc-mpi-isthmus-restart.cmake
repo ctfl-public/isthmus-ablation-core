@@ -20,8 +20,7 @@ file(MAKE_DIRECTORY "${run_dir}")
 
 set(common_restart_globals
 "seed                12345
-global              nrho 1.0e20 fnum 1.0e10 gridcut 0.0 surfmax 2000 splitmax 200 &
-                    nedgebadnum 20 ncutbadnum 20 nmismatch 20 comm/sort yes
+global              nrho 1.0e20 fnum 1.0e10 gridcut 0.0 surfmax 2000 splitmax 200 comm/sort yes
 ")
 
 file(WRITE "${run_dir}/in.write-restart" "${common_restart_globals}
@@ -35,7 +34,7 @@ balance_grid        rcb cell
 
 voxel_material      carbon density 1800.0 molar-mass 0.0120107 formula C
 voxel_create        solid sphere diameter 8.0e-4 resolution 10 material carbon
-isthmus_surface     skin voxels solid map yes
+isthmus_surface     skin voxels solid remove_sealed_pores yes
 surf_install        skin particle none type 1
 surf_collide        1 diffuse 300.0 1.0
 surf_modify         all collide 1

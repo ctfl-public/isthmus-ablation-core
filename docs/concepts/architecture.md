@@ -47,7 +47,7 @@ label ablate-loop
 run 10000
 surf_flux surf1 source dsmc-flux select all
 voxel_ablate solid surface surf1 policy local delete yes
-isthmus_surface surf1 voxels solid map yes
+isthmus_surface surf1 voxels solid
 surface update surf1 install yes
 jump SELF ablate-loop
 ```

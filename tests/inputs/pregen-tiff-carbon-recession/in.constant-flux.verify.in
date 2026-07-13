@@ -18,7 +18,7 @@ iac_stats_style     step time nvox ndel mass mf vf mreq mapp
 
 label               ablate-loop
 iac_limit           time ${ablation_time}
-isthmus_surface     skin voxels solid  resolution 1.6 iso 0.6 map yes
+isthmus_surface     skin voxels solid resolution 1.6 iso 0.6
 surf_flux           skin source qtop select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
 voxel_ablate        solid surface skin policy carryover/normal delete yes
 iac_run             1

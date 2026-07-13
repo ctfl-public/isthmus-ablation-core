@@ -6,7 +6,7 @@ shell               mkdir output/pregen-tiff-carbon-recession
 seed                24680
 dimension           3
 global              nrho 1.014e28 fnum 2.8e15 gridcut 0.0 &
-                      surfmax 4000 splitmax 400 comm/sort yes nedgebadnum 8
+                      surfmax 4000 splitmax 400 comm/sort yes
 timestep            1.0e-7
 
 boundary            o p p
@@ -31,7 +31,7 @@ voxel_dump          ghost solid vtu 1 output/pregen-tiff-carbon-recession/conver
                       select ghosts scalar mf
 surf_dump           skin skin vtp 1 output/pregen-tiff-carbon-recession/converge-surface_*.vtp
 
-isthmus_surface     skin voxels solid  map yes
+isthmus_surface     skin voxels solid remove_sealed_pores yes
 surf_install        skin particle none type 1
 surf_write_vtp      skin output/pregen-tiff-carbon-recession/converge-surface_*.vtp
 
@@ -72,7 +72,7 @@ label               coupled-loop
   if                "${keep} == 0" then "jump SELF done"
 
   remove_surf       all
-  isthmus_surface   skin voxels solid  map yes
+  isthmus_surface   skin voxels solid remove_sealed_pores yes
   surf_install      skin particle none type 1
   surf_modify       all collide 1 react ox
 

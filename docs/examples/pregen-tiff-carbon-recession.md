@@ -58,7 +58,7 @@ voxel_create        solid tiff file carbon-sample.tif dx 2.5e-5 material carbon 
 voxel_ghost         solid axis y boundary infinite layers 1
 voxel_ghost         solid axis z boundary infinite layers 1
 voxel_ghost         solid axis x side lo boundary infinite layers 1
-isthmus_surface     skin voxels solid resolution 1.6 iso 0.6 map yes
+isthmus_surface     skin voxels solid resolution 1.6 iso 0.6
 surf_flux           skin source qtop select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
 voxel_ablate        solid surface skin policy carryover/normal delete yes
 ```
@@ -126,10 +126,10 @@ progress during the 100-step sample without spelling out a second input loop.
 The installed SPARTA surface is the full watertight ISTHMUS surface, but the
 ablation flux is restricted to triangles facing `x+` with `select normal nx 1.0
 ny 0.0 nz 0.0 min-cos 0.5`.
-Because this rough TIFF sample can produce a handful of unmatched triangle
-edges after repeated voxel deletion and remeshing, the DSMC input sets the
-local SPARTA `global` tolerance `nedgebadnum 8`. Clean slab and sphere
-regression tests continue to use SPARTA's default exact watertight check.
+The DSMC input enables `remove_sealed_pores yes` on each ISTHMUS surface
+generation so closed internal pores are removed before SPARTA builds cut cells.
+That keeps pore interiors from poisoning SPARTA's inside/outside classification
+while preserving the exposed ablation surface.
 The committed input runs to `2.0e-7 s` and reaches about `0.70` remaining
 mass fraction and `0.75` voxelized volume fraction.
 

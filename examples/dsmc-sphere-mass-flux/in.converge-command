@@ -23,7 +23,7 @@ voxel_material      carbon density 1800.0 molar-mass 0.0120107 formula C
 voxel_create        solid sphere diameter 1.0e-3 resolution 8 material carbon
 voxel_dump          vox solid vtu 1 output/converge-voxels_*.vtu select active scalar mf
 surf_dump           skin skin vtp 1 output/converge-surface_*.vtp
-isthmus_surface     skin voxels solid  map yes
+isthmus_surface     skin voxels solid remove_sealed_pores yes
 surf_install        skin particle none type 1
 
 surf_collide        1 diffuse 5000.0 1.0
@@ -55,7 +55,7 @@ label               coupled-loop
   iac_spa_stats
 
   remove_surf       all
-  isthmus_surface   skin voxels solid  map yes
+  isthmus_surface   skin voxels solid remove_sealed_pores yes
   surf_install      skin particle none type 1
   surf_modify       all collide 1 react ox
 

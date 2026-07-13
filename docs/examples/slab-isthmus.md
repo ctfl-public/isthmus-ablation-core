@@ -11,7 +11,7 @@ examples/slab-isthmus-ablation/in.slab-isthmus-finite
 It runs:
 
 ```text
-isthmus_surface skin voxels solid iso 0.45 map yes
+isthmus_surface skin voxels solid iso 0.45
 surf_flux skin source q1 select normal nx -1.0 ny 0.0 nz 0.0 min-cos 0.5
 voxel_ablate solid surface skin policy local delete yes
 ```
@@ -21,7 +21,7 @@ The ghost case adds y/z infinite-wall ghost voxels before surface generation:
 ```text
 voxel_ghost solid axis y boundary infinite layers 1
 voxel_ghost solid axis z boundary infinite layers 1
-isthmus_surface skin voxels solid map yes
+isthmus_surface skin voxels solid
 ```
 
 Ghost voxels are surface-construction images only. They do not carry separate

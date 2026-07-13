@@ -75,7 +75,7 @@ surface and install the regenerated ISTHMUS surface directly from memory:
 
 ```text
 remove_surf all
-isthmus_surface skin voxels solid map yes
+isthmus_surface skin voxels solid remove_sealed_pores yes
 surf_install skin particle none type 1
 surf_modify all collide 1
 ```

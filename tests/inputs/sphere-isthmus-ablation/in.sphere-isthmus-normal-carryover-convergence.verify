@@ -16,7 +16,7 @@ iac_stats_style     step time nvox ndel mass mf vf rad mreq mapp mdrop
 
 variable            i loop ${steps}
 label               ablate-loop
-isthmus_surface     skin voxels solid  resolution 1.6 iso 0.6 map yes
+isthmus_surface     skin voxels solid resolution 1.6 iso 0.6
 surf_flux           skin source q1 select all
 voxel_ablate        solid surface skin policy carryover/normal delete yes
 iac_run             1

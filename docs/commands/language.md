@@ -34,7 +34,7 @@ The usual solid update order is:
 
 ```text
 iac_limit           time ${ablation_time}
-isthmus_surface     skin voxels solid map yes
+isthmus_surface     skin voxels solid
 surf_flux           skin source q1 select all
 voxel_ablate        solid surface skin policy carryover/normal delete yes
 iac_run             1

@@ -1143,6 +1143,11 @@ void Model::validate_isthmus_surface(const IsthmusSurfaceCommand &surface) const
   if (surface.iso_value <= 0.0 || surface.iso_value >= 1.0) {
     throw RuntimeError("isthmus surface iso value must be between 0 and 1");
   }
+#if defined(IAC_HAS_ISTHMUS) && !defined(IAC_ISTHMUS_REMOVE_SEALED_PORES)
+  if (surface.remove_sealed_pores) {
+    throw RuntimeError("isthmus surface remove_sealed_pores requires a newer ISTHMUS build");
+  }
+#endif
 }
 
 void Model::validate_surface_flux(const SurfaceFluxCommand &flux) const {
@@ -1474,6 +1479,9 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
 #endif
   options.build_surface = true;
   options.build_flux_association = surface.map;
+#ifdef IAC_ISTHMUS_REMOVE_SEALED_PORES
+  options.remove_sealed_pores = surface.remove_sealed_pores;
+#endif
   options.verbose = env_flag_enabled("IAC_ISTHMUS_VERBOSE");
 
   if (options.verbose) {
@@ -1485,7 +1493,9 @@ void Model::generate_isthmus_surface(const IsthmusSurfaceCommand &surface) {
 #else
     std::cout << ", buffer " << surface.buffer;
 #endif
-    std::cout << ", map " << (surface.map ? "yes" : "no") << '\n';
+    std::cout << ", map " << (surface.map ? "yes" : "no")
+              << ", remove sealed pores "
+              << (surface.remove_sealed_pores ? "yes" : "no") << '\n';
   }
 
   const isthmus::MarchingWindows marching;

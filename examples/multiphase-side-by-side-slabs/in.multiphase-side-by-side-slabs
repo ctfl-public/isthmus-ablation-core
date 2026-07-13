@@ -7,6 +7,8 @@ voxel_material      mat2 id 2 density 500.0
 
 voxel_create        solid slab nx 4 ny 2 nz 2 dx 1.0e-6 material mat1 ox 0.0 oy 0.0 oz 0.0
 voxel_create        solid slab nx 4 ny 2 nz 2 dx 1.0e-6 material mat2 ox 0.0 oy 2.0e-6 oz 0.0
+voxel_ghost         solid axis y boundary infinite layers 1
+voxel_ghost         solid axis z boundary infinite layers 1
 
 source              q1 constant 1.0 units kg/m2/s
 iac_timestep        mass/courant 0.5 source q1
@@ -18,13 +20,14 @@ iac_stats_style     step time nvox ndel mass mf vf front
 
 voxel_dump          hist solid history 1 output/multiphase-side-by-side-slabs/history.csv
 voxel_dump          vox solid vtu 1 output/multiphase-side-by-side-slabs/voxels_*.vtu select active scalar material-id
+voxel_dump          ghost solid vtu 1 output/multiphase-side-by-side-slabs/ghosts_*.vtu select ghosts scalar material-id
 surf_dump           skin skin vtp 1 output/multiphase-side-by-side-slabs/surface_*.vtp
 
 label               ablate-loop
   iac_limit         time ${ablation_time}
-  isthmus_surface   skin voxels solid  map yes
+  isthmus_surface   skin voxels solid
   surf_flux         skin source q1 select normal nx -1.0 ny 0.0 nz 0.0 min-cos 0.5
-  voxel_ablate      solid surface skin policy local delete yes
+  voxel_ablate      solid surface skin policy carryover/normal delete yes
   iac_run           1
   iac_continue      time ${ablation_time} variable keep
   if                "${keep} > 0" then "jump SELF ablate-loop"

@@ -686,6 +686,12 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
       if (map != values.end()) {
         command_entry.isthmus_surface.map = parse_bool(map->second, line_number);
       }
+      const auto remove_sealed_pores =
+          find_first_key(values, {"remove_sealed_pores", "remove-sealed-pores"});
+      if (remove_sealed_pores != values.end()) {
+        command_entry.isthmus_surface.remove_sealed_pores =
+            parse_bool(remove_sealed_pores->second, line_number);
+      }
       const auto crop = values.find("crop");
       if (crop != values.end()) {
         if (crop->second == "real") {

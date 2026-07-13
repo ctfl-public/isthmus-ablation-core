@@ -100,6 +100,8 @@ void Isthmus::command(int narg, char **arg) {
   const char *buffer = value_after(narg - 2, arg + 2, "buffer");
   const char *weighting = value_after(narg - 2, arg + 2, "weighting");
   const char *map = value_after(narg - 2, arg + 2, "map");
+  const char *remove_sealed_pores =
+      first_value_after(narg - 2, arg + 2, {"remove_sealed_pores", "remove-sealed-pores"});
   const char *crop = value_after(narg - 2, arg + 2, "crop");
   const char *resolution = value_after(narg - 2, arg + 2, "resolution");
   const char *iso_value =
@@ -119,6 +121,9 @@ void Isthmus::command(int narg, char **arg) {
   }
   if (map) {
     surface.map = parse_bool(map);
+  }
+  if (remove_sealed_pores) {
+    surface.remove_sealed_pores = parse_bool(remove_sealed_pores);
   }
   if (crop && std::strcmp(crop, "real") == 0) {
     surface.crop_real = true;

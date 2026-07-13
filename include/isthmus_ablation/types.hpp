@@ -104,6 +104,7 @@ struct IsthmusSurfaceCommand {
   double iso_value = 0.5;
   bool weighting = true;
   bool map = true;
+  bool remove_sealed_pores = false;
   bool crop_real = false;
 };
 

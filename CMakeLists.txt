@@ -91,6 +91,17 @@ check_cxx_source_compiles([=[
   }
 ]=] IAC_ISTHMUS_HAS_RUN_OPTIONS_DOMAIN)
 
+unset(IAC_ISTHMUS_HAS_REMOVE_SEALED_PORES CACHE)
+check_cxx_source_compiles([=[
+  #include <isthmus/types.hpp>
+
+  int main() {
+    isthmus::RunOptions options;
+    options.remove_sealed_pores = true;
+    return options.remove_sealed_pores ? 0 : 1;
+  }
+]=] IAC_ISTHMUS_HAS_REMOVE_SEALED_PORES)
+
 if(_iac_try_compile_target_type_was_defined)
   set(CMAKE_TRY_COMPILE_TARGET_TYPE "${_iac_try_compile_target_type}")
 else()
@@ -156,6 +167,12 @@ if(IAC_ISTHMUS_HAS_RUN_OPTIONS_DOMAIN)
   message(STATUS "ISTHMUS API: RunOptions-derived marching domain")
 else()
   message(STATUS "ISTHMUS API: explicit DomainConfig marching domain")
+endif()
+if(IAC_ISTHMUS_HAS_REMOVE_SEALED_PORES)
+  target_compile_definitions(isthmus_ablation_core PRIVATE IAC_ISTHMUS_REMOVE_SEALED_PORES=1)
+  message(STATUS "ISTHMUS API: remove_sealed_pores supported")
+else()
+  message(STATUS "ISTHMUS API: remove_sealed_pores unavailable")
 endif()
 
 if(MSVC)

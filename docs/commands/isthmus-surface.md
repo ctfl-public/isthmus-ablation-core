@@ -6,15 +6,15 @@ voxels.
 ## Syntax
 
 ```text
-isthmus_surface <surface-id> voxels <model> [resolution <R|A:B|voxel>] [iso <value>] [weighting yes|no] [map yes|no] [crop real|no]
+isthmus_surface <surface-id> voxels <model> [resolution <R|A:B|voxel>] [iso <value>] [weighting yes|no] [map yes|no] [remove_sealed_pores yes|no] [crop real|no]
 ```
 
 ## Example
 
 ```text
-isthmus_surface skin voxels solid iso 0.45 map yes
-isthmus_surface skin voxels solid map yes crop real
-isthmus_surface skin voxels solid resolution 1.6 iso 0.6 map yes
+isthmus_surface skin voxels solid iso 0.45
+isthmus_surface skin voxels solid crop real
+isthmus_surface skin voxels solid resolution 1.6 iso 0.6 remove_sealed_pores yes
 ```
 
 ## Description
@@ -23,9 +23,16 @@ The command sends the active voxels in `<model>` to ISTHMUS, runs marching
 cubes, stores the resulting triangle mesh, and optionally stores
 triangle-to-voxel ownership fractions.
 
-`map yes` is required when the surface will be used for ablation, because
-`voxel_ablate <model> surface <surface-id>` needs those ownership fractions to
-send triangle mass loss back to voxels.
+Surface-to-voxel mapping is enabled by default because ablation needs ownership
+fractions to send triangle mass loss back to voxels. Use `map no` only for
+visualization or SPARTA-install surfaces that will not feed
+`voxel_ablate <model> surface <surface-id>`.
+
+`remove_sealed_pores yes` removes closed internal pore surfaces from the
+generated mesh. Enable it for DSMC/SPARTA ablation surfaces, where sealed pores
+are unreachable by particles and can confuse SPARTA cut-cell inside/outside
+classification. The default is `no` for non-DSMC uses where enclosed porosity is
+real data.
 
 `buffer` is a legacy option accepted for input compatibility. Newer ISTHMUS
 builds derive the required marching-domain padding internally, so new inputs
