@@ -39,9 +39,9 @@ iac_stats_style     step time nvox ndel mf vf
 variable            iter loop 2
 label               coupled-loop
 
-  fix               mflux ave/surf all 1 1 1 c_mflux[*] ave one
-  dsmc_converge     flux skin fix mflux quantity mass-flux every 1 &
-                      reduce sum-area rel 2.0 cv 1.0 window 1 min-iter 1 max-iter 1
+  fix               mflux ave/surf all 1 5 5 c_mflux[*] ave one
+  dsmc_converge     flux skin fix mflux quantity mass-flux every 5 &
+                      reduce sum-area rel 0.5 cv 0.5 window 2 min-iter 2 max-iter 3
   surf_flux         skin dsmc/mass-flux fix mflux quantity mass-flux units flux mass-courant 1.0
   unfix             mflux
   voxel_ablate      solid surface skin policy carryover/normal delete yes

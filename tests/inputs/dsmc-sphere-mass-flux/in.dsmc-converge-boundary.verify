@@ -4,5 +4,6 @@
 include             examples/dsmc-boundary-mass-flux/in.converge-boundary
 
 iac_verify          dsmc-converged exact "1.0" tolerance 0.0 percent
-iac_verify          dsmc-converge-iter exact "1.0" tolerance 200.0 percent
+iac_verify          dsmc-converge-iter exact "2.0" tolerance 0.0 absolute
+iac_verify          dsmc-converge-steps exact "2.0" tolerance 0.0 absolute
 iac_verify          dsmc-converge-positive-support exact "1.0" tolerance 0.0 percent

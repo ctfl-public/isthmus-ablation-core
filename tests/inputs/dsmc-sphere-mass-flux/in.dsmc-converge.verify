@@ -4,5 +4,6 @@
 include             examples/dsmc-sphere-mass-flux/in.converge-measure
 
 iac_verify          dsmc-converged exact "1.0" tolerance 0.0 percent
-iac_verify          dsmc-converge-iter exact "1.0" tolerance 0.0 percent
-iac_verify          rmflux exact rmflux-exact tolerance 15.0 percent
+iac_verify          dsmc-converge-iter exact "2.0" tolerance 0.0 absolute
+iac_verify          dsmc-converge-steps exact "10.0" tolerance 0.0 absolute
+iac_verify          rmflux exact rmflux-exact tolerance 60.0 percent

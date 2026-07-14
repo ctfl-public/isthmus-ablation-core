@@ -26,10 +26,10 @@ bound_modify        xlo collide wall react ox
 compute             bflux react/boundary/mass/flux ox mass 0.0240214
 fix                 bflux ave/time 1 1 1 c_bflux[*][1] mode vector ave one
 
-create_particles    air n 1000 twopass
+create_particles    air n 400 twopass
 
 stats_style         step cpu np nscoll nscheck nsreact
 stats               1
 
 dsmc_converge       flux boundary xlo fix bflux quantity mass-flux every 1 &
-                    rel 2.0 cv 1.0 window 1 min-iter 1 max-iter 3
+                    rel 2.0 cv 1.0 window 2 min-iter 2 max-iter 4

@@ -3,5 +3,5 @@
 
 include             in.dsmc-co-converge
 
-iac_verify          mf exact "0.9221" tolerance 5.0 percent norm final
-iac_verify          vf exact "0.9794" tolerance 2.0 percent norm final
+iac_verify          mf exact "0.9221" tolerance 3.0 percent norm final
+iac_verify          vf exact "0.9794" tolerance 1.0 percent norm final

@@ -29,15 +29,15 @@ surf_react          ox prob examples/dsmc-sphere-kinetic/carbon-co.surf
 surf_modify         all collide 1 react ox
 
 compute             mflux react/surf/mass/flux all ox mass 0.0240214 norm flux
-fix                 mflux ave/surf all 1 1 1 c_mflux[*] ave one
+fix                 mflux ave/surf all 1 5 5 c_mflux[*] ave one
 
 create_particles    air n 0 twopass
 fix                 reservoir emit/face air all twopass
 
 stats_style         step cpu np nscoll nscheck
-stats               1
-dsmc_converge       flux skin fix mflux quantity mass-flux every 1 reduce sum-area &
-                    rel 2.0 cv 1.0 window 1 min-iter 1 max-iter 1 &
+stats               5
+dsmc_converge       flux skin fix mflux quantity mass-flux every 5 reduce sum-area &
+                    rel 0.5 cv 0.5 window 2 min-iter 2 max-iter 3 &
                     select normal nx 1.0 ny 0.0 nz 0.0 min-cos -1.0
 
 surf_measure_flux   skin dsmc/mass-flux fix mflux quantity mass-flux units flux &

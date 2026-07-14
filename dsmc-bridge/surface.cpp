@@ -373,13 +373,9 @@ double reduce_surface_values(const std::vector<double> &values,
   return sum;
 }
 
-void run_dsmc_block(SPARTA *sparta, int steps, bool first_block) {
+void run_dsmc_block(SPARTA *sparta, int steps) {
   std::vector<std::string> strings;
   strings.push_back(std::to_string(steps));
-  if (!first_block) {
-    strings.push_back("pre");
-    strings.push_back("no");
-  }
   strings.push_back("post");
   strings.push_back("no");
   std::vector<char *> args;
@@ -1020,7 +1016,7 @@ void Surface::command(int narg, char **arg) {
       }
 
       for (iter = 1; iter <= max_iter; ++iter) {
-        run_dsmc_block(sparta, every, iter == 1);
+        run_dsmc_block(sparta, every);
         Fix *ave = require_global_vector_fix(modify, error, "dsmc_converge flux boundary",
                                              fix_id, face_index);
         current = ave->compute_vector(face_index);
@@ -1137,7 +1133,7 @@ void Surface::command(int narg, char **arg) {
     IACBridge::print_coupled_summary(sparta);
 
     for (iter = 1; iter <= max_iter; ++iter) {
-      run_dsmc_block(sparta, every, iter == 1);
+      run_dsmc_block(sparta, every);
       Fix *ave = require_surface_fix(sparta, modify, comm, error,
                                      "dsmc_converge flux", fix_id, column);
       const auto values =

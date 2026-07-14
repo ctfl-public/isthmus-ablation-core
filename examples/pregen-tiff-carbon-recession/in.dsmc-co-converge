@@ -53,10 +53,10 @@ variable            ablation_time equal 5.53188e-8
 variable            keep internal 1
 label               coupled-loop
 
-  fix               mflux ave/surf all 1 4 4 c_mflux[*] ave one
+  fix               mflux ave/surf all 1 10 10 c_mflux[*] ave one
   dsmc_converge     flux skin fix mflux quantity mass-flux &
-                      every 4 reduce sum-area &
-                      rel 2.0 cv 1.0 window 1 min-iter 1 max-iter 1 &
+                      every 10 reduce sum-area &
+                      rel 0.5 cv 0.5 window 2 min-iter 2 max-iter 3 &
                       select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
 
   surf_flux         skin dsmc/mass-flux fix mflux quantity mass-flux &
