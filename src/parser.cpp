@@ -737,6 +737,11 @@ void parse_input_file_into(const std::filesystem::path &path, Config &config,
             command_entry.surface_flux.reaction_prob =
                 parse_double(reaction_prob->second, line_number);
           }
+          const auto mass_courant = values.find("mass-courant");
+          if (mass_courant != values.end()) {
+            command_entry.surface_flux.mass_courant =
+                parse_double(mass_courant->second, line_number);
+          }
         }
         command_entry.surface_flux.select = required(values, "select", line_number);
         if (command_entry.surface_flux.select == "normal") {

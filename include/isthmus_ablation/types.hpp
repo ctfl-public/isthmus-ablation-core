@@ -122,6 +122,7 @@ struct SurfaceFluxCommand {
   double molecular_mass = 0.0;
   double reaction_prob = 1.0;
   double solid_mass_per_hit = 0.0;
+  double mass_courant = 0.0;
 };
 
 struct VoxelGhostCommand {

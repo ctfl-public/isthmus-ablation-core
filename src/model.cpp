@@ -1180,6 +1180,9 @@ void Model::validate_surface_flux(const SurfaceFluxCommand &flux) const {
     if (flux.solid_mass_per_hit <= 0.0) {
       throw RuntimeError("surface flux kinetic/theory solid-mass-per-hit must be positive");
     }
+    if (flux.mass_courant < 0.0) {
+      throw RuntimeError("surface flux kinetic/theory mass-courant must be nonnegative");
+    }
   } else {
     throw RuntimeError("surface flux style must be source or kinetic/theory");
   }
@@ -1668,7 +1671,9 @@ void Model::apply_surface_flux(const SurfaceFluxCommand &flux) {
     }
   }
   const double footprint_eps = 1.0e-10 * voxel_dx();
-  for (auto &triangle : surface.triangles) {
+  std::vector<bool> selected_triangles(surface.triangles.size(), false);
+  for (std::size_t i = 0; i < surface.triangles.size(); ++i) {
+    auto &triangle = surface.triangles[i];
     bool selected = flux.select == "all";
     if (flux.select == "normal") {
       selected = dot3(triangle.normal, direction) >= flux.min_cos;
@@ -1688,6 +1693,20 @@ void Model::apply_surface_flux(const SurfaceFluxCommand &flux) {
     } else if (flux.select == "voxels") {
       selected = !triangle.voxel_ids.empty();
     }
+    selected_triangles[i] = selected;
+  }
+  if (flux.style == "kinetic/theory" && flux.mass_courant > 0.0) {
+    std::vector<double> mass_fluxes(surface.triangles.size(), 0.0);
+    for (std::size_t i = 0; i < surface.triangles.size(); ++i) {
+      if (selected_triangles[i]) {
+        mass_fluxes[i] = mass_flux;
+      }
+    }
+    set_timestep_from_triangle_fluxes(flux.surface, mass_fluxes, flux.mass_courant);
+  }
+  for (std::size_t i = 0; i < surface.triangles.size(); ++i) {
+    auto &triangle = surface.triangles[i];
+    const bool selected = selected_triangles[i];
     if (!selected) {
       continue;
     }

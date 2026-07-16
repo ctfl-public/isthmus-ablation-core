@@ -654,6 +654,12 @@ iac_add_registered_test(
   COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-kinetic-theory.verify
 )
 iac_add_registered_test(
+  NAME sphere-isthmus-kinetic-theory-courant-verification
+  REQUIRES ISTHMUS
+  LABELS standalone isthmus
+  COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-kinetic-theory-courant.verify
+)
+iac_add_registered_test(
   NAME sphere-voxel-lattice-verification
   REQUIRES DSMC
   LABELS standalone hosted dsmc sphere

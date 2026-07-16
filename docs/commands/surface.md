@@ -13,7 +13,7 @@ surf_flux <surface-id> source <source-id> select normal nx <x> ny <y> nz <z> [mi
 surf_flux <surface-id> source <source-id> select voxels voxels <model>
 surf_flux <surface-id> kinetic/theory pressure <p> temperature <T> \
   mole-fraction <x> molecular-mass <kg> reaction-prob <alpha> \
-  solid-mass-per-hit <kg> select <selector>
+  solid-mass-per-hit <kg> [mass-courant <C>] select <selector>
 surf_flux <surface-id> dsmc/surf fix <fix-id> quantity incident-number-flux \
   [reaction <path> | solid-mass-per-hit <kg>] \
   [reaction-prob <p>] [ablation-dt <dt> | mass-courant <C>]
@@ -62,7 +62,7 @@ surf_flux skin source q1 select normal nx 1.0 ny 0.0 nz 0.0 min-cos 0.5
 surf_flux skin source q1 select voxels voxels solid
 surf_flux skin kinetic/theory pressure 50.0 temperature 5000.0 \
   mole-fraction 0.21 molecular-mass 5.313e-26 reaction-prob 1.0 \
-  solid-mass-per-hit 1.3011869411625376e-23 select all
+  solid-mass-per-hit 1.3011869411625376e-23 mass-courant 0.8 select all
 surf_flux skin dsmc/surf fix sflux mass-courant 0.25
 surf_flux skin dsmc/reaction fix rco column 1 sample-steps 20 \
   reaction carbon-co.surf mass-courant 0.1666666667
@@ -114,6 +114,9 @@ flux = reaction-prob * solid-mass-per-hit * Gamma
 This is intended as the first DSMC-coupled verification source: DSMC can run a
 spatially uniform, stationary hot gas domain while this command applies the
 corresponding continuum kinetic-theory flux to the current ISTHMUS triangles.
+With `mass-courant`, the command also chooses the solid timestep from the
+mapped kinetic-theory flux so that no voxel receives more than about `C` voxel
+masses of requested removal in one ablation step.
 
 With `dsmc/surf`, the command reads per-surface data from a DSMC `fix ave/surf`
 instance. The preferred pattern is to average only the incident number flux:

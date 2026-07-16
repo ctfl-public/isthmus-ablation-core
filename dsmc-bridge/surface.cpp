@@ -933,11 +933,15 @@ void Surface::command(int narg, char **arg) {
       flux.solid_mass_per_hit = std::atof(solid_mass);
       const char *mole_fraction = value_after(npairs, pairs, "mole-fraction");
       const char *reaction_prob = value_after(npairs, pairs, "reaction-prob");
+      const char *mass_courant = value_after(npairs, pairs, "mass-courant");
       if (mole_fraction) {
         flux.mole_fraction = std::atof(mole_fraction);
       }
       if (reaction_prob) {
         flux.reaction_prob = std::atof(reaction_prob);
+      }
+      if (mass_courant) {
+        flux.mass_courant = std::atof(mass_courant);
       }
       parse_selector(flux, npairs, pairs, error);
     } else if (std::strcmp(arg[2], "source") == 0) {
