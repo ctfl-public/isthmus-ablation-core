@@ -190,6 +190,11 @@ add_executable(
 )
 
 add_executable(
+  sphere-voxel-lattice-check
+  tests/tools/sphere-voxel-lattice-check.cpp
+)
+
+add_executable(
   create-dsmc-overlay
   tools/create_dsmc_overlay.cpp
 )
@@ -304,7 +309,7 @@ if(IAC_ISTHMUS_INCLUDE_DIRS)
   endforeach()
 endif()
 
-set(IAC_DSMC_TARGET_DEPENDS ia-core dsmc-kinetic-convergence-check)
+set(IAC_DSMC_TARGET_DEPENDS ia-core dsmc-kinetic-convergence-check sphere-voxel-lattice-check)
 if(TARGET dsmc-iac)
   list(APPEND IAC_DSMC_TARGET_DEPENDS dsmc-iac)
 endif()
@@ -649,6 +654,18 @@ iac_add_registered_test(
   COMMAND $<TARGET_FILE:ia-core> -in ${CMAKE_SOURCE_DIR}/tests/inputs/sphere-isthmus-ablation/in.sphere-isthmus-kinetic-theory.verify
 )
 iac_add_registered_test(
+  NAME sphere-voxel-lattice-verification
+  REQUIRES DSMC
+  LABELS standalone hosted dsmc sphere
+  COMMAND ${CMAKE_COMMAND}
+          -DIA_CORE_EXECUTABLE=$<TARGET_FILE:ia-core>
+          -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
+          -DCHECKER=$<TARGET_FILE:sphere-voxel-lattice-check>
+          -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
+          -DBINARY_DIR=${CMAKE_BINARY_DIR}
+          -P ${CMAKE_SOURCE_DIR}/tests/cmake/run-sphere-voxel-lattice.cmake
+)
+iac_add_registered_test(
   NAME sphere-isthmus-normal-carryover-convergence
   REQUIRES ISTHMUS
   LABELS standalone isthmus convergence
@@ -780,6 +797,16 @@ iac_add_registered_test(
           -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
           -DINPUT=${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-sphere-mass-flux/in.dsmc-converge-zero-flux.verify
           -DEXPECTED_REGEX=dsmc_converge flux did not converge before max-iter
+          -P ${CMAKE_SOURCE_DIR}/tests/cmake/expect-dsmc-failure.cmake
+)
+iac_add_registered_test(
+  NAME dsmc-stale-ave-surf-guard-verification
+  REQUIRES DSMC
+  LABELS dsmc
+  COMMAND ${CMAKE_COMMAND}
+          -DDSMC_EXECUTABLE=${IAC_DSMC_EXECUTABLE}
+          -DINPUT=${CMAKE_SOURCE_DIR}/tests/inputs/dsmc-sphere-mass-flux/in.dsmc-stale-ave-surf.verify
+          -DEXPECTED_REGEX=fix 'mflux' is not current on timestep 2
           -P ${CMAKE_SOURCE_DIR}/tests/cmake/expect-dsmc-failure.cmake
 )
 iac_add_dsmc_input_test_serial(

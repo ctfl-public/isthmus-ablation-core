@@ -1,0 +1,18 @@
+# Shared standalone/DSMC-hosted verification input.
+# This file should run with ia-core and build-dsmc/bin/dsmc-iac.
+
+units               si
+
+voxel_material      carbon density 1800.0
+voxel_create        solid sphere diameter 1.0e-3 resolution 45 material carbon cx 2.5e-4 cy -1.25e-4 cz 7.5e-5
+source              q0 constant 0.0 units kg/m2/s
+iac_timestep        1.0e-9
+
+voxel_dump          vox solid vtu 1 @OUTPUT_DIR@/voxels_*.vtu select active scalar ix
+
+voxel_ablate        solid source q0 policy local face xlo delete no
+iac_run             1
+
+iac_verify          nx exact "45" tolerance 0.0 absolute
+iac_verify          ny exact "45" tolerance 0.0 absolute
+iac_verify          nz exact "45" tolerance 0.0 absolute

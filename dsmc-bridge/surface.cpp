@@ -279,7 +279,14 @@ Fix *require_surface_fix(SPARTA *sparta, Modify *modify, Comm *comm, Error *erro
   if (ave->size_per_surf_cols > 0 && !ave->array_surf) {
     error->all(FLERR, (std::string(command) + " fix array data is not available").c_str());
   }
-  (void)sparta;
+  if (ave->per_surf_freq > 0 && sparta->update->ntimestep % ave->per_surf_freq != 0) {
+    std::ostringstream message;
+    message << command << " fix '" << fix_id << "' is not current on timestep "
+            << sparta->update->ntimestep << "; it publishes per-surface data every "
+            << ave->per_surf_freq
+            << " steps, so run to a compatible timestep or reduce the fix ave/surf Nfreq";
+    error->all(FLERR, message.str().c_str());
+  }
   return ave;
 }
 

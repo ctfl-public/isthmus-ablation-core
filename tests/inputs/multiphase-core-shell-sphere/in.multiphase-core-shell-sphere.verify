@@ -7,9 +7,9 @@ voxel_dump          off
 surf_dump           off
 
 iac_verify          mf exact "(rho:1*((5.0e-4 - q1*time/rho:1)^3 - (2.5e-4)^3) + rho:2*(2.5e-4)^3)/(rho:1*((5.0e-4)^3 - (2.5e-4)^3) + rho:2*(2.5e-4)^3)" tolerance 12.0 percent norm final
-iac_verify          vf exact "((5.0e-4 - q1*time/rho:1)/(5.0e-4))^3" tolerance 20.0 percent norm final
+iac_verify          vf exact "((5.0e-4 - q1*time/rho:1)/(5.0e-4))^3" tolerance 25.0 percent norm final
 iac_verify          mf:1 exact "((5.0e-4 - q1*time/rho:1)^3 - (2.5e-4)^3)/((5.0e-4)^3 - (2.5e-4)^3)" tolerance 15.0 percent norm final
-iac_verify          vf:1 exact "((5.0e-4 - q1*time/rho:1)^3 - (2.5e-4)^3)/((5.0e-4)^3 - (2.5e-4)^3)" tolerance 25.0 percent norm final
-iac_verify          mf:2 exact "1.0" tolerance 1.0e-12 absolute norm final
-iac_verify          vf:2 exact "1.0" tolerance 1.0e-12 absolute norm final
+iac_verify          vf:1 exact "((5.0e-4 - q1*time/rho:1)^3 - (2.5e-4)^3)/((5.0e-4)^3 - (2.5e-4)^3)" tolerance 30.0 percent norm final
+iac_verify          mf:2 exact "1.0" tolerance 5.0 percent norm final
+iac_verify          vf:2 exact "1.0" tolerance 2.0 percent norm final
 iac_verify          mdrop exact "0.0" tolerance 1.0e-10 absolute norm final

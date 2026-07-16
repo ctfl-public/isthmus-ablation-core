@@ -753,24 +753,24 @@ void Model::initialize_creates() {
       require_dx(g.dx);
       const auto material_index = material_index_for_name(g.material);
       const double radius = 0.5 * g.diameter;
-      const int n = static_cast<int>(std::ceil(g.diameter / dx_));
-      const double origin = -0.5 * static_cast<double>(n) * dx_;
+      const int n = g.resolution > 0 ? g.resolution
+                                     : static_cast<int>(std::ceil(g.diameter / dx_));
+      const std::array<double, 3> origin{{g.center[0] - 0.5 * static_cast<double>(n) * dx_,
+                                          g.center[1] - 0.5 * static_cast<double>(n) * dx_,
+                                          g.center[2] - 0.5 * static_cast<double>(n) * dx_}};
       for (int ix = 0; ix < n; ++ix) {
         for (int iy = 0; iy < n; ++iy) {
           for (int iz = 0; iz < n; ++iz) {
-            const double local_x = origin + (static_cast<double>(ix) + 0.5) * dx_;
-            const double local_y = origin + (static_cast<double>(iy) + 0.5) * dx_;
-            const double local_z = origin + (static_cast<double>(iz) + 0.5) * dx_;
+            const double x = origin[0] + (static_cast<double>(ix) + 0.5) * dx_;
+            const double y = origin[1] + (static_cast<double>(iy) + 0.5) * dx_;
+            const double z = origin[2] + (static_cast<double>(iz) + 0.5) * dx_;
+            const double local_x = x - g.center[0];
+            const double local_y = y - g.center[1];
+            const double local_z = z - g.center[2];
             if (local_x * local_x + local_y * local_y + local_z * local_z > radius * radius) {
               continue;
             }
-            const double x = g.center[0] + local_x;
-            const double y = g.center[1] + local_y;
-            const double z = g.center[2] + local_z;
-            const int gx = static_cast<int>(std::llround((x - 0.5 * dx_) / dx_));
-            const int gy = static_cast<int>(std::llround((y - 0.5 * dx_) / dx_));
-            const int gz = static_cast<int>(std::llround((z - 0.5 * dx_) / dx_));
-            active[{gx, gy, gz}] = PendingVoxel{gx, gy, gz, x, y, z, material_index};
+            active[{ix, iy, iz}] = PendingVoxel{ix, iy, iz, x, y, z, material_index};
           }
         }
       }
@@ -941,7 +941,8 @@ void Model::initialize_sphere() {
   }
 
   const double radius = 0.5 * g.diameter;
-  const int n = static_cast<int>(std::ceil(g.diameter / g.dx));
+  const int n = g.resolution > 0 ? g.resolution
+                                 : static_cast<int>(std::ceil(g.diameter / g.dx));
   if (n <= 0) {
     throw RuntimeError("voxel create sphere generated an empty grid");
   }
@@ -953,7 +954,9 @@ void Model::initialize_sphere() {
   const auto &material = material_for_name(g.material);
   const auto material_index = static_cast<std::size_t>(&material - config_.materials.data());
   voxel_mass_ = material.density * std::pow(g.dx, 3);
-  const double origin = -0.5 * static_cast<double>(n) * g.dx;
+  const std::array<double, 3> origin{{g.center[0] - 0.5 * static_cast<double>(n) * g.dx,
+                                      g.center[1] - 0.5 * static_cast<double>(n) * g.dx,
+                                      g.center[2] - 0.5 * static_cast<double>(n) * g.dx}};
 
   voxels_.clear();
   voxels_.reserve(static_cast<std::size_t>(n) * n * n);
@@ -961,10 +964,13 @@ void Model::initialize_sphere() {
   for (int ix = 0; ix < n; ++ix) {
     for (int iy = 0; iy < n; ++iy) {
       for (int iz = 0; iz < n; ++iz) {
-        const double x = origin + (static_cast<double>(ix) + 0.5) * g.dx;
-        const double y = origin + (static_cast<double>(iy) + 0.5) * g.dx;
-        const double z = origin + (static_cast<double>(iz) + 0.5) * g.dx;
-        const bool active = x * x + y * y + z * z <= radius * radius;
+        const double x = origin[0] + (static_cast<double>(ix) + 0.5) * g.dx;
+        const double y = origin[1] + (static_cast<double>(iy) + 0.5) * g.dx;
+        const double z = origin[2] + (static_cast<double>(iz) + 0.5) * g.dx;
+        const double rx = x - g.center[0];
+        const double ry = y - g.center[1];
+        const double rz = z - g.center[2];
+        const bool active = rx * rx + ry * ry + rz * rz <= radius * radius;
         voxels_.push_back(Voxel{id++, ix, iy, iz, x, y, z,
                                 active ? voxel_mass_ : 0.0, material_index, active, false});
       }

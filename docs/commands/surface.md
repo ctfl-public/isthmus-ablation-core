@@ -229,6 +229,11 @@ the pending triangle mass. Use `units flux` when the DSMC column is already
 `kg/m2/s`; use `units flow` when the DSMC column is `kg/s` per triangle and
 IAC should divide by triangle area.
 
+Run DSMC far enough for the averaging fix to publish before calling
+`surf_flux`. For example, `fix mflux ave/surf all 5 5000 25000 ...` needs a
+25,000-step run after the fix is defined; reading it after only 5,000 steps
+will use stale per-surface data and is rejected by the bridge.
+
 `surf_measure_flux ... dsmc/mass-flux` performs the same read and reduction
 without changing voxel mass. With `expected kinetic/theory`, it compares the
 area-averaged DSMC mass flux to the ideal-gas one-way impingement estimate:
