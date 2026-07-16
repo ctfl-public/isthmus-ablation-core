@@ -1,0 +1,83 @@
+# Hackathon DSMC/IAC benchmark.
+variable            sphere_resolution equal 100       # voxels across diameter
+variable            ablation_steps equal 60           # IAC/ISTHMUS updates
+variable            dsmc_steps_per_ablation equal 20  # DSMC steps per update
+variable            voxel_courant equal 0.8           # voxel layers per update
+
+variable            sphere_diameter equal 1.0e-3      # m
+variable            box_half_width equal 1.5e-3       # m
+variable            gas_pressure equal 50.0           # Pa
+variable            gas_temperature equal 5000.0      # K
+variable            o2_number_density equal 7.244e23  # 1/m3
+variable            particle_weight equal 7.0e10      # real molecules / particle
+variable            dsmc_dt equal 1.0e-7              # s
+
+variable            carbon_density equal 1800.0       # kg/m3
+variable            carbon_molar_mass equal 0.0120107 # kg/mol
+variable            o2_mass equal 5.31352e-26         # kg
+variable            carbon_removed_per_o2 equal 3.98885e-26 # kg
+
+seed                24680
+dimension           3
+global              nrho ${o2_number_density} fnum ${particle_weight} gridcut 0.0 &
+                      surfmax 200000 splitmax 20000 comm/sort yes &
+                      nedgebadnum 16 ncutbadnum 100 nmismatch 100
+timestep            ${dsmc_dt}
+
+boundary            p p p
+create_box          -${box_half_width} ${box_half_width} &
+                    -${box_half_width} ${box_half_width} &
+                    -${box_half_width} ${box_half_width}
+create_grid         30 30 30
+balance_grid        rcb cell
+
+species             ../dsmc-sphere-kinetic/air-react-to-flux.species O2
+mixture             gas O2 frac 1.0
+mixture             gas temp ${gas_temperature} vstream 0.0 0.0 0.0
+
+voxel_material      carbon density ${carbon_density} molar-mass ${carbon_molar_mass} formula C
+voxel_create        solid sphere diameter ${sphere_diameter} resolution ${sphere_resolution} material carbon
+
+isthmus_surface     skin voxels solid map yes
+surf_install        skin particle none type 1
+surf_write_vtp      skin output/surface_*.vtp
+
+surf_collide        1 diffuse ${gas_temperature} 1.0
+surf_modify         all collide 1
+
+compute             gasgrid thermal/grid all gas temp press
+compute             frac grid all species massfrac
+fix                 gasave ave/grid all 1 100 100 c_gasgrid[*] c_frac[*] ave one
+
+create_particles    gas n 0 twopass
+dump                pdump particle gas 100 output/particles_*.dump id type proc cellID x y z vx vy vz
+dump_modify         pdump pad 6
+voxel_dump          vox solid vtu 1 output/voxels_*.vtu select active scalar mf
+
+stats_style         step cpu np nscoll nscheck
+stats_modify        flush yes
+stats               1000000
+iac_stats           1
+iac_stats_style     step time nvox ndel mass mf vf rad
+
+variable            frame loop ${ablation_steps}
+label               frame-loop
+  run               ${dsmc_steps_per_ablation} post no
+  grid_write_vtu    gasave output/fluid_*.vtu index iac-next fields T p mf-O2
+  isthmus_surface   skin voxels solid map yes
+  surf_flux         skin kinetic/theory pressure ${gas_pressure} temperature ${gas_temperature} &
+                      mole-fraction 1.0 molecular-mass ${o2_mass} reaction-prob 1.0 &
+                      solid-mass-per-hit ${carbon_removed_per_o2} mass-courant ${voxel_courant} &
+                      select all
+  voxel_ablate      solid surface skin policy carryover/normal delete yes
+  iac_run           1
+  remove_surf       all
+  isthmus_surface   skin voxels solid map yes
+  surf_install      skin particle none type 1
+  surf_modify       all collide 1
+  surf_write_vtp    skin output/surface_*.vtp
+  next              frame
+  jump              SELF frame-loop
+
+undump              pdump
+voxel_write_history solid output/history.csv
